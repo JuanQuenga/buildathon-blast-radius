@@ -1,0 +1,6 @@
+.git
+eval/
+docs/
+tools/
+**/__pycache__
+*.jsonl
