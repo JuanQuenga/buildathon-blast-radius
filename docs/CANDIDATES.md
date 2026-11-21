@@ -2,7 +2,7 @@
 
 ## Please submit
 
-**Please submit `diagnostic-d2-attempted` (`0406efd`) at 10:23 AM ET if the production hybrid has not passed its release gates by 10:10.** D2 measures the worker cost of inconclusive TPC-DS probes that actually ran. Candidate 14 remains selected for the final. [Diagnostic interpretation](PRACTICE-DIAGNOSTICS.md)
+**Please submit `diagnostic-d2-attempted` (`0406efd`) for the 10:23 AM ET practice slot.** Candidate 14 remains selected for the final. The production hybrid failed its holdout and per-patch CPU gates and has no candidate-16 tag. Its 197-holdout total was 1,635.836 seconds versus 1,607.804 on a fresh C14 run. [Hybrid measurements and forecast](HYBRID16.md) · [Diagnostic interpretation](PRACTICE-DIAGNOSTICS.md)
 
 ### Candidate-15 official result
 
