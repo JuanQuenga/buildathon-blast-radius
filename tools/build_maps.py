@@ -68,6 +68,49 @@ def static_structure(text: str):
     return scopes, spans
 
 
+def module_imports(bundle: dict) -> dict:
+    """module -> modules it imports while being imported (module level and
+    class bodies; not function bodies, not ``if TYPE_CHECKING``)."""
+    import ast
+
+    def modname(f):
+        p = f[:-3].replace("/", ".")
+        return p[: -len(".__init__")] if p.endswith(".__init__") else p
+
+    out = {}
+    for f, text in bundle.items():
+        me = modname(f)
+        pkg = me.split(".") if f.endswith("__init__.py") else me.split(".")[:-1]
+        deps = set()
+
+        def visit(body):
+            for s in body:
+                if isinstance(s, ast.If) and "TYPE_CHECKING" in ast.dump(s.test):
+                    visit(s.orelse)
+                    continue
+                if isinstance(s, ast.Import):
+                    deps.update(a.name for a in s.names)
+                elif isinstance(s, ast.ImportFrom):
+                    base = s.module or ""
+                    if s.level:
+                        p = pkg[: len(pkg) - (s.level - 1)] if s.level > 1 else pkg
+                        base = ".".join(p + ([base] if base else []))
+                    deps.add(base)
+                    deps.update(f"{base}.{a.name}" for a in s.names)
+                elif isinstance(s, (ast.If, ast.Try, ast.With)):
+                    visit(s.body)
+                    visit(getattr(s, "orelse", []))
+                    for h in getattr(s, "handlers", []):
+                        visit(h.body)
+                    visit(getattr(s, "finalbody", []))
+                elif isinstance(s, ast.ClassDef):
+                    visit(s.body)
+
+        visit(ast.parse(text).body)
+        out[me] = sorted(d for d in deps if d.startswith(("sqlglot", "tests")))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--trace", required=True)
@@ -166,11 +209,14 @@ def main() -> int:
     for f in files:
         if f.endswith(".py") and (f.startswith("sqlglot/") or f.startswith("tests/")):
             bundle[f] = (src / f).read_text(encoding="utf-8")
+    config = {f: (src / f).read_text(encoding="utf-8") for f in ("pyproject.toml", "setup.cfg")
+              if (src / f).exists()}
     scopes, spans = {}, {}
     for f, text in bundle.items():
         sc, sp = static_structure(text)
         scopes[f] = ([x[1] for x in sc], sc)
         spans[f] = ([x[0] for x in sp], [x[1] for x in sp])
+    index["imports"] = module_imports(bundle)
     index["scopes"] = scopes
     index["spans"] = spans
     if a.ns:
@@ -186,7 +232,7 @@ def main() -> int:
     print(f"index: {len(sets)} unique sets, {sum(len(v) for v in cov_ids.values())} lines, "
           f"{len(blob) / 1e6:.2f} MB")
 
-    sblob = lzma.compress(pickle.dumps({"files": sorted(files), "src": bundle}, protocol=5),
+    sblob = lzma.compress(pickle.dumps({"files": sorted(files), "src": bundle, "config": config}, protocol=5),
                           preset=9 | lzma.PRESET_EXTREME)
     (out / "src.pkl.xz").write_bytes(sblob)
     print(f"src: {len(bundle)} py files of {len(files)}, {len(sblob) / 1e6:.2f} MB")

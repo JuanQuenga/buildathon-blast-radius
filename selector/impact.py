@@ -53,9 +53,10 @@ _BUILTINS = frozenset(dir(builtins)) | {"__file__", "__name__", "__doc__", "__sp
                                         "__builtins__", "__annotations__", "__dict__",
                                         "__qualname__", "__module__", "__class__"}
 
-FULL_PATHS = {"pyproject.toml", "setup.cfg", "setup.py", "pytest.ini", "tox.ini",
-              "conftest.py", "tests/conftest.py", "tests/__init__.py", "requirements.txt",
-              "sqlglot/py.typed"}
+# files that configure pytest / collection itself
+FULL_PATHS = {"pytest.ini", "tox.ini", "conftest.py", "tests/conftest.py", ".pytest.ini",
+              "sitecustomize.py", "usercustomize.py"}
+CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 
 
 def _index() -> dict:
@@ -438,6 +439,9 @@ class Analysis:
         for p in (oldp, newp):
             if p and (p in FULL_PATHS or p.rsplit("/", 1)[-1] == "conftest.py"):
                 raise Unsupported(f"config/collection file {p}")
+            if p in CONFIG_PATHS:
+                self.config_file(fp)
+                return
         is_py = lambda p: p is not None and p.endswith(".py") and (
             p.startswith("sqlglot/") or p.startswith("tests/")) and not p.startswith(
             "tests/fixtures/")
@@ -445,6 +449,43 @@ class Analysis:
             self.python_file(fp)
         else:
             self.data_file(fp)
+
+    def config_file(self, fp: FilePatch):
+        """pyproject.toml / setup.cfg: only pytest's own sections can change
+        how the suite runs; anything else is packaging/lint metadata."""
+        if fp.status != "M" or fp.old_path != fp.new_path:
+            raise Unsupported(f"{fp.path} added/removed/renamed")
+        old = _sources().get("config", {}).get(fp.old_path)
+        if old is None:
+            raise Unsupported(f"no pinned copy of {fp.old_path}")
+        new, _ = apply_hunks(old, fp.hunks)
+        if fp.old_path == "pyproject.toml":
+            import tomllib
+
+            try:
+                o, n = tomllib.loads(old), tomllib.loads(new)
+            except Exception:
+                raise Unsupported("pyproject.toml no longer parses")
+            keep = lambda d: {"pytest": d.get("tool", {}).get("pytest"),
+                              "build": d.get("build-system")}
+            same = keep(o) == keep(n)
+        else:
+            import configparser
+
+            def sect(text):
+                cp = configparser.RawConfigParser()
+                cp.read_string(text)
+                return {k: dict(cp.items(k)) for k in cp.sections()
+                        if k in ("tool:pytest", "pytest")}
+
+            try:
+                same = sect(old) == sect(new)
+            except Exception:
+                raise Unsupported("setup.cfg no longer parses")
+        if not same:
+            raise Unsupported(f"pytest configuration in {fp.old_path} changed")
+        self.reasons.append(f"{fp.old_path}: no pytest-relevant change")
+        self.data_file(fp)
 
     def data_file(self, fp: FilePatch):
         opens, dirs = self.idx["opens"], self.idx["listdirs"]
@@ -817,6 +858,11 @@ class PyDiff:
         # imports: only bindings whose source actually changed
         names |= {k for k in set(imp_o) | set(imp_n) if imp_o.get(k) != imp_n.get(k)}
         if not simple or (not names and not (imp_o or imp_n)):
+            may_raise = any(isinstance(n, (ast.Raise, ast.Call, ast.Assert, ast.Import,
+                                           ast.ImportFrom, ast.Subscript, ast.Attribute))
+                            for st in n_other for n in ast.walk(st))
+            if may_raise:
+                executed |= self.an.import_break(self.path, "module-level statement may raise")
             self.add(executed, f"module-level statement L{o_other[0].lineno if o_other else '+'}"
                                " (import users)")
             return
@@ -868,7 +914,38 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
         for s in class_scope.body:
             local |= _bound_names(s)
     aliases = _aliases(pd)
+    graph = idx.get("imports", {})
+
+    def reach(src, dst):
+        seen, stack = set(), [src]
+        while stack:
+            m = stack.pop()
+            if m == dst:
+                return True
+            if m in seen:
+                continue
+            seen.add(m)
+            stack.extend(graph.get(m, ()))
+        return False
+
+    def cycle(target):
+        # a *new* cycle: target leads back here and was not already imported
+        # (transitively) by this module at the pin
+        return reach(target, pd.module) and not reach(pd.module, target)
+
     for st in stmts:
+        if isinstance(st, (ast.Import, ast.ImportFrom)):
+            targets = []
+            if isinstance(st, ast.Import):
+                targets = [a.name for a in st.names]
+            else:
+                base = st.module or ""
+                if st.level:
+                    base = _resolve_rel("." * st.level + base, pd.path)
+                targets = [base] + [f"{base}.{a.name}" for a in st.names]
+            for tmod in targets:
+                if tmod in graph and tmod != pd.module and cycle(tmod):
+                    return f"import cycle via {tmod}"
         if isinstance(st, ast.Import):
             for a in st.names:
                 top = a.name.split(".")[0]
@@ -1022,15 +1099,25 @@ def _refs_one(an: Analysis, name: str, def_path: str, excl, depth: int, removed:
         return memo[key]
     memo[key] = 0  # cycle guard
     srcs = _sources()["src"]
-    pat = re.compile(r"\b" + re.escape(name) + r"\b")
     bits = 0
-    importers = _importers_of(def_path) if removed else None
+    mods = _reexporters(def_path)
     early, late = [], []
     for path, text in srcs.items():
         if name not in text:
             continue
-        if importers is not None and path != def_path and not importers(path, text):
-            continue  # cannot be bound to the removed definition
+        if path == def_path:
+            pat = re.compile(r"(?<![\w.])" + re.escape(name) + r"\b")
+        else:
+            local, aliases = _file_bindings(path, text, mods, name)
+            alts = [r"(?<![\w.])" + re.escape(x) + r"\b" for x in local]
+            alts += [r"(?<![\w.])" + re.escape(a).replace(r"\.", r"\s*\.\s*") + r"\s*\.\s*"
+                     + re.escape(name) + r"\b" for a in aliases]
+            # the import statements that bind it are sites too (re-exports)
+            alts += [r"^[ \t]*from[ \t]+[\w.]+[ \t]+import[ \t]+(?:\([^)]*|[^\n]*)\b"
+                     + re.escape(name) + r"\b"] if local else []
+            if not alts:
+                continue
+            pat = re.compile("|".join(alts), re.M)
         ln, last = 1, 0
         seen_spans = set()
         for m in pat.finditer(text):
@@ -1123,18 +1210,22 @@ def _resolve_rel(mod: str, path: str) -> str:
 
 
 def _importers_of(def_path: str):
-    """Predicate (path, text) -> may this file import a binding of def_path's
-    module (directly, via its package, or via star re-exports)."""
+    """Predicate (path, text) -> may this file bind a name of def_path's module
+    (import of the module, ``from pkg import module``, ``from module import``,
+    relative imports, or through star re-exports)."""
+    cache = _sources().setdefault("_importers", {})
+    if def_path in cache:
+        return cache[def_path]
     srcs = _sources()["src"]
     target = _module_name(def_path)
     mods = {target}
-    changed = True
     star = _sources().get("_star")
     if star is None:
         star = _sources()["_star"] = {}
         for p, t in srcs.items():
             for m in _STAR_RE.findall(t):
                 star.setdefault(_resolve_rel(m, p), set()).add(_module_name(p))
+    changed = True
     while changed:
         changed = False
         for m in list(mods):
@@ -1145,11 +1236,13 @@ def _importers_of(def_path: str):
     pats = []
     for m in mods:
         parent, _, last = m.rpartition(".")
-        pats.append(re.compile(r"\b" + re.escape(m) + r"\b"))
+        pats.append(re.compile(r"^[ \t]*(?:import[ \t]+|from[ \t]+)" + re.escape(m)
+                               + r"(?:[ \t]|$|[ \t]*,)", re.M))
+        pats.append(re.compile(r"^[ \t]*import[ \t]+[^\n]*\b" + re.escape(m) + r"\b", re.M))
         if parent:
-            pats.append(re.compile(r"from\s+" + re.escape(parent) + r"\s+import\s+[^;]*?\b"
-                                   + re.escape(last) + r"\b", re.S))
-    rel_last = {m.rpartition(".")[2] for m in mods}
+            pats.append(re.compile(r"^[ \t]*from[ \t]+" + re.escape(parent)
+                                   + r"[ \t]+import[ \t]+(?:\([^)]*|[^\n]*)\b" + re.escape(last)
+                                   + r"\b", re.M))
 
     def pred(path, text):
         if any(p.search(text) for p in pats):
@@ -1162,7 +1255,109 @@ def _importers_of(def_path: str):
                     return True
         return False
 
+    cache[def_path] = pred
     return pred
+
+
+def _reexporters(def_path: str) -> set:
+    """def_path's module plus modules re-exporting it with ``import *``."""
+    cache = _sources().setdefault("_reexp", {})
+    if def_path in cache:
+        return cache[def_path]
+    srcs = _sources()["src"]
+    star = _sources().get("_star")
+    if star is None:
+        star = _sources()["_star"] = {}
+        for p, t in srcs.items():
+            for m in _STAR_RE.findall(t):
+                star.setdefault(_resolve_rel(m, p), set()).add(_module_name(p))
+    mods = {_module_name(def_path)}
+    todo = list(mods)
+    while todo:
+        for imp in star.get(todo.pop(), ()):
+            if imp not in mods:
+                mods.add(imp)
+                todo.append(imp)
+    cache[def_path] = mods
+    return mods
+
+
+_FROM_RE = re.compile(r"^[ \t]*from[ \t]+(\.*[\w.]*)[ \t]+import[ \t]+(\([^)]*\)|[^\n]*)", re.M)
+_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]*)", re.M)
+
+
+def _parsed_imports(path: str, text: str):
+    cache = _sources().setdefault("_imports_parsed", {})
+    if path in cache:
+        return cache[path]
+    froms, imps = [], []
+    for mod, names in _FROM_RE.findall(text):
+        mod = _resolve_rel(mod, path)
+        for item in re.sub(r"#[^\n]*", "", names).strip("()").split(","):
+            item = item.strip().strip("()\\ \n")
+            if not item:
+                continue
+            parts = item.split()
+            nm = parts[0]
+            asn = parts[2] if len(parts) >= 3 and parts[1] == "as" else None
+            froms.append((mod, nm, asn))
+    for names in _IMPORT_RE.findall(text):
+        for item in re.sub(r"#.*", "", names).split(","):
+            parts = item.split()
+            if not parts:
+                continue
+            imps.append((parts[0], parts[2] if len(parts) >= 3 and parts[1] == "as" else None))
+    cache[path] = (froms, imps)
+    return cache[path]
+
+
+def _file_bindings(path: str, text: str, mods: set, name: str):
+    """Local names under which ``path`` binds ``name`` from one of ``mods``,
+    and expressions that alias one of ``mods`` (for ``alias.name``)."""
+    froms, imps = _parsed_imports(path, text)
+    local, aliases = set(), set()
+    for mod, nm, asn in froms:
+        if mod in mods:
+            if nm == name:
+                local.add(asn or nm)
+            elif nm == "*":
+                local.add(name)
+        if f"{mod}.{nm}" in mods:
+            aliases.add(asn or nm)
+    for mod, asn in imps:
+        if mod in mods:
+            aliases.add(asn or mod)
+        elif asn is None and any(m.startswith(mod + ".") or m == mod for m in mods):
+            aliases.add(mod)
+    return local, aliases
+
+
+def _span_mentions(path: str, lo: int, hi: int, name: str) -> bool:
+    """Is ``name`` an identifier (not just text in a string/comment) in the
+    statement spanning lo..hi?  Unparseable fragments count as yes."""
+    import textwrap
+
+    text = "\n".join(_sources()["src"][path].split("\n")[lo - 1: hi])
+    try:
+        tree = ast.parse(textwrap.dedent(text))
+    except SyntaxError:
+        try:
+            tree = ast.parse("if 1:\n" + textwrap.indent(textwrap.dedent(text), " "))
+        except SyntaxError:
+            return True
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name) and n.id == name:
+            return True
+        if isinstance(n, ast.Attribute) and n.attr == name:
+            return True
+        if isinstance(n, ast.alias) and (n.name == name or n.asname == name
+                                         or n.name.split(".")[0] == name):
+            return True
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.name == name:
+            return True
+        if isinstance(n, ast.keyword) and n.arg == name:
+            return True
+    return False
 
 
 def _ref_site_bits(an, path, ln, lo, hi, name, depth, removed) -> int:
@@ -1171,12 +1366,12 @@ def _ref_site_bits(an, path, ln, lo, hi, name, depth, removed) -> int:
         if sc[0] == "def":
             return an.lines_bits(path, lo, hi)
         # class body: evaluated at import (NameError breaks the module)
-        if removed:
+        if removed and _span_mentions(path, lo, hi, name):
             return an.import_break(path, f"uses removed {name}")
         return an.family(_module_name(path), sc[3])
     if sc is not None:
         # def/class header: decorators, defaults, bases
-        if removed:
+        if removed and _span_mentions(path, lo, hi, name):
             return an.import_break(path, f"uses removed {name}")
         if sc[0] == "def":
             owner = sc[3].rsplit(".", 1)[0] if "." in sc[3] else None
@@ -1186,7 +1381,9 @@ def _ref_site_bits(an, path, ln, lo, hi, name, depth, removed) -> int:
     # module level
     lines = _sources()["src"][path].split("\n")[lo - 1: hi]
     head = lines[0].lstrip() if lines else ""
-    if removed and not head.startswith("#"):
+    if not _span_mentions(path, lo, hi, name):
+        return 0
+    if removed:
         return an.import_break(path, f"imports/uses removed {name}")
     if depth >= 4:
         return an.file_bits(path)
