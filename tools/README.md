@@ -45,3 +45,15 @@ python3 tools/eval_impact.py eval/cases/sample
 `build_maps.py` prints the number of traced tests and any test that did not
 pass on the clean pin (expected: 1,621 traced, 0 failing; the extra one is the
 officially skipped `test_variadic_iif_execution`, which has no catalog number).
+
+## Profile identity comparisons
+
+Use the pinned Python 3.13 environment with the starter dependencies. Run
+`python tools/build_identity_map.py /path/to/clean/pinned/sqlglot` from the
+selector repository. The tool runs the clean pytest suite once. Its import
+hook records agreement or unsupported observations for each executed
+single identity comparison whose left operand is an attribute of self.
+Spawned Python workers inherit the hook and record into the same directory.
+A site needs at least one agreement and zero unsupported observations to enter
+the map. Unobserved sites keep their ordinary coverage decision. The build
+requires a successful suite and uses neither patch inputs nor failure labels.

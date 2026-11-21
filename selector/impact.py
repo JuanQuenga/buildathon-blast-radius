@@ -40,6 +40,7 @@ import builtins
 import difflib
 import functools
 import inspect
+import json
 import os
 import pickle
 import re
@@ -405,8 +406,39 @@ def _changed_call_semantics(path, patched_code):
     return False
 
 
+@functools.lru_cache(maxsize=1)
+def _identity_sites():
+    return frozenset(json.loads((MAPS_DIR / "identity.json").read_text()))
+
+
+def _same_observed_comparison(path, old, new):
+    """Allow exactly one operator substitution, with all other AST fields equal."""
+    module = _module_name(path)
+    old_nodes = list(ast.walk(old))
+    new_nodes = list(ast.walk(new))
+    if len(old_nodes) != len(new_nodes):
+        return False
+    for a, b in zip(old_nodes, new_nodes):
+        if not isinstance(a, ast.Compare) or not isinstance(b, ast.Compare):
+            continue
+        if len(a.ops) != 1 or len(b.ops) != 1:
+            continue
+        if (type(a.ops[0]), type(b.ops[0])) not in ((ast.Is, ast.Eq), (ast.IsNot, ast.NotEq)):
+            continue
+        if f"{module}-{a.lineno}-{a.col_offset}" not in _identity_sites():
+            continue
+        saved = b.ops
+        try:
+            b.ops = a.ops
+            return _dump(old) == _dump(new)
+        finally:
+            b.ops = saved
+    return False
+
+
 class Analysis:
     def __init__(self):
+        self.single_file = False
         self.idx = _index()
         self.req = 0
         self.plaus = 0
@@ -647,6 +679,13 @@ class Analysis:
             self.add(self.import_break(oldp, "function protocol or variable binding changed"),
                      f"{oldp} changed function call semantics")
             return
+        if self.single_file and len(placed) == 1:
+            changed = [(tag, text) for tag, text in placed[0][0].lines if tag in ("+", "-")]
+            if len(changed) == 2 and " is " in changed[0][1] and (
+                "==" in changed[1][1] or "!=" in changed[1][1]
+            ) and _same_observed_comparison(oldp, ast.parse(old_src), ast.parse(new_src)):
+                self.reasons.append(f"{oldp}: identity and equality agreed on pinned operands")
+                return
         if self.fast_function_path(oldp, old_src, new_src, placed):
             return
         try:
@@ -1878,6 +1917,7 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         files = parse_patch(patch_text)
         if not files:
             raise Unsupported("no file diffs found")
+        an.single_file = len(files) == 1
         for fp in files:
             an.analyze(fp)
     except Unsupported as e:
