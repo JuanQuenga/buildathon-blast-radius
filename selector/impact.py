@@ -158,6 +158,9 @@ def _norm_path(p: str | None, known: set) -> str | None:
 
 def parse_patch(text: str) -> list[FilePatch]:
     lines = text.splitlines()
+    if len(text) > 256 * 1024 and any(len(line) > 256 * 1024 for line in lines):
+        raise Unsupported("unusually long diff line")
+    hunk_count = 0
     files: list[FilePatch] = []
     cur: FilePatch | None = None
     i, n = 0, len(lines)
@@ -192,6 +195,8 @@ def parse_patch(text: str) -> list[FilePatch]:
             i += 2
             continue
         if cur is not None:
+            if line.startswith(("old mode ", "new mode ")):
+                raise Unsupported("file mode change")
             if line.startswith("new file mode"):
                 cur.status = "A"
             elif line.startswith("deleted file mode"):
@@ -212,6 +217,9 @@ def parse_patch(text: str) -> list[FilePatch]:
                         end += 1
                     cur.payload = lines[i+1:end]
             elif line.startswith("@@"):
+                hunk_count += 1
+                if hunk_count > 2048:
+                    raise Unsupported("too many diff hunks")
                 m = _HUNK_RE.match(line)
                 if not m:
                     raise Unsupported(f"bad hunk header {line[:60]!r}")
@@ -239,12 +247,16 @@ def parse_patch(text: str) -> list[FilePatch]:
                     else:
                         raise Unsupported("truncated hunk")
                     i += 1
-                if o_left < 0 or n_left < 0:
+                if o_left != 0 or n_left != 0:
                     raise Unsupported("hunk length mismatch")
+                if i < n and lines[i].startswith(("+", "-")) and not lines[i].startswith("--- "):
+                    raise Unsupported("extra hunk data")
                 continue
         i += 1
     known = set(_sources()["files"])
     for f in files:
+        if f.status == "M" and not f.hunks and not f.binary:
+            raise Unsupported("missing diff content")
         f.old_path = _norm_path(f.old_path, known)
         f.new_path = _norm_path(f.new_path, known)
         if f.status == "A":

@@ -840,13 +840,13 @@ def run(patches, catalog, dur, t0):
     print("probe-cpu", f"{cpu()-started:.4f}", file=sys.stderr)
 
 
-def bounded_run(patches, catalog, dur, t0):
+def bounded_run(patches, catalog, dur, t0, *, deadline=None):
     """Keep static plans in the parent until the verifier returns a complete batch."""
     import multiprocessing
 
     # Reserve at least a minute for fallback and output on both contest limits.
     allowance = min(180, 3 * max(40, len(patches)))
-    deadline = t0 + allowance
+    deadline = min(deadline, t0 + allowance) if deadline is not None else t0 + allowance
     if time.monotonic() >= deadline:
         return
     with tempfile.TemporaryFile(mode="w+") as result:

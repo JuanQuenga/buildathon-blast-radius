@@ -22,6 +22,9 @@ DATA = Path(os.environ.get("BLAST_DATA", "/data"))
 # Whole-batch budget for impact selection (practice limit 180 s, final 270 s).
 GLOBAL_BUDGET_S = float(os.environ.get("BLAST_BUDGET_S", "60"))
 PER_PATCH_S = float(os.environ.get("BLAST_PER_PATCH_S", "5"))
+# Leave time for a full-catalog plan per patch on both contest runners.
+BATCH_WALL_LIMIT_S = 180
+MAX_PATCH_BYTES = 4 * 1024 * 1024
 STDOUT_CAP = 2_000_000
 
 # --- verification knobs (see docs/verification.md) ---
@@ -106,21 +109,38 @@ def _plan(req: set[int], pl: set[int], dur: dict[int, int], *, free_riders=True)
     return ws
 
 
-def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
+def _impact_pass(patches, select, catalog, dur, valid, t0, deadline=None) -> None:
     cpu_start = time.process_time()
     use_alarm = hasattr(signal, "SIGPROF")
     if use_alarm:
         signal.signal(signal.SIGPROF, _alarm)
         signal.signal(signal.SIGALRM, _alarm)
+    static_deadline = t0 + 1.5 * GLOBAL_BUDGET_S
+    if deadline is not None:
+        static_deadline = min(static_deadline, deadline)
     for P in patches:
+        if time.monotonic() >= static_deadline:
+            break  # Unanalysed patches still carry their full-catalog fallback.
         elapsed = time.process_time() - cpu_start
         try:
-            P.text = (DATA / "commits" / f"{P.commit}.patch").read_text(
-                encoding="utf-8", errors="replace")
+            with (DATA / "commits" / f"{P.commit}.patch").open("rb") as stream:
+                if os.fstat(stream.fileno()).st_size > MAX_PATCH_BYTES:
+                    P.why = "fallback (patch size)"
+                    continue
+                raw = stream.read(MAX_PATCH_BYTES + 1)
+            if len(raw) > MAX_PATCH_BYTES:
+                P.why = "fallback (patch size)"
+                continue
+            if b"\0" in raw:
+                P.why = "fallback (non-text patch)"
+                continue
+            P.text = raw.decode("utf-8")
+            if "\r" in P.text:
+                P.text = P.text.replace("\r\n", "\n").replace("\r", "\n")
         except Exception as e:
             P.why = f"fallback (read: {e})"
             continue
-        wall_left = t0 + 1.5 * GLOBAL_BUDGET_S - time.monotonic()
+        wall_left = static_deadline - time.monotonic()
         if select is None or elapsed >= GLOBAL_BUDGET_S or wall_left <= 0:
             continue
         try:
@@ -333,11 +353,15 @@ def main() -> int:
 
     patches = [Patch(p.stem) for p in sorted((DATA / "commits").glob("*.patch"))]
     select = _load_impact() if patches else None
-    _impact_pass(patches, select, catalog, dur, valid, t0)
-    if os.environ.get("BLAST_HEAVY") == "1":
+    deadline = t0 + min(BATCH_WALL_LIMIT_S, 3 * max(40, len(patches)))
+    _impact_pass(patches, select, catalog, dur, valid, t0, deadline)
+    if os.environ.get("BLAST_HEAVY") == "1" and time.monotonic() < deadline:
         from . import heavy
         try:
-            (heavy.run if VERIFY else heavy.bounded_run)(patches, catalog, dur, t0)
+            if VERIFY:
+                heavy.run(patches, catalog, dur, t0)
+            else:
+                heavy.bounded_run(patches, catalog, dur, t0, deadline=deadline)
         except Exception as exc:
             log(f"heavy verification stopped ({type(exc).__name__})")
     if VERIFY and select is not None:

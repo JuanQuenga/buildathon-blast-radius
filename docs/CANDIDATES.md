@@ -1,10 +1,28 @@
 # Verified candidates
 
+Candidate 14 remains the final pick. The short-cap study projected 297.1 seconds for C14, 304.9 for the calibrated prototype and 961.6 for D1. [Outcome table, timing and risk estimates](CALIBRATED17.md)
+
 ## Please submit
 
-**Please submit candidate-14 for the next practice slot, approximately 7:22 AM ET.** The coordinator handles submission. This tag adds fixture attribution to candidate 13. On 36 independently labeled fixture edits it covered all 67 failing-method observations and reduced simulated time from 916.344 to 449.576 seconds.
+**Please submit `candidate-18` for the 11:23 AM ET practice slot.** It adds input and deadline fallbacks to candidate 14. All 498 matched, generated and fixture plan rows are byte-identical to the C14 archive. Candidate 14 remains selected for the final pending practice verification. [Release tests, timeout exceptions and forecast](CANDIDATE18.md)
 
-On the same zero-miss hidden batch, one productive TPC fixture edit gives a conditional forecast of **152.3–158.9 total seconds** including 23–26 CPU seconds. With no productive edit the range is **173.5–176.5**. The separately tagged candidate-14-static is a candidate-5-based control. [Release measurements and forecast](CANDIDATE14.md)
+D2 scored 174.9 seconds in practice, with 150.503 simulated seconds and zero missed commits (BB-DC55275C). The D1 saving falls in the unattempted branch. D3 has no scheduled slot.
+
+### Candidate-15 official result
+
+Practice receipt BB-43C95F5F scored **173.0 seconds** with 171.957 simulated seconds, 1.05–1.06 CPU seconds and zero missed commits. Relative to C14, C15 saved about 23 CPU seconds and scheduled 21.454 more simulated seconds. D1 remains the fastest measured practice entry at 154.9 seconds. [Candidate 15 measurements](CANDIDATE15.md)
+
+### D1 official result
+
+Practice receipt BB-ABC664BC scored **154.9 seconds**, with 130.483 simulated seconds, 24.26–24.51 CPU seconds and zero missed commits. D1 reduced the worker schedule by 20.020 seconds relative to candidate 14. These receipts do not identify the hidden patch or reveal the leaders' plans. D1 missed a real sample failure locally. The coordinator selected candidate 14 explicitly for final, receipt BB-34D93935.
+
+### Full-data CPU experiment
+
+The order-preserving experimental tag reduced probe CPU from 19.594 to 6.228 seconds on a constructed 40-patch batch with identical worker cost. It had zero labeled misses, but retained a historical C13 TPC-DS selection on holdout and increased matched holdout CPU by 52.671 seconds. Candidate 14 remains the provisional final entry. [Matched results and failed gate](ORDERED-CPU.md)
+
+### Candidate-14 official result
+
+Candidate 14 scored **174.6 seconds**, with 150.503 simulated seconds, 24.1–24.6 CPU seconds and zero missed commits. Field-precise fixture attribution made no measurable difference on this practice batch. It covered all 67 failing-method observations on 36 labeled local fixture edits and saved 466.768 simulated seconds there. The static control has no scheduled practice slot. [Candidate 14 validation](CANDIDATE14.md)
 
 ### Candidate-13 official result
 
