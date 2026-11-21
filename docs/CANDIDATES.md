@@ -2,7 +2,7 @@
 
 ## Please submit
 
-**Please submit candidate-6 in its reserved 02:29 ET slot, then candidate-8 in the next open practice slot. Candidate-8 is estimated at 146.7 seconds.** Candidate-7 is the validated fallback at 154.7 seconds. Both projections use candidate-5's official 177.8 seconds and an updated 164.2-second estimate for candidate-6.
+**Please submit candidate-9 at the next available practice slot.** Candidate-8 scored 174.6 seconds officially on November 21, with 155.649 simulated seconds, 18.99 median CPU seconds and zero misses. Candidate-9 missed zero across the matched sample, tuning and holdout. Its [validation and forecast](CANDIDATE9.md) records the cost of the holdout regression as well as the sample improvement.
 
 ### Candidate-8 validation
 
