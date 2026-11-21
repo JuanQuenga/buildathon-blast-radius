@@ -1412,20 +1412,34 @@ def _refs_one(an: Analysis, name: str, def_path: str, excl, depth: int, removed:
     return bits
 
 
-def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude) -> int:
+class _Span:
+    decorator_list = ()
+
+    def __init__(self, lo, hi):
+        self.lineno, self.end_lineno = lo, hi
+
+
+def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude, depth=0) -> int:
     """Tests that can observe a changed class attribute ``names`` of class
     ``cls_full``: (users of the class family that execute a textual read of
-    the attribute) + test code reading it + users of classes whose class
-    body derives from it (subclasses, or explicit ``Cls.NAME``)."""
-    srcs = _sources()["src"]
-    mro = an.idx.get("mro", {})
-    simple = cls_q.rsplit(".", 1)[-1]
+    the attribute) + test code reading it + observers of attributes derived
+    from it in class bodies (subclasses or explicit ``Cls.NAME``), recursively
+    with the same rule."""
+    memo = an.__dict__.setdefault("_attr_memo", {})
     excl = set()
     for s in exclude:
         excl.update(range(_start(s), (s.end_lineno or s.lineno) + 1))
+    key = (tuple(sorted(names)), def_path, cls_full, min(excl, default=0))
+    if key in memo:
+        return memo[key]
+    memo[key] = 0  # cycle guard
+    srcs = _sources()["src"]
+    mro = an.idx.get("mro", {})
     r1 = direct = derived = 0
     for name in names:
         pat = re.compile(r"\b" + re.escape(name) + r"\b")
+        qual = re.compile(r"\b" + re.escape(cls_q).replace(r"\.", r"\s*\.\s*")
+                          + r"\s*\.\s*" + re.escape(name) + r"\b")
         for path, text in srcs.items():
             if name not in text:
                 continue
@@ -1448,23 +1462,32 @@ def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude) -> 
                     else:
                         r1 |= bits
                     continue
-                span_text = "\n".join(srcs[path].split("\n")[lo - 1: hi])
-                if sc is not None:
-                    owner = sc[3] if sc[0] == "class" and ln >= sc[4] else (
-                        sc[3].rsplit(".", 1)[0] if "." in sc[3] else None)
-                    if owner is None:  # header of a top-level def
-                        if re.search(r"\b" + re.escape(simple) + r"\b", span_text):
-                            derived |= an.lines_bits(path, sc[4], sc[2])
-                        continue
-                    x_full = f"{_module_name(path)}.{owner}"
-                    if cls_full in mro.get(x_full, ()) or x_full == cls_full or re.search(
-                            r"\b" + re.escape(simple) + r"\b", span_text):
-                        derived |= an.family(_module_name(path), owner)
+                lines = srcs[path].split("\n")[lo - 1: hi]
+                span_text = "\n".join(lines)
+                if sc is None:  # module level
+                    if qual.search(span_text):
+                        derived |= an.file_bits(path)
                     continue
-                # module level
-                if re.search(r"\b" + re.escape(simple) + r"\b", span_text):
-                    derived |= an.file_bits(path)
-    return (fam & r1) | direct | derived
+                in_body = sc[0] == "class" and ln >= sc[4]
+                owner = sc[3] if in_body else (sc[3].rsplit(".", 1)[0] if "." in sc[3] else None)
+                if owner is None:  # header (decorator/default) of a top-level def
+                    if qual.search(span_text):
+                        derived |= an.lines_bits(path, sc[4], sc[2])
+                    continue
+                x_full = f"{_module_name(path)}.{owner}"
+                if not (x_full == cls_full or cls_full in mro.get(x_full, ())
+                        or qual.search(span_text)):
+                    continue  # another class's attribute of the same name
+                xfam = an.family(_module_name(path), owner, path)
+                mb = re.match(r"^\s*([A-Za-z_]\w*)\s*(?::[^=]*)?=(?!=)", lines[0] if lines else "")
+                if in_body and mb and depth < 3:
+                    derived |= _attr_refs(an, {mb.group(1)}, path, x_full, owner, xfam,
+                                          [_Span(lo, hi)], depth + 1)
+                else:
+                    derived |= xfam
+    res = (fam & r1) | direct | derived
+    memo[key] = res
+    return res
 
 
 _STAR_RE = re.compile(r"^\s*from\s+(\.*[\w.]*)\s+import\s+\*", re.M)
