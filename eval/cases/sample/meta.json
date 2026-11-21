@@ -1,0 +1,242 @@
+{
+ "2haz": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "2jrq": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "2qn5": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "2vdj": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "3utz": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "4d63": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "535z": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "5y72": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "66ks": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "6vvp": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "6ze8": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "8y7j": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "986c": {
+  "kind": "multi",
+  "family": "sample:multi",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "9u5k": {
+  "kind": "comment",
+  "family": "sample:comment",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "ary6": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "bap8": {
+  "kind": "comment",
+  "family": "sample:comment",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "bj7g": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "bvw2": {
+  "kind": "multi",
+  "family": "sample:multi",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "egys": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "f4bn": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "f4xa": {
+  "kind": "comment",
+  "family": "sample:comment",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "fryt": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "gbav": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "gbhk": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "j6uz": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "ktz3": {
+  "kind": "code",
+  "family": "sample:code",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "mthh": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "nwnx": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "rszg": {
+  "kind": "multi",
+  "family": "sample:multi",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ },
+ "st8f": {
+  "kind": "fixture",
+  "family": "sample:fixture",
+  "op": "sample",
+  "area": "?",
+  "split": "dev",
+  "desc": "official sample"
+ }
+}

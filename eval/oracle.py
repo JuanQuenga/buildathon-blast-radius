@@ -197,7 +197,8 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
     return res
 
 
-def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True, quiet=False) -> dict[str, dict]:
+def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True, quiet=False,
+               on_result=None) -> dict[str, dict]:
     tests, skipped = load_catalog()
     results: dict[str, dict] = {}
     todo = {}
@@ -209,6 +210,8 @@ def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True,
             todo[cid] = pb
     if not quiet:
         print(f"[oracle] {len(results)} cached, {len(todo)} to run with -j{jobs}", file=sys.stderr)
+    if on_result:
+        on_result(results)
     t0 = time.time()
     with cf.ThreadPoolExecutor(max_workers=jobs) as ex:
         futs = {ex.submit(label, pb, tests, skipped, use_cache=use_cache): cid for cid, pb in todo.items()}
@@ -222,6 +225,8 @@ def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True,
             if not quiet:
                 print(f"[oracle] {i}/{len(todo)} {cid}: {r['status']} fail={None if r['failing'] is None else len(r['failing'])}"
                       f" wall={r.get('wall')} ({time.time()-t0:.0f}s)", file=sys.stderr, flush=True)
+            if on_result and (i % 6 == 0 or i == len(todo)):
+                on_result(results)
     return results
 
 
@@ -232,27 +237,36 @@ def _cmd_label_dir(a):
     patches = {p.stem: p.read_bytes() for p in sorted((d / "commits").glob("*.patch"))}
     if a.only:
         patches = {k: v for k, v in patches.items() if k in set(a.only.split(","))}
-    res = label_many(patches, jobs=a.jobs, use_cache=not a.no_cache)
-    # merge with any existing answers (so --only can relabel a subset)
     ans_path = d / "answers.json"
+    # bulky per-test failure reasons stay outside the repo
+    (WORKBENCH / "oracle-details").mkdir(parents=True, exist_ok=True)
+    oracle_path = WORKBENCH / "oracle-details" / f"{d.resolve().name}.json"
     answers = json.loads(ans_path.read_text())["commits"] if ans_path.exists() else {}
-    oracle_path = d / "oracle.json"
     oracle = json.loads(oracle_path.read_text()) if oracle_path.exists() else {}
-    bad = []
-    for cid, r in res.items():
-        if r.get("failing") is None:
-            bad.append((cid, r["status"]))
-            answers.pop(cid, None)
-            continue
-        m = meta.get(cid, {})
-        answers[cid] = {"failing": r["failing"], "kind": m.get("kind", "unknown")}
-        oracle[cid] = {k: r.get(k) for k in ("status", "key", "missing", "collect_errors", "rc", "wall", "slow")}
-        oracle[cid]["reasons"] = r.get("reasons", {})
-    ans_path.write_text(json.dumps({"commits": dict(sorted(answers.items()))}, indent=0) + "\n")
-    oracle_path.write_text(json.dumps(dict(sorted(oracle.items())), indent=0) + "\n")
-    for cid, st in bad:
+    bad = {}
+
+    def write(res):
+        for cid, r in res.items():
+            if r.get("failing") is None:
+                bad[cid] = r["status"]
+                answers.pop(cid, None)
+                continue
+            m = meta.get(cid, {})
+            answers[cid] = {"failing": r["failing"], "kind": m.get("kind", "unknown")}
+            oracle[cid] = {k: r.get(k) for k in ("status", "key", "missing", "collect_errors", "rc", "wall", "slow")}
+            oracle[cid]["reasons"] = r.get("reasons", {})
+        # answers.json is written atomically so readers never see a partial file
+        tmp = ans_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"commits": dict(sorted(answers.items()))}, indent=0) + "\n")
+        tmp.replace(ans_path)
+        tmp = oracle_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(dict(sorted(oracle.items())), indent=0) + "\n")
+        tmp.replace(oracle_path)
+
+    label_many(patches, jobs=a.jobs, use_cache=not a.no_cache, on_result=write)
+    for cid, st in bad.items():
         print(f"[oracle] UNLABELED {cid}: {st}", file=sys.stderr)
-    print(f"[oracle] wrote {len(answers)} answers to {ans_path}", file=sys.stderr)
+    print(f"[oracle] {len(answers)} answers in {ans_path}", file=sys.stderr)
 
 
 def _cmd_label(a):
