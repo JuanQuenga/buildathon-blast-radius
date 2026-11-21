@@ -34,6 +34,8 @@ PRISTINE = os.environ.get("BLAST_SQLGLOT", "/app/sqlglot")
 
 PASS, FAIL, SKIP = "pass", "fail", "skip"
 DONE = "__done__"
+COLLECT = "__collection__"   # nid used to report the collection check
+COLLECT_ERROR = "collection_error"
 
 
 # --------------------------------------------------------------------------
@@ -235,7 +237,8 @@ def _debug(test, err) -> None:
         f.write("".join(traceback.format_exception(*err))[-3000:])
 
 
-def _child(overlay: str, nids: list[str], per_test_s: float, wfd: int) -> None:
+def _child(overlay: str, nids: list[str], per_test_s: float, wfd: int,
+           collect: bool = True) -> None:
     import importlib
     import unittest
 
@@ -325,6 +328,24 @@ def _child(overlay: str, nids: list[str], per_test_s: float, wfd: int) -> None:
             else:
                 self.stray_error = True  # whole class skipped: unverified
 
+    # pytest imports every test module before running anything, and any
+    # import error interrupts the whole session (every test fails).  Mirror
+    # that: import all tests/**/test_*.py and *_test.py of the overlay first.
+    if collect:
+        import glob
+        mods = sorted({p[:-3].replace("/", ".") for pat in ("tests/**/test_*.py", "tests/**/*_test.py")
+                       for p in glob.glob(pat, recursive=True)})
+        for mod in mods:
+            try:
+                importlib.import_module(mod)
+            except BaseException:
+                _debug(mod, sys.exc_info())
+                emit(COLLECT, COLLECT_ERROR)
+                w.write(json.dumps([DONE, DONE]) + "\n")
+                w.close()
+                return
+        emit(COLLECT, PASS)
+
     groups: dict[str, list[tuple[str, str, str]]] = {}
     for nid in nids:
         mod, cls, meth = _module_of(nid)
@@ -395,7 +416,8 @@ def check_verifiable(changes: dict[str, str | None]) -> None:
 
 
 def start(patch_text: str, nids: list[str], work: str, deadline_s: float,
-          per_test_s: float = 10.0, root: str = PRISTINE, key=None) -> Job:
+          per_test_s: float = 10.0, root: str = PRISTINE, key=None,
+          collect: bool = True) -> Job:
     """Apply the patch, build the overlay and fork the test child.
     Raises PatchError (or OSError) without leaving anything behind."""
     changes = apply_patch(patch_text, root)
@@ -414,7 +436,7 @@ def start(patch_text: str, nids: list[str], work: str, deadline_s: float,
         try:
             os.close(r)
             os.setpgid(0, 0)
-            _child(work, nids, per_test_s, w)
+            _child(work, nids, per_test_s, w, collect)
         finally:
             os._exit(0)
     os.close(w)
@@ -492,15 +514,51 @@ def results(job: Job) -> dict[str, str]:
             nid, st = json.loads(line)
         except Exception:
             continue
-        if nid != DONE and st in (PASS, FAIL, SKIP):
+        if nid != DONE and st in (PASS, FAIL, SKIP, COLLECT_ERROR):
             res[nid] = st
     return res
 
 
 def verify(patch_text: str, nids: list[str], work: str, deadline_s: float,
-           per_test_s: float = 10.0, root: str = PRISTINE) -> dict[str, str]:
-    """Blocking convenience wrapper.  Raises PatchError if the patch does not apply."""
-    job = start(patch_text, nids, work, deadline_s, per_test_s, root)
+           per_test_s: float = 10.0, root: str = PRISTINE, collect: bool = True) -> dict[str, str]:
+    """Blocking convenience wrapper.  Raises PatchError if the patch does not apply.
+    ``res.get(COLLECT) == COLLECT_ERROR`` means a test module failed to import."""
+    job = start(patch_text, nids, work, deadline_s, per_test_s, root, collect=collect)
     while not job.closed:
         poll([job], 1.0)
     return results(job)
+
+
+def dump_collect_modules(root: str, out: str) -> int:
+    """Build-time: import every test module of the pristine checkout (what
+    pytest's collection does) and record which source files that loads.
+    A patch touching none of them (and adding/deleting no .py file) cannot
+    cause a collection error."""
+    import glob
+    import importlib
+    os.chdir(root)
+    sys.path.insert(0, root)
+    os.environ.setdefault("SKIP_INTEGRATION", "0")
+    mods = sorted({p[:-3].replace("/", ".") for pat in ("tests/**/test_*.py", "tests/**/*_test.py")
+                   for p in glob.glob(pat, recursive=True)})
+    for m in mods:
+        importlib.import_module(m)
+    rootp = os.path.realpath(root) + os.sep
+    files = set()
+    for m in list(sys.modules.values()):
+        f = getattr(m, "__file__", None)
+        if f:
+            rf = os.path.realpath(f)
+            if rf.startswith(rootp):
+                files.add(rf[len(rootp):])
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump(sorted(files), fh, indent=0)
+    print(f"{len(files)} files imported at collection -> {out}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] == "--dump-collect":
+        sys.exit(dump_collect_modules(sys.argv[2], sys.argv[3]))
+    print("usage: python -m selector.verify --dump-collect ROOT OUT", file=sys.stderr)
+    sys.exit(2)

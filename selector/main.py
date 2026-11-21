@@ -25,18 +25,23 @@ PER_PATCH_S = float(os.environ.get("BLAST_PER_PATCH_S", "5"))
 STDOUT_CAP = 2_000_000
 
 # --- verification knobs (see docs/verification.md) ---
-VERIFY = os.environ.get("BLAST_VERIFY", "1") != "0"
+# 0: off | collect: pytest-collection check only | insure: + run cheap plausible
+# tests (can only ADD tests) | drop: + drop required tests seen to pass.
+VERIFY_MODE = os.environ.get("BLAST_VERIFY", "0")
+VERIFY = VERIFY_MODE in ("collect", "insure", "drop")
+COLLECT_MODULES = os.environ.get("BLAST_COLLECT_MODULES", "/app/collect_modules.json")
 VERIFY_END_S = float(os.environ.get("BLAST_VERIFY_END_S", "130"))  # stop starting jobs after this
 VERIFY_PAR = int(os.environ.get("BLAST_VERIFY_PAR", "2"))
 VERIFY_MAX_TEST_S = float(os.environ.get("BLAST_VERIFY_MAX_TEST_S", "3.0"))
 VERIFY_PLAUSIBLE_BUDGET_S = float(os.environ.get("BLAST_VERIFY_PLAUSIBLE_S", "1.0"))
-VERIFY_P_FAIL = float(os.environ.get("BLAST_VERIFY_P_FAIL", "0.6"))
+VERIFY_P_CLEAN = float(os.environ.get("BLAST_VERIFY_P_CLEAN", "0.3"))
 VERIFY_MIN_GAIN_S = float(os.environ.get("BLAST_VERIFY_MIN_GAIN_S", "0.3"))
 CPU_PER_CAT_S = 0.9     # measured local CPU / catalog seconds ~0.75 (conservative)
 BASE_CPU_S = 0.15       # fork + fresh sqlglot import + overlay
 HEAVY_MODULES = ("tests/test_optimizer.py", "tests/test_executor.py")  # import duckdb/pandas
 HEAVY_IMPORT_S = 0.15   # per child, after the parent pre-imported duckdb/pandas
 PREWARM_S = 1.0
+COLLECT_S = 0.3         # importing every test module (pytest collection)
 
 
 def log(*a) -> None:
@@ -79,7 +84,7 @@ def validate_line(obj, valid_tests: set[int], seen_commits: set[str]) -> None:
 
 
 class Patch:
-    __slots__ = ("commit", "text", "req", "pl", "workers", "why", "full")
+    __slots__ = ("commit", "text", "req", "pl", "workers", "why", "full", "alt")
 
     def __init__(self, commit: str):
         self.commit = commit
@@ -89,6 +94,7 @@ class Patch:
         self.workers: list[list[int]] | None = None  # None = full suite
         self.why = "full"
         self.full = True
+        self.alt = None  # (required, plausible) valid only if collection succeeds
 
 
 def _plan(req: set[int], pl: set[int], dur: dict[int, int]) -> list[list[int]]:
@@ -122,6 +128,15 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
             finally:
                 if use_alarm:
                     signal.setitimer(signal.ITIMER_REAL, 0)
+            alt = res.get("if_collects") if res.get("full") else None
+            if alt and VERIFY:
+                # impact went full only for fear of a collection error: keep
+                # the narrower plan as a candidate, used only if the
+                # verifier's collection check passes (see _verify_pass)
+                areq = {int(t) for t in alt.get("required", ())}
+                apl = {int(t) for t in alt.get("plausible", ())} & valid
+                if areq <= valid:
+                    P.alt = (areq, apl - areq)
             if not res.get("full"):
                 req = {int(t) for t in res.get("required", ())}
                 pl = {int(t) for t in res.get("plausible", ())}
@@ -155,35 +170,72 @@ def _verify_pass(patches, catalog, dur, t0) -> None:
     by_num = {int(t["number"]): t for t in catalog}
     sec = {n: float(t["seconds"]) for n, t in by_num.items()}
 
+    collect_files = None
+    try:
+        with open(COLLECT_MODULES, encoding="utf-8") as f:
+            collect_files = set(json.load(f))
+    except Exception:  # noqa: BLE001 - unknown: check every patch
+        pass
+
+    def needs_collect(P) -> bool:
+        try:
+            from .patch import parse
+            fds = parse(P.text)
+        except Exception:  # noqa: BLE001
+            return True
+        for fd in fds:
+            for path in fd.paths:
+                if not path.endswith(".py"):
+                    continue
+                if fd.is_new or fd.is_deleted or fd.is_rename:
+                    return True
+                if collect_files is None or path in collect_files:
+                    return True
+        return False
+
     cands = []
     for P in patches:
-        if P.full or not P.req or P.workers is None:
+        if P.full and P.alt is not None:
+            # collection check only; on success switch to the narrower plan
+            cands.append((36.8, P, set(), BASE_CPU_S + COLLECT_S, True, True, False))
+            continue
+        if P.full or P.workers is None:
             continue
         static_cost = plan_cost(P.workers, dur) / 1000
-        vreq = {t for t in P.req if sec[t] <= VERIFY_MAX_TEST_S}
-        unverifiable = P.req - vreq
-        after = plan_cost(schedule(unverifiable, set(), dur), dur) / 1000 if unverifiable else 0.0
-        # plausible insurance: cheapest first within a small CPU budget
-        vpl, spent = [], 0.0
-        for t in sorted(P.pl, key=lambda t: (sec[t], t)):
-            c = CPU_PER_CAT_S * sec[t]
-            if sec[t] > VERIFY_MAX_TEST_S or spent + c > VERIFY_PLAUSIBLE_BUDGET_S:
-                break
-            vpl.append(t)
-            spent += c
+        coll = needs_collect(P)
+        vreq: set[int] = set()
+        if VERIFY_MODE == "drop" and P.req:
+            vreq = {t for t in P.req if sec[t] <= VERIFY_MAX_TEST_S}
+        vpl: list[int] = []
+        if VERIFY_MODE in ("insure", "drop"):
+            spent = 0.0
+            for t in sorted(P.pl, key=lambda t: (sec[t], t)):
+                c = CPU_PER_CAT_S * sec[t]
+                if sec[t] > VERIFY_MAX_TEST_S or spent + c > VERIFY_PLAUSIBLE_BUDGET_S:
+                    break
+                vpl.append(t)
+                spent += c
         vset = vreq | set(vpl)
+        if not vset and not coll:
+            continue
         files = {by_num[t]["file"] for t in vset}
         est = (BASE_CPU_S + CPU_PER_CAT_S * sum(sec[t] for t in vset)
-               + HEAVY_IMPORT_S * sum(1 for f in files if f in HEAVY_MODULES))
-        expected_after = after + VERIFY_P_FAIL * 2.1 if not unverifiable else after + VERIFY_P_FAIL * 0.1
-        gain = static_cost - expected_after - est
-        if gain < VERIFY_MIN_GAIN_S or not vreq:
-            continue
-        heavy = any(f in HEAVY_MODULES for f in files)
-        cands.append((gain, P, vset, est, heavy))
+               + HEAVY_IMPORT_S * sum(1 for f in files if f in HEAVY_MODULES)
+               + (COLLECT_S if coll else 0.0))
+        heavy = any(f in HEAVY_MODULES for f in files) or coll
+        if vreq:
+            unverifiable = P.req - vreq
+            after = plan_cost(schedule(unverifiable, set(), dur), dur) / 1000 if unverifiable else 0.0
+            gain = VERIFY_P_CLEAN * (static_cost - after) - est
+            if gain < VERIFY_MIN_GAIN_S:
+                vreq = set()  # not worth dropping; still insure below
+                vset = set(vpl)
+                if not vset and not coll:
+                    continue
+        cands.append((static_cost, P, vset, est, heavy, coll, bool(vreq)))
     if not cands:
         return
-    cands.sort(key=lambda c: -c[0])
+    cands.sort(key=lambda c: -c[0])  # most expensive static plans first
     if any(c[4] for c in cands):
         try:  # unpatched third-party modules, shared by every forked child
             import duckdb  # noqa: F401
@@ -202,14 +254,14 @@ def _verify_pass(patches, catalog, dur, t0) -> None:
     while queue or running:
         now = time.monotonic() - t0
         while queue and len(running) < VERIFY_PAR and now < VERIFY_END_S:
-            gain, P, vset, est, heavy = queue.pop(0)
+            _, P, vset, est, heavy, coll, dropping = queue.pop(0)
             order = sorted(vset)  # catalog order = file order
             nids = [by_num[t]["id"] for t in order]
             deadline = min(2.0 + 3.0 * est, max(0.5, VERIFY_END_S + 20 - now))
-            per_test = 2.0 + 5.0 * max(sec[t] for t in vset)
+            per_test = 2.0 + 5.0 * max([sec[t] for t in vset] or [0.0])
             try:
-                job = V.start(P.text, nids, os.path.join(tmp, f"v{len(running)}_{P.commit}"),
-                              deadline, per_test, key=(P, vset))
+                job = V.start(P.text, nids, os.path.join(tmp, f"v_{P.commit}"),
+                              deadline, per_test, key=(P, vset, coll, dropping), collect=coll)
                 running.append(job)
             except Exception as e:  # noqa: BLE001 - patch did not apply etc.
                 log(f"  verify {P.commit}: not started ({type(e).__name__}: {str(e)[:100]})")
@@ -217,23 +269,39 @@ def _verify_pass(patches, catalog, dur, t0) -> None:
             break
         for job in V.poll(running, 1.0):
             running.remove(job)
-            P, vset = job.key
+            P, vset, coll, dropping = job.key
             try:
                 res = V.results(job)
+                if coll and res.get(V.COLLECT) == V.COLLECT_ERROR:
+                    P.workers = None  # pytest would error in collection: everything fails
+                    P.full = True
+                    P.why += " | verify: COLLECTION ERROR -> full suite"
+                    n_done += 1
+                    continue
+                coll_ok = (not coll) or res.get(V.COLLECT) == V.PASS
+                if P.full and P.alt is not None:
+                    if coll_ok and not job.killed:
+                        areq, apl = P.alt
+                        P.workers = _plan(areq, apl, dur) if areq else []
+                        P.req, P.pl, P.full = areq, apl, False
+                        P.why += f" | collection ok -> narrowed to {sum(map(len, P.workers))} tests"
+                    n_done += 1
+                    continue
                 id2n = {by_num[t]["id"]: t for t in vset}
                 passed = {id2n[i] for i, s in res.items() if s == V.PASS and i in id2n}
                 failed = {id2n[i] for i, s in res.items() if s == V.FAIL and i in id2n}
-                req = (P.req - passed) | failed
+                req = set(P.req) | failed
+                if dropping and coll_ok and not job.killed:
+                    req -= passed - failed
                 pl = P.pl - passed - failed
                 if failed - P.req:
                     # impact under-predicted this patch: keep every unverified
                     # plausible test as required
                     req |= pl
-                workers = _plan(req, pl, dur) if req else []
-                old = plan_cost(P.workers, dur)
-                if plan_cost(workers, dur) <= old or failed - P.req:
-                    P.workers = workers
-                P.why += (f" | verify {len(passed)}p/{len(failed)}f/"
+                if req != P.req:
+                    P.workers = _plan(req, pl, dur) if req else []
+                P.why += (f" | verify{' +coll' if coll else ''}{'(ok)' if coll and coll_ok else ''} "
+                          f"{len(passed)}p/{len(failed)}f/"
                           f"{len(vset) - len(passed) - len(failed)}u"
                           f"{' killed' if job.killed else ''} "
                           f"{time.monotonic() - job.t_start:.2f}s -> {sum(map(len, P.workers))} tests")
