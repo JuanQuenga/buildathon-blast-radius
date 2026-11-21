@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from measure_heavy import score_lib
+from replay_heavy_release import cohorts
 
 
 def receipts(path, tests):
@@ -31,14 +32,20 @@ def compare(old, new, targets):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("catalog", type=Path)
+    parser.add_argument("--generated-patches", required=True, type=Path)
+    parser.add_argument("--labels", required=True, help="frozen git revision of the label registry")
+    parser.add_argument("--matched-only", action="store_true")
     for part in ("tuning", "holdout", "generated"):
+        parser.add_argument("--historical-" + part, type=Path, action="append", default=[],
+                            help="successful probe trace from a prior run of the baseline")
         parser.add_argument("--" + part, type=Path, nargs=2, required=True,
                             metavar=("BASELINE", "CANDIDATE"))
     args = parser.parse_args()
     tests = json.loads(args.catalog.read_text())["tests"]
-    nodes = {"tests/test_executor.py::TestExecutor::test_execute_tpcds",
-             "tests/test_generator.py::TestGenerator::test_generator_memory",
-             "tests/test_parser.py::TestParser::test_max_nodes"}
+    nodes = {"tests/test_executor.py::TestExecutor::test_execute_tpcds": "ds",
+             "tests/test_generator.py::TestGenerator::test_generator_memory": "generator",
+             "tests/test_parser.py::TestParser::test_max_nodes": "parser"}
+    by_group = {nodes[r["id"]]: r["number"] for r in tests if r["id"] in nodes}
     targets = {row["number"]: row["id"].split("::")[-1] for row in tests
                if row["id"] in nodes}
     if len(targets) != len(nodes):
@@ -46,6 +53,19 @@ def main():
     lost = 0
     for part in ("tuning", "holdout", "generated"):
         old, new = (receipts(path, tests) for path in getattr(args, part))
+        partition = "dev" if part == "tuning" else part
+        expected = {p.stem for cohort, cases in cohorts(partition, args.generated_patches, args.labels)
+                    if not args.matched_only or not cohort.startswith("extra/")
+                    for p, _ in cases}
+        if not expected or old.keys() != expected:
+            raise ValueError(f"incomplete {part} baseline ({len(old)} of {len(expected)} expected)")
+        for trace in getattr(args, "historical_" + part):
+            for line in trace.read_text().splitlines():
+                fields = line.split()
+                if len(fields) >= 7 and fields[0] == "heavy" and fields[3] == "pass":
+                    key, group = fields[1:3]
+                    if group in by_group and key in old:
+                        old[key].discard(by_group[group])
         losses = compare(old, new, targets)
         lost += len(losses)
         print(part, len(old), "patches", len(losses), "regressions")

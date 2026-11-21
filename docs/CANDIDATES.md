@@ -2,11 +2,11 @@
 
 ## Please submit
 
-**Please submit candidate-12 at the 5:33 AM ET practice slot after candidate-11.** The pre-official forecast is **117.8 simulated + 15.6 CPU = 133.4 seconds**, conditional on zero misses. Candidate 12 scored 95.064 simulated + 1.303 CPU on the public sample and removed 14 passing TPC-DS selections on the registered holdout. Its clean four-CPU, 8 GiB build took 59 seconds. The coordinator handles submission. [Candidate record](CANDIDATE12.md) · [Final-entry comparison](FINAL.md)
+**Candidate-12 is queued for the 5:48 AM ET practice slot.** The coordinator submits. The original 133.4-second forecast is withdrawn. With zero misses and no new savings, the two observed simulation scenarios are 155.649 s if C12 retains C8’s TPC-DS drop and 177.103 s if it loses it. CPU is additional. C12’s official result is pending. [Release validation](CANDIDATE12.md)
 
-### Candidate-11 validation
+### Candidate-11 official result
 
-Candidate 11 was queued for the 4:33 AM ET slot. Its local forecast was 146.1 simulated + 4.6 CPU = 150.7 seconds. [Candidate record](CANDIDATE11.md)
+C11 scored **178.7 s**, with 177.103 simulated seconds, 1.56 CPU seconds and zero misses. Its 150.7-second forecast credited savings that did not appear. C8 remains the fastest officially measured selector at 174.6 s. [Release validation](CANDIDATE11.md)
 
 ### Candidate-10 build rejection
 

@@ -71,3 +71,23 @@ python tools/measure_heavy.py "$BASE_IMAGE" "$IMAGE" "$CATALOG" "$RESULTS/holdou
 ```
 
 The matched measurement uses committed labels at 8cba26f by default. The host scorer attaches only patch files and the catalog to each container, checks the emitted plans and records process-tree CPU. Development output includes individual decisions. Holdout output contains aggregate counts.
+
+### Check heavy drops before tagging
+
+Capture each image on the same catalog, generated patches and frozen label revision. Tuning includes the official sample. The replay includes unlabelled registered diffs in the plan comparison and scores misses only where audited labels exist. Keep receipts on the host.
+
+```sh
+for image in "$baseline" "$candidate"; do
+  for partition in dev holdout generated; do
+    python tools/replay_heavy_release.py "$image" "$catalog" "$generated" \
+      "$receipts/$image" --partition "$partition" --labels "$labels"
+  done
+done
+python tools/check_heavy_monotonicity.py "$catalog" --labels "$labels" \
+  --generated-patches "$generated" \
+  --tuning "$receipts/$baseline/dev.plans" "$receipts/$candidate/dev.plans" \
+  --holdout "$receipts/$baseline/holdout.plans" "$receipts/$candidate/holdout.plans" \
+  --generated "$receipts/$baseline/generated.plans" "$receipts/$candidate/generated.plans"
+```
+
+Pass earlier C8 receipts with `--historical-tuning`, `--historical-holdout` and `--historical-generated` when available. The gate fails on any restored heavy selection, including one introduced by worker padding. Independently verify a failing baseline exclusion before accepting a safety correction.

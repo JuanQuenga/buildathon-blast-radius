@@ -1,6 +1,6 @@
 # Final entry
 
-**Recommend candidate-12 for the final, with candidate-5 as the conservative alternative.** C5 has an official 177.8-second practice score. C12's pre-official practice forecast is 133.4 seconds. C12 has zero misses on the matched 197 holdouts, including all ten real TPC-DS failures. It dropped fourteen passing TPC-DS selections that C11 kept. Another 20 holdouts and 150 development cases also had zero misses after correcting two package-export failures found during validation. A single extra missed patch costs 300 seconds.
+**Candidate-12 is the provisional final choice for a sample-like mix. Candidate-5 is the conservative alternative.** C12 scored 95.064 simulated seconds on the official sample. C5 has a 177.8-second official practice result at 0.67 CPU seconds. C8 has the best measured practice result, 174.6 s. C11 scored 178.7 s and recovered none of the simulated savings assumed in its forecast. The same calibration supplied the original C12 forecast. Use the empirical sample and unfamiliar-kind scenarios below pending the C12 official result.
 
 ## Sixty-patch scenarios
 
@@ -10,9 +10,8 @@ These are expected simulated plus CPU seconds conditional on zero misses. The 27
 |---|---:|---:|---:|
 | Resample the 30 official sample patches at their observed frequencies | 192.7 | 232.0 | 0.218 percentage points |
 | 48 sample-like plus 12 drawn from measured non-sample kinds | 278.6 | 324.5 | 0.255 percentage points |
-| Scale the anchored 40-patch practice forecast to 60 | 200.1 | 266.7 | 0.370 percentage points |
 
-The first row doubles the observed sample totals. For the second, C12 used 423.748 simulated + 11.584 CPU seconds across 42 held-out non-sample-kind cases. C5 used 483.418 + 2.930. These included 21 reverts, 17 test edits and four formatting, metadata or encoding cases. The mean of this proxy supplies the cost of the twelve unfamiliar draws. Genuinely new kinds could cost much more. The practice row uses the historical practice calibration in [the release record](CANDIDATE12.md).
+The first row doubles the observed sample totals. For the second, C12 used 423.748 simulated + 11.584 CPU seconds across 42 held-out non-sample-kind cases. C5 used 483.418 + 2.930. These included 21 reverts, 17 test edits and four formatting, metadata or encoding cases. The mean of this proxy supplies the cost of the twelve unfamiliar draws. Genuinely new kinds could cost much more.
 
 For an unconditional expectation, add 18,000 times the entry's per-patch miss probability to each score. The observed point estimate of C12's **additional** miss rate is zero on 197 paired holdouts. At that estimate, the table also gives the empirical expected scores. A half-event sensitivity allowance gives 0.253% per patch, or 45.5 extra seconds per final, if charged entirely to C12. That allowance would reverse the sample-only choice and nearly tie the 20% proxy scenario. It is an explicit risk assumption. The one-sided independent-sampling 95% upper bound for zero events in 197 observations is 1.51%. Related mutations, tuning on earlier aggregates and an unknown final mix limit both estimates. If all incremental misses occur on the 12 unfamiliar patches, their conditional break-even risk is about 1.28 percentage points.
 
