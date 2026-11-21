@@ -147,3 +147,9 @@ prove those harmless.
 * New statements that only become reachable through *new* dispatch keys (e.g.
   a key added to a dict built inside a function) are covered through the
   enclosing statement's coverage, not by key.
+
+## Compiler and discovery checks in candidate-2
+
+The selector compiles a modified Python module before taking the single-function AST shortcut. Compilation detects invalid scopes such as a break outside a loop. It compares lexical scopes' generator/coroutine flags and variable bindings against the pin. An unreachable yield can change every caller's return value. An assignment after a return can change an earlier global lookup into an uninitialized local lookup. These changes widen to module importers, including the existing collection fallback where applicable.
+
+An added Python file includes recorded directory readers. New package initializers, top-level Python modules and newly collected pytest modules use full fallback. A new comment-only conftest that compiles has no executable hook, so it can use the directory-reader plan. Modified conftest files retain the collection fallback.
