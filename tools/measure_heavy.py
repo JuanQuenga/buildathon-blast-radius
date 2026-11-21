@@ -44,6 +44,7 @@ def main():
         in {
             "tests/test_parser.py::TestParser::test_max_nodes",
             "tests/test_executor.py::TestExecutor::test_execute_tpcds",
+            "tests/test_generator.py::TestGenerator::test_generator_memory",
         }
     }
     groups = defaultdict(list)

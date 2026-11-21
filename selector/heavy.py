@@ -15,11 +15,12 @@ import textwrap
 import tempfile
 import time
 
-from . import query_slice, verify
+from . import query_slice, verify, warm_replay
 from .patch import parse
 from .schedule import plan_cost, schedule
 
 TARGETS = {
+    "tests/test_generator.py::TestGenerator::test_generator_memory": "generator",
     "tests/test_executor.py::TestExecutor::test_execute_tpcds": "ds",
     "tests/test_parser.py::TestParser::test_max_nodes": "parser",
 }
@@ -186,11 +187,22 @@ def affected(group, path, span):
 def replay(group, cases, overlay, deadline, path=None):
     # Require an explicit completion token. An early successful process exit
     # from patched code cannot be mistaken for completed assertions.
+    if group == "catalog":
+        script = SCRIPT.with_name("catalog_check.py")
+    elif group == "generator":
+        script = SCRIPT.with_name("generator_cases.py")
+    elif group in {"scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial"}:
+        script = SCRIPT.with_name("staged.py")
+    else:
+        script = SCRIPT
     with tempfile.TemporaryFile() as receipt:
         env = dict(os.environ, BLAST_RECEIPT=str(receipt.fileno()), MALLOC_ARENA_MAX="2")
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
-        with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(SCRIPT.with_name("staged.py") if group in {"scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial"} else SCRIPT), group, *cases],
+        if warm_replay.ready and group not in {"ds", "parser", "generator"}:
+            return warm_replay.run(script, group, cases, overlay, deadline,
+                                   env.get("BLAST_CHANGED_MODULE", ""), receipt)
+        with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(script), group, *cases],
                               cwd=overlay, env=env, pass_fds=(receipt.fileno(),),
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                               stdin=subprocess.DEVNULL, start_new_session=True) as child:
@@ -249,7 +261,7 @@ def collect(patch, dur, stop):
 
 def narrow_pass(patches, catalog, dur, t0, start_cpu):
     stop = min(time.monotonic()+60, t0+120)
-    targets = {t["number"]: TARGETS[t["id"]] for t in catalog if t["id"] in TARGETS}
+    targets = {t["number"]: TARGETS[t["id"]] for t in catalog if TARGETS.get(t["id"]) in {"ds", "parser"}}
     for patch in patches:
         if time.monotonic() >= stop or cpu() - start_cpu > 48:
             break
@@ -462,7 +474,7 @@ def changed_regions(text):
     changes = verify.apply_patch(text)
     result = {}
     for path, source in changes.items():
-        if not re.fullmatch(r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py", path):
+        if not re.fullmatch(r"sqlglot/(?:\w+/)*\w+\.py", path):
             return None
         ranges = query_slice.spans((Path(verify.PRISTINE) / path).read_text(), source)
         if ranges is None:
@@ -477,6 +489,8 @@ def stage_edit(text, group):
         return None
     changes = verify.apply_patch(text)
     paths = ",".join(changes)
+    if group == "generator":
+        return "generator", paths, changes, []
     regions = changed_regions(text)
     if group == "parser":
         if regions and not any(query_slice.reached(profile("parser")[k]["lines"], regions) for k in ("parser:setup", "parser:2")):
@@ -539,6 +553,8 @@ def run(patches, catalog, dur, t0):
                         for i in (cases["execute"] if mode == "slice" else cases)
                     )
                 )
+                if group == "generator":
+                    estimate = 1.45
                 if gain > estimate * 1000:
                     queue.append(
                         (
@@ -554,8 +570,34 @@ def run(patches, catalog, dur, t0):
                     )
             except Exception:
                 continue
+    # A collection hazard keeps the whole suite until actual pytest collection
+    # has succeeded. Even then, only verified heavy tests may leave the plan.
+    full_plan = None
+    for patch in patches:
+        if time.monotonic() >= stop or cpu() - start_cpu > 55:
+            break
+        if not patch.full or not patch.alt:
+            continue
+        try:
+            files = parse(patch.text)
+            if not files or not all(eligible_file(f, "ds") for f in files):
+                continue
+            if full_plan is None:
+                full_plan = schedule(set(dur), set(), dur)
+            warm_replay.prepare()
+            with tempfile.TemporaryDirectory() as work:
+                verify.build_overlay(work, verify.apply_patch(patch.text))
+                outcome = replay("catalog", [], work, min(stop, time.monotonic() + 5))
+            print("full-collection", patch.commit, outcome, file=sys.stderr)
+            if outcome == "pass":
+                patch.req, patch.pl = set(dur), set()
+                patch.full, patch.workers = False, full_plan
+        except Exception:
+            continue
     for patch in patches:
         enqueue(patch)
+    if sum(row[4] in {"front", "partial", "slice"} for row in queue) >= 2:
+        warm_replay.prepare()
     verdicts = {}
     while queue:
         queue.sort(key=lambda row: row[0])

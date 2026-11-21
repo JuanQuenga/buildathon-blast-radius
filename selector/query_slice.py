@@ -54,27 +54,28 @@ def spans(before, after):
                 bindings.add(("generator", ""))
         return bindings
 
-    # Only normal class methods. Substitution of the old methods must exactly
-    # reconstruct the pin outside their bodies (including decorators/defaults).
-    for cls, updated in zip(old.body, new.body):
-        if not isinstance(cls, ast.ClassDef) or not isinstance(updated, ast.ClassDef):
+    # Replacing just the edited bodies must reconstruct the complete original
+    # module, including all class definitions, decorators, and default values.
+    pairs = list(zip(old.body, new.body))
+    for fn, other in pairs:
+        if isinstance(fn, ast.ClassDef) and isinstance(other, ast.ClassDef):
+            pairs.extend(zip(fn.body, other.body))
             continue
-        for fn, other in zip(cls.body, updated.body):
-            if not isinstance(fn, ast.FunctionDef) or not isinstance(other, ast.FunctionDef):
-                continue
-            if fn.name != other.name or fn.name.startswith("__") or equal(fn, other):
-                continue
-            # A store in a dormant branch can change a live global lookup into
-            # an unbound local. This is a whole-function change at compile time.
-            old_scope, new_scope = scope_bindings(fn), scope_bindings(other)
-            if ("generator", "") in old_scope.symmetric_difference(new_scope):
-                return None
-            if len(fn.body) == len(other.body) and old_scope == new_scope:
-                for x, y in zip(fn.body, other.body):
-                    diff(x, y)
-            else:
-                regions.append((fn.body[0].lineno, fn.end_lineno))
-            other.body = fn.body
+        if not isinstance(fn, ast.FunctionDef) or not isinstance(other, ast.FunctionDef):
+            continue
+        if fn.name != other.name or fn.name.startswith("__") or equal(fn, other):
+            continue
+        # A store in a dormant branch can change a live global lookup into
+        # an unbound local. This is a whole-function change at compile time.
+        old_scope, new_scope = scope_bindings(fn), scope_bindings(other)
+        if ("generator", "") in old_scope.symmetric_difference(new_scope):
+            return None
+        if len(fn.body) == len(other.body) and old_scope == new_scope:
+            for x, y in zip(fn.body, other.body):
+                diff(x, y)
+        else:
+            regions.append((fn.body[0].lineno, fn.end_lineno))
+        other.body = fn.body
     return regions if regions and equal(old, new) else None
 
 

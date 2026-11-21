@@ -35,6 +35,20 @@ def record():
         combined.append({p: sorted(hit) for p, hit in lines.items()})
     with rec.case("teardown"):
         test.tearDownClass()
+    # Preserve lines reached only in the genuine spawned-worker test (including
+    # serialization, collection of results and DataFrame comparison).
+    with gzip.open("/app/ds.json.gz") as stream:
+        observed = json.load(stream)
+    for i, lines in enumerate(combined):
+        for path, hit in observed[f"ds:{i}"]["lines"].items():
+            missing = set(hit).difference(lines.get(path, ()))
+            if missing:
+                lines[path] = sorted(missing.union(lines.get(path, ())))
+                workers[i][path] = sorted(missing.union(workers[i].get(path, ())))
+    for phase in ("setup", "teardown"):
+        lines = rec.rows[phase]["lines"]
+        for path, hit in observed[f"ds:{phase}"]["lines"].items():
+            lines[path] = sorted(set(hit).union(lines.get(path, ())))
     assert len(workers) == 99
     with gzip.open(Path("/app/query-lines.json.gz"), "wt") as stream:
         json.dump(dict(worker=workers, all=combined, setup=rec.rows["setup"]["lines"],

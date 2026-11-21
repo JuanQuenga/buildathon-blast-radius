@@ -25,5 +25,6 @@ RUN python -m selector.prepare_runtime
 # Precompile (the runtime FS is read-only) and make everything readable by nobody.
 RUN python -m compileall -q /app/selector /app/sqlglot/sqlglot /app/sqlglot/tests && chmod -R a+rX /app
 
+ENV MALLOC_ARENA_MAX=2
 USER 65534:65534
 CMD ["python", "-m", "selector.main"]

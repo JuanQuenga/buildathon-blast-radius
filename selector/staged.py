@@ -84,7 +84,6 @@ def executor(record, expected, full, selection=None):
 
     paths, names, calls = set(), set(), set()
     tail = []
-    affected = set(full) if isinstance(full, list) else None
     prefix = str(Path.cwd()) + "/"
 
     def entered(code, offset):
@@ -99,7 +98,6 @@ def executor(record, expected, full, selection=None):
     pristine_setup = (
         not record
         and expected
-        and not full
         and "," not in changed_module
         and (
             changed_module == "sqlglot.parser"
@@ -109,6 +107,9 @@ def executor(record, expected, full, selection=None):
     if pristine_setup:
         setup = json.loads(Path("/app/pin-cache/ds-setup.json").read_text())
         pristine_setup = changed_module.replace(".", "/") + ".py" not in setup
+    # A query slice requires both the inline and the original spawned setup
+    # traces to miss every changed region. Its table inputs are pinned.
+    pristine_setup = pristine_setup or selection is not None
     tables_file = BASE.with_name("staged-tables.pkl")
     if pristine_setup:
         with tables_file.open("rb") as stream:
@@ -119,6 +120,15 @@ def executor(record, expected, full, selection=None):
             with tables_file.open("wb") as stream:
                 pickle.dump((test.tpcds_sqls, test.tpcds_tables), stream)
     tests.initializer(tests.TPCDS_SCHEMA, test.tpcds_tables)
+    if not record:
+        sys.path.append(str(Path(__file__).parent))
+        from result_replay import run
+        try:
+            run(test, tests, ex, expected, full, selection, digest, plan_digest)
+        finally:
+            if not pristine_setup:
+                test.tearDownClass()
+        return [], []
     original_optimize = ex.optimize
 
     def optimize(*args, **kwargs):
@@ -129,42 +139,25 @@ def executor(record, expected, full, selection=None):
     ex.optimize = optimize
     original = ex.PythonExecutor.execute
     rows = []
-    if record:
-        sys.monitoring.use_tool_id(3, "execution coverage")
-        sys.monitoring.register_callback(3, sys.monitoring.events.PY_START, entered)
+    sys.monitoring.use_tool_id(3, "execution coverage")
+    sys.monitoring.register_callback(3, sys.monitoring.events.PY_START, entered)
 
     def execute(engine, plan):
         row.extend([digest(plan.expression.dump()), plan_digest(plan)])
-        if record or (i in affected if affected is not None else full):
-            if record:
-                sys.monitoring.set_events(3, sys.monitoring.events.PY_START)
-            try:
-                return original(engine, plan)
-            finally:
-                if record:
-                    sys.monitoring.set_events(3, 0)
-        return None
+        sys.monitoring.set_events(3, sys.monitoring.events.PY_START)
+        try:
+            return original(engine, plan)
+        finally:
+            sys.monitoring.set_events(3, 0)
 
     ex.PythonExecutor.execute = execute
     try:
         for i, (meta, sql, _) in enumerate(test.tpcds_sqls):
-            if selection is not None:
-                if i not in selection["active"]:
-                    continue
-                if i not in selection["worker"]:
-                    parsed = tests.parse_one(sql)
-                    expr = pickle.loads(pickle.dumps(parsed))
-                    if digest(expr.dump()) != expected[i][2]:
-                        raise ValueError("parsed expression changed")
-                    if meta.get("execute") and digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
-                        raise ValueError("reference query changed")
-                    continue
-            if record:
-                paths.clear()
-                names.clear()
-                calls.clear()
-                sys.monitoring.restart_events()
-            imports = set(sys.modules) if record else ()
+            paths.clear()
+            names.clear()
+            calls.clear()
+            sys.monitoring.restart_events()
+            imports = set(sys.modules)
             tokens = sqlglot.tokenize(sql)
             parsed = tests.parse_one(sql)
             parsed_digest = digest(parsed.dump())
@@ -190,8 +183,6 @@ def executor(record, expected, full, selection=None):
             ]
             if meta.get("execute"):
                 row.append(digest(tests.transpile(sql, write="duckdb")))
-            if expected and row != expected[i][: len(row)]:
-                raise ValueError("input changed")
             table = tests.mp_execute(expr, meta)
             if table is not None:
                 table = pickle.loads(pickle.dumps(table))
@@ -199,24 +190,15 @@ def executor(record, expected, full, selection=None):
                 result = hashlib.sha256()
                 for values in (table.columns, *table.rows):
                     result.update(pickle.dumps(tuple(values), protocol=4))
-                if record:
-                    test.subtestHelper(i, table, tpch=False)
+                test.subtestHelper(i, table, tpch=False)
                 row.append(result.hexdigest())
-            elif meta.get("execute") and expected:
-                if i in affected if affected is not None else full:
-                    raise ValueError("missing execution result")
-                row.append(expected[i][-1])
-            if record:
-                # Conservatively include all newly imported modules in this query.
-                for name in set(sys.modules) - imports:
-                    file = getattr(sys.modules[name], "__file__", "") or ""
-                    if file.startswith(prefix):
-                        paths.add(file[len(prefix) :])
-                tail.append(
-                    dict(paths=sorted(paths), names=sorted(names), calls=sorted(calls))
-                )
-            if expected and row != expected[i]:
-                raise ValueError("plan changed")
+            elif meta.get("execute"):
+                raise ValueError("missing pinned result")
+            for name in set(sys.modules) - imports:
+                file = getattr(sys.modules[name], "__file__", "") or ""
+                if file.startswith(prefix):
+                    paths.add(file[len(prefix) :])
+            tail.append(dict(paths=sorted(paths), names=sorted(names), calls=sorted(calls)))
             rows.append(row)
         if len(test.tpcds_sqls) != 99:
             raise ValueError("fixture count")

@@ -17,10 +17,15 @@ CHECK = """
 import json,sys,tempfile,time
 from pathlib import Path
 from selector import heavy,verify
+if "--prewarm" in sys.argv:
+    import resource
+    limit=1800*1024**2
+    resource.setrlimit(resource.RLIMIT_AS,(limit,limit))
+    assert heavy.warm_replay.prepare()
 for path in sorted(Path("/patches").glob("*.patch")):
     patch=path.read_text()
     outcomes={}
-    for group in ("parser","ds"):
+    for group in sorted(set(heavy.TARGETS.values())):
         start=heavy.cpu()
         result="hazard"
         mode=None
@@ -50,6 +55,8 @@ def main():
         default=0,
         help="Continue as oracle labels arrive, up to this many labelled patches.",
     )
+    ap.add_argument("--prewarm", action="store_true",
+                    help="Exercise the forked verifier when the image supports it.")
     args = ap.parse_args()
     identity = subprocess.check_output(
         ["docker", "image", "inspect", "--format", "{{.Id}}", args.image], text=True
@@ -61,6 +68,9 @@ def main():
     )
     if report["image"] != identity:
         raise ValueError("cached probe decisions use a different image")
+    if report.get("prewarm", False) != args.prewarm and report["decisions"]:
+        raise ValueError("cached probe decisions use a different prewarm setting")
+    report["prewarm"] = args.prewarm
     while True:
         for p in sorted(args.directory.glob("*.json")):
             if p.stem in report["decisions"]:
@@ -79,6 +89,7 @@ def main():
                     "python",
                     "-c",
                     CHECK,
+                    *(["--prewarm"] if args.prewarm else []),
                 ]
                 res = subprocess.run(
                     cmd, capture_output=True, text=True, check=True, timeout=100
@@ -89,11 +100,10 @@ def main():
             for key, outcomes in report["decisions"].items():
                 labels = json.loads((args.directory / (key + ".json")).read_text())
                 for group, (mode, result, cpu) in outcomes.items():
-                    truth = next(
-                        v
-                        for k, v in labels.items()
-                        if ("parser" in k) == (group == "parser")
-                    )
+                    suffix = {"ds": "test_execute_tpcds", "parser": "test_max_nodes",
+                              "generator": "test_generator_memory"}[group]
+                    truth = next((v for k, v in labels.items() if k.endswith("::" + suffix)),
+                                 "unlabelled")
                     counts[group][
                         truth + ("_drop" if result == "pass" else "_keep")
                     ] += 1
