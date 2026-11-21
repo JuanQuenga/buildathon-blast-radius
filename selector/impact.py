@@ -558,6 +558,7 @@ def _local_raising_fixtures(body):
 
 class Analysis:
     def __init__(self):
+        self.check_imports = False
         self.single_file = False
         self.idx = _index()
         self.req = 0
@@ -610,7 +611,9 @@ class Analysis:
         runtime is hit."""
         if path in self.collected():
             if COLLECTION_ERRORS != "file":
-                raise Unsupported(f"{why}: {path} is imported during collection")
+                if os.environ.get("BLAST_HEAVY") != "1":
+                    raise Unsupported(f"{why}: {path} is imported during collection")
+                self.check_imports = True
             self.reasons.append(f"collection error expected in importers of {path} ({why})")
         return self.file_bits(path)
 
@@ -2083,5 +2086,8 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
     plaus, _ = _resolve(an.plaus & ~an.req, an.idx, catalog)
     if unknown:
         an.reasons.append(f"{len(unknown)} catalog tests unknown to the maps -> required")
+    if an.check_imports:
+        return {"full": True, "if_collects": {"required": req | unknown, "plausible": plaus - req},
+                "reasons": an.reasons}
     return {"required": req | unknown, "plausible": plaus - req - unknown, "full": False,
             "reasons": an.reasons}

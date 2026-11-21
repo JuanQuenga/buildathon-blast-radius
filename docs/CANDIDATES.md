@@ -4,6 +4,10 @@
 
 **Submit candidate-4 next. Expected official practice score 177.7 seconds.** The point estimate keeps candidate-3’s 177.103 simulated seconds and budgets roughly 0.6 seconds for server CPU. Candidate-3 scored 178.2 officially. A qualifying branch or fallback could save more. The new candidate had no simulated advantage on sample or holdout.
 
+### Candidate-5 validation
+
+Candidate-5 is ready for the practice slot after the reserved candidate-4 run. On the expanded frozen comparison, all 30 sample, 161 tuning and 197 holdout patches had zero misses. Candidate-5 saved 7.201 total seconds on holdout. One TPC-DS selection supplied the entire simulated saving. Sample and tuning plans matched candidate-4. Applying the holdout net saving per 40 to candidate-4’s 177.7 estimate gives **176.2 seconds** for candidate-5. The forecast depends on a single replay. The [candidate record](CANDIDATE5.md) includes the Docker CPU totals, heavy selection counts and per-query timing ledger.
+
 ### Candidate-4 validation
 
 Selector implementation cd45dbf. The clean git archive image ran under the exact starter linux/amd64 flags, including read-only root, unprivileged user and no network. The official sample validator returned 115.613 seconds with zero misses and zero fallbacks. Sample process CPU near exit was 0.38 and 0.42 seconds. All 16 inherited regression tests passed. Build inputs contain only selector code and pin-derived maps.

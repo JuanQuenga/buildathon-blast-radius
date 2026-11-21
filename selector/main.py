@@ -129,7 +129,7 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
                 if use_alarm:
                     signal.setitimer(signal.ITIMER_REAL, 0)
             alt = res.get("if_collects") if res.get("full") else None
-            if alt and VERIFY:
+            if alt and (VERIFY or os.environ.get("BLAST_HEAVY") == "1"):
                 # impact went full only for fear of a collection error: keep
                 # the narrower plan as a candidate, used only if the
                 # verifier's collection check passes (see _verify_pass)
@@ -328,6 +328,9 @@ def main() -> int:
     patches = [Patch(p.stem) for p in sorted((DATA / "commits").glob("*.patch"))]
     select = _load_impact() if patches else None
     _impact_pass(patches, select, catalog, dur, valid, t0)
+    if os.environ.get("BLAST_HEAVY") == "1":
+        from . import heavy
+        heavy.run(patches, catalog, dur, t0)
     if VERIFY and select is not None:
         try:
             _verify_pass(patches, catalog, dur, t0)

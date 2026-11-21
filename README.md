@@ -21,7 +21,8 @@ them across up to eight simulated workers.
   then fills the slack under the makespan with plausible tests and then any other
   test ("free riders"). The extra tests cost nothing and reduce the chance of a miss.
 - `selector/patch.py`: dependency-free unified-diff parser (`-p1` like `git apply`).
-- `selector/verify.py`: optional runtime verification. It applies the patch into
+- `selector/heavy.py` and `selector/heavy_cases.py` replay eligible TPC-DS queries and parser budget assertions in patched overlays. The image builds coverage from the pinned tests. The [candidate-5 measurements](docs/CANDIDATE5.md) describe eligibility, CPU costs and limitations.
+- `selector/verify.py`: optional whole-test runtime verification. It applies the patch into
   a `/tmp` overlay and runs candidate tests in a forked child. **Off by default.**
   See [docs/verification.md](docs/verification.md) for the measurements and why.
 - `eval/`, `tools/`: offline benchmark and map building. Not copied into the image.
@@ -40,7 +41,7 @@ make sample KIT=/path/to/starter/sample-kit   # Docker, scorer isolation flags
 
 - License: MIT (see `LICENSE`). Everything in this repository was written
   during the hackathon weekend (from 2026-11-20). **No pre-weekend code is used.**
-- Runtime: Python 3.13 standard library only, on the official
+- Runtime: Python 3.13 and the starter’s locked dependencies, on the official
   `python:3.13-slim` image (pinned digest).
 - Open-source projects used: [sqlglot](https://github.com/tobymao/sqlglot) (MIT),
   at the pinned commit, used to build maps offline and as the code under test.
