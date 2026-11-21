@@ -20,6 +20,19 @@ def git(*args):
     return subprocess.check_output(["git", *args], cwd=REPO)
 
 
+def missed_catalog_ids(node_ids, numbers):
+    if len(node_ids) <= 12:
+        return ", ".join(f"`{name}`" for name in node_ids)
+    runs = []
+    for number in sorted(numbers[name] for name in node_ids):
+        if runs and number == runs[-1][1] + 1:
+            runs[-1][1] = number
+        else:
+            runs.append([number, number])
+    ranges = ", ".join(str(a) if a == b else f"{a}–{b}" for a, b in runs)
+    return f"{len(node_ids)} numbered tests in the supplied catalog ({ranges})"
+
+
 def measure_batch(name, batch, tmp, cache, catalog, tests):
     key = hashlib.sha256(catalog)
     for c in batch:
@@ -45,6 +58,7 @@ def measure(ref, labels_ref=None):
     tests = json.loads(catalog)["tests"]
     durations = {t["number"]: score.duration_ms(t["seconds"]) for t in tests}
     names = {t["number"]: t["id"] for t in tests}
+    numbers = {name: n for n, name in names.items()}
     full = score.best_schedule(list(durations), durations)[0]
     label_commit = git("rev-parse", "--verify", labels_ref + "^{commit}").decode().strip() if labels_ref else None
     records, missing, duplicates = [], defaultdict(int), defaultdict(int)
@@ -181,7 +195,7 @@ def measure(ref, labels_ref=None):
     output += ["", "## Development misses", ""]
     for r in records:
         if r['missed'] and r['split']=='dev':
-            output.append(f"- {r['set']}/{r['id']} ({r['kind']}). {r.get('desc','')} Selector trace: {r['reason']}. Omitted catalog IDs: " + ", ".join(f"`{x}`" for x in r['missed']))
+            output.append(f"- {r['set']}/{r['id']} ({r['kind']}). {r.get('desc','')} Selector trace: {r['reason']}. Omitted catalog IDs: " + missed_catalog_ids(r["missed"], numbers))
     if not any(r['missed'] and r['split']=='dev' for r in records):
         output.append("No missed development patches among the labelled cases.")
     dest = EVAL / "REPORTS" / (sha + ".md")
