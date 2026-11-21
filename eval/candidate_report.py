@@ -20,6 +20,23 @@ def git(*args):
     return subprocess.check_output(["git", *args], cwd=REPO)
 
 
+def measure_batch(name, batch, tmp, cache, catalog, tests):
+    key = hashlib.sha256(catalog)
+    for c in batch:
+        key.update(c['id'].encode() + b'\0' + c['patch'])
+    cached = cache / f"{name}-{key.hexdigest()[:16]}.json"
+    if not cached.exists():
+        data = run.make_batch_dir(tmp / cached.stem, batch, catalog)
+        r = run.run_selector([str(PYTHON), "-m", "selector.main"], tmp, data,
+                             180, "10,11", {})
+        v = score.evaluate(r["stdout"], tests, [c["id"] for c in batch])
+        if not v["ok"] or r["exit"] or r["timeout"] or r["stdout_over"]:
+            raise RuntimeError(f"Rejected {name} batch {cached.stem}: {v.get('code')}, exit {r['exit']}")
+        logs = r["stderr"].decode(errors="replace").splitlines()
+        cached.write_text(json.dumps(dict(plans=v["plans"], cpu=r["cpu_us"], log=logs)))
+    return json.loads(cached.read_text())
+
+
 def measure(ref, labels_ref=None):
     sha = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     cache = WORKBENCH / "candidate-runs" / sha
@@ -68,20 +85,7 @@ def measure(ref, labels_ref=None):
             random.Random(1729).shuffle(pool)
             for start in range(0, len(pool), 40):
                 batch = pool[start:start + 40]
-                key = hashlib.sha256(catalog)
-                for c in batch:
-                    key.update(c['id'].encode() + b'\0' + c['patch'])
-                cached = cache / f"{name}-{key.hexdigest()[:16]}.json"
-                if not cached.exists():
-                    data = run.make_batch_dir(tmp / f"{name}-{start}", batch, catalog)
-                    r = run.run_selector([str(PYTHON), "-m", "selector.main"], tmp, data,
-                                         180, "10,11", {})
-                    v = score.evaluate(r["stdout"], tests, [c["id"] for c in batch])
-                    if not v["ok"] or r["exit"] or r["timeout"] or r["stdout_over"]:
-                        raise RuntimeError(f"Rejected {name} batch {start}: {v.get('code')}, exit {r['exit']}")
-                    logs = r["stderr"].decode(errors="replace").splitlines()
-                    cached.write_text(json.dumps(dict(plans=v["plans"], cpu=r["cpu_us"], log=logs)))
-                m = json.loads(cached.read_text())
+                m = measure_batch(name, batch, tmp, cache, catalog, tests)
                 for c in batch:
                     if c["split"] == "holdout" and c["patch"] in seen:
                         duplicates[name] += 1
@@ -101,15 +105,32 @@ def measure(ref, labels_ref=None):
                                         sim=score.commit_cost_ms(ws, durations)/1000 + 300*bool(missed),
                                         cpu=m["cpu"]/1e6/len(batch), full=len(sel)==len(tests),
                                         lower=score.lower_bound(failures,durations)/1000))
+        isolated_cpu = defaultdict(float)
+        if label_commit:
+            # Charge process startup separately to each replay group. These CPU
+            # measurements are independent of the mixed batches used for score.
+            groups = defaultdict(list)
+            for case in records:
+                groups[case["set"]].append(case)
+                if case["split"] == "dev":
+                    groups[f"{case['set']} / {case['kind']} (dev)"].append(case)
+            for label, group in groups.items():
+                for offset in range(0, len(group), 40):
+                    part = group[offset:offset + 40]
+                    replay = measure_batch(group[0]["set"], part, tmp, cache, catalog, tests)
+                    isolated_cpu[label] += replay["cpu"] / 1e6
     output = [f"# Selector {sha[:12]}", "",
-              "Host run of the frozen selector tree in shuffled batches of up to 40. CPU is measured per batch and allocated evenly to patches for group totals. Full counts plans selecting the entire catalog. Simulated time includes miss penalties. The bound relaxes worker packing. The full-suite reference uses four workers.",
+              "Host run of the frozen selector tree in shuffled batches of up to 40. CPU is measured per process batch. Interim tables allocate batch CPU evenly to labelled patches. Full counts plans selecting the entire catalog. Simulated time includes miss penalties. The bound relaxes worker packing. The full-suite reference uses four workers.",
               "", "Incomplete or unaudited patches excluded by set: " + str(dict(missing)) + ". Byte-identical development patches excluded from held-out results: " + str(dict(duplicates)) + ".",
               "", "| Set / kind | N | Clean | Miss | Sim s | CPU s | Full | Bound s | Full suite s |",
               "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     if label_commit:
         output.insert(2, f"Label revision: `{label_commit}`.\n")
+    if label_commit:
+        output[3:3] = ["CPU in this table comes from replaying exactly the patches in each row. Each group pays its own startup cost, so subgroup CPU totals can differ from their parent. Simulated scores and bootstrap CPU use the original shuffled batches.", ""]
     def row(label, rows):
-        output.append(f"| {label} | {len(rows)} | {sum(r['clean'] for r in rows)} | {sum(bool(r['missed']) for r in rows)} | {sum(r['sim'] for r in rows):.3f} | {sum(r['cpu'] for r in rows):.3f} | {sum(r['full'] for r in rows)} | {sum(r['lower'] for r in rows):.3f} | {len(rows)*full/1000:.3f} |")
+        cpu = isolated_cpu[label] if label_commit else sum(r["cpu"] for r in rows)
+        output.append(f"| {label} | {len(rows)} | {sum(r['clean'] for r in rows)} | {sum(bool(r['missed']) for r in rows)} | {sum(r['sim'] for r in rows):.3f} | {cpu:.3f} | {sum(r['full'] for r in rows)} | {sum(r['lower'] for r in rows):.3f} | {len(rows)*full/1000:.3f} |")
     for name in SETS:
         rows = [r for r in records if r['set']==name]
         row(name, rows)
