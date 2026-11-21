@@ -61,6 +61,10 @@ never put them (or tables derived from them) into the selector or the image.
 - Among those same development runs, three broke number 1106 (TPC-DS). The recorded exceptions in executor workers traced to a Trino parser rename, a missing Presto typing module and invalid Trino generator syntax. Fifteen broke number 1224 (generator memory) through failed imports, deletions, renames or missing dialect registration.
 - The previous load-58 run exceeded a 180-second timeout on the large parser test. A timeout retry replaces the first outcome, so wall time and first-run timeout evidence matter. An interrupted pytest session can produce many missing reports. Those rows require separate treatment.
 
+## Quiet-host timeout recheck
+
+One cached patch carried timeout evidence and occurred in two sets. Its archived failure list differed from the independent quiet-host run. The timeout did not reproduce. The current holdout labels already reflect the corrected failure list, and the cross-set duplicate is excluded from the 150-patch comparison. The original record and the independent recheck remain in the private workbench for audit.
+
 ## Development measurements
 
 Counts cover complete pytest sessions or the official sample. Each row uses only the development partition. The percentage is the share of labelled patches with zero numbered failures.
