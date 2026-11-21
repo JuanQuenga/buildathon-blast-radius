@@ -168,11 +168,27 @@ def interpret(out: Path, tests: list[dict], skipped: set[str]) -> dict:
     }
 
 
+def cached_result(path: Path):
+    if not path.exists():
+        return None
+    result = json.loads(path.read_text())
+    if result.get("status") == "root_conftest_inferred":
+        return result
+    # Legacy runs before --continue-on-collection-errors can have an
+    # end-of-session record and still have interrupted the entire suite.
+    if result.get("status") != "ok" or result.get("rc") not in (0, 1, 5):
+        return None
+    if any("Timeout (>" in reason for reason in result.get("reasons", {}).values()):
+        if "timeout_reproduced" not in result:
+            return None
+    return result
+
+
 def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: bool = True) -> dict:
     key = patch_key(patch)
     cache_file = CACHE / f"{key}.json"
-    if use_cache and cache_file.exists():
-        return json.loads(cache_file.read_text())
+    if use_cache and (cached := cached_result(cache_file)) is not None:
+        return cached
     CACHE.mkdir(parents=True, exist_ok=True)
     logs = WORKBENCH / "oracle-logs"
     logs.mkdir(parents=True, exist_ok=True)
@@ -225,8 +241,8 @@ def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True,
     todo = {}
     for cid, pb in patches.items():
         cf_ = CACHE / f"{patch_key(pb)}.json"
-        if use_cache and cf_.exists():
-            results[cid] = json.loads(cf_.read_text())
+        if use_cache and (cached := cached_result(cf_)) is not None:
+            results[cid] = cached
         else:
             todo[cid] = pb
     if not quiet:

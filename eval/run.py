@@ -186,7 +186,8 @@ def score_batch(run: dict, batch: list[dict], tests: list[dict], dur: dict[int, 
         res.update(ok=False, code="stdout_over_2MB", line=None)
         return res
     if run["exit"] != 0:
-        res["warn_exit"] = run["exit"]  # scorer rejects a crash; we still score the output
+        res.update(ok=False, code=f"crash(exit {run['exit']})", line=None)
+        return res
     ev = S.evaluate(run["stdout"], tests, ids)
     if not ev["ok"]:
         res.update(ok=False, code=ev["code"], line=ev["line"])
@@ -205,9 +206,7 @@ def score_batch(run: dict, batch: list[dict], tests: list[dict], dur: dict[int, 
             "missed": [by_num[t]["id"] for t in missed], "n_sel": len(sel), "n_workers": len(ws),
             "n_fail": len(c["failing"]), "opt_ms": opt,
         }
-    res.update(ok=run["exit"] == 0, per=per)
-    if run["exit"] != 0:
-        res["code"] = f"crash(exit {run['exit']})"
+    res.update(ok=True, per=per)
     return res
 
 
@@ -409,20 +408,24 @@ def main(argv=None):
 
 def _selftest(stdout, batch, catalog_bytes, r):
     """Score the same output with the starter's score.py and compare."""
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
-        (td / "commits").mkdir()
-        for c in batch:
-            (td / "commits" / f"{c['id']}.patch").write_bytes(c["patch"])
-        (td / "tests.json").write_bytes(catalog_bytes)
-        (td / "answers.json").write_text(json.dumps({"commits": {c["id"]: {"failing": c["failing"]} for c in batch}}))
-        (td / "out.jsonl").write_bytes(stdout)
-        p = subprocess.run([sys.executable, "-I", str(STARTER / "score.py"), str(td), str(td / "answers.json"),
-                            str(td / "out.jsonl")], capture_output=True, text=True)
-        mine = "rejected" if "per" not in r else \
-            f"{fmt_s(sum(x['cost_ms'] for x in r['per'].values()) + S.MISS_MS * sum(x['miss'] for x in r['per'].values()))}"
-        print(f"[selftest] starter: {p.stdout.strip().splitlines()[0] if p.stdout else p.stderr.strip()} | mine: {mine}",
-              file=sys.stderr)
+    if r.get("timeout") or r.get("code", "").startswith(("wall_time", "stdout_over", "crash(")):
+        return  # score.py receives only stdout, not process-level failures.
+    import base64
+    request = {"tests": json.loads(catalog_bytes)["tests"],
+               "answers": {c["id"]: {"failing": c["failing"]} for c in batch},
+               "outputs": [base64.b64encode(stdout).decode("ascii")]}
+    result = subprocess.run([sys.executable, "-I", str(STARTER / "score.py"), "--batch"],
+                            input=json.dumps(request), capture_output=True, text=True, check=True)
+    official, = json.loads(result.stdout)
+    if r["ok"]:
+        missed = sum(p["miss"] for p in r["per"].values())
+        expected = {"ok": True, "misses": missed, "simulated_milliseconds":
+                    sum(p["cost_ms"] for p in r["per"].values()) + S.MISS_MS * missed}
+    else:
+        expected = {key: r[key] for key in ("ok", "code", "line")}
+    if expected != official:
+        raise ValueError(f"Official scorer returned {official}, local scorer returned {expected}")
+    print(f"[selftest] official scorer agrees: {official}", file=sys.stderr)
 
 
 if __name__ == "__main__":
