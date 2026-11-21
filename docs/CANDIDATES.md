@@ -2,7 +2,7 @@
 
 ## Please submit
 
-**Submit candidate-4 next. Expected official practice score 177.7 seconds.** The point estimate keeps candidate-3’s 177.103 simulated seconds and budgets roughly 0.6 seconds for server CPU. Candidate-3 scored 178.2 officially. A qualifying branch or fallback could save more. The new candidate had no simulated advantage on sample or holdout.
+**Submit candidate-5 next. Expected official practice score 176.2 seconds.** Candidate-3 scored 178.2 seconds officially. The candidate-5 estimate relies on one successful TPC-DS replay on the registered holdout.
 
 ### Candidate-5 validation
 

@@ -57,3 +57,16 @@ Spawned Python workers inherit the hook and record into the same directory.
 A site needs at least one agreement and zero unsupported observations to enter
 the map. Unobserved sites keep their ordinary coverage decision. The build
 requires a successful suite and uses neither patch inputs nor failure labels.
+
+## Heavy-test validation
+
+Run these commands from the repository root. Supply an external results directory, the pinned checkout, its Python 3.13 virtual environment and the starter catalog. Mutation generation runs one original pytest target at a time. The TPC-DS target uses one worker. The checker runs each probe even when the worker planner would have no economic reason to run it.
+
+```sh
+python tools/heavy_mutations.py "$PIN" "$PIN_PYTHON" "$RESULTS/mutations" --count 100
+python tools/check_heavy_mutations.py "$IMAGE" "$RESULTS/mutations" "$RESULTS/checks.json"
+python tools/measure_heavy.py "$BASE_IMAGE" "$IMAGE" "$CATALOG" "$RESULTS/tuning.json" --partition dev
+python tools/measure_heavy.py "$BASE_IMAGE" "$IMAGE" "$CATALOG" "$RESULTS/holdout.json" --partition holdout
+```
+
+The matched measurement uses committed labels at 8cba26f by default. The host scorer attaches only patch files and the catalog to each container, checks the emitted plans and records process-tree CPU. Development output includes individual decisions. Holdout output contains aggregate counts.

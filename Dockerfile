@@ -13,6 +13,8 @@ RUN mkdir /app/sqlglot && tar xzf /tmp/pin.tar.gz --strip-components=1 -C /app/s
 ENV OPENBLAS_NUM_THREADS=1 SKIP_INTEGRATION=0
 COPY selector/heavy_cases.py /app/selector/heavy_cases.py
 RUN cd /app/sqlglot && python -sB /app/selector/heavy_cases.py ds --record /app/ds.json.gz && python -sB /app/selector/heavy_cases.py ds --time-only --record /app/ds-costs.json.gz && python -sB /app/selector/heavy_cases.py parser --record /app/parser.json.gz
+COPY selector/staged.py /app/selector/staged.py
+RUN cd /app/sqlglot && python -sB /app/selector/staged.py record
 COPY selector/ /app/selector/
 ENV BLAST_HEAVY=1
 RUN python -m selector.prepare_runtime

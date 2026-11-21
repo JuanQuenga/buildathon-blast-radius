@@ -48,3 +48,5 @@ make sample KIT=/path/to/starter/sample-kit   # Docker, scorer isolation flags
   Offline tooling uses pytest and coverage.py; see `tools/` and `eval/` for exact versions.
 - The official starter kit (`score.py`, sample patches) is used only for local
   evaluation and is not vendored. Sample answers never reach the selector or the image.
+
+The heavy-test verifier builds its fingerprints from the pinned SQLGlot checkout. For TPC-DS it compares all 99 query prefixes and uses per-query execution coverage to decide which Python results also need comparison. The parser probe checks both scaled limits and the original small assertions. The selector keeps the scheduled test on a failed probe or an exhausted verification budget. Offline mutation labels and performance measurements stay outside the image.

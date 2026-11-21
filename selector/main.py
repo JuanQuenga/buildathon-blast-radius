@@ -330,7 +330,10 @@ def main() -> int:
     _impact_pass(patches, select, catalog, dur, valid, t0)
     if os.environ.get("BLAST_HEAVY") == "1":
         from . import heavy
-        heavy.run(patches, catalog, dur, t0)
+        try:
+            heavy.run(patches, catalog, dur, t0)
+        except Exception as exc:
+            log(f"heavy verification stopped ({type(exc).__name__})")
     if VERIFY and select is not None:
         try:
             _verify_pass(patches, catalog, dur, t0)

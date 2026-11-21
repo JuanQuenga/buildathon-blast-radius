@@ -53,6 +53,7 @@ if Path("/app/ds.json.gz").exists():
         with gzip.open(f"/app/{group}.json.gz") as stream:
             rows = json.load(stream)
         if group == "ds":
+            (out / "ds-setup.json").write_text(json.dumps(sorted(rows["ds:setup"]["lines"])))
             with gzip.open("/app/ds-costs.json.gz") as stream:
                 costs = json.load(stream)
             for key, row in rows.items():
@@ -60,6 +61,6 @@ if Path("/app/ds.json.gz").exists():
                 row["phases"] = costs[key]["phases"]
         for row in rows.values():
             row.pop("arcs", None)
-            row["lines"] = {p: v for p, v in row["lines"].items() if p in methods}
+            row["lines"] = {p: v for p, v in row["lines"].items() if group == "parser" or p in methods}
         with gzip.open(out / f"{group}-lines.json.gz", "wt") as stream:
             json.dump(rows, stream, separators=(",", ":"))
