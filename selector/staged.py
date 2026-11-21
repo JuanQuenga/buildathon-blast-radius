@@ -75,6 +75,49 @@ def plan_digest(plan):
     return step(plan.root)
 
 
+@functools.cache
+def rule_query_check():
+    """Set up the pin's worker function without importing the DataFrame comparator.
+
+    Rule replay is restricted to edits inside optimizer methods. Setup, teardown
+    and execution-tail coverage must exclude them before admission.
+    """
+    import ast
+    import types
+    import sqlglot
+    import sqlglot.executor as ex
+    from tests.helpers import TPCDS_SCHEMA
+    from result_replay import run
+
+    test = types.SimpleNamespace()
+    cache = BASE.with_name("pin-cache")
+    test.tpcds_sqls = pickle.loads((cache / "query-fixtures.pkl").read_bytes())
+
+    class Tables(dict):
+        def __missing__(self, name):
+            if not isinstance(name, str) or not name.isidentifier():
+                raise KeyError(name)
+            self[name] = table = pickle.loads((cache / "tables" / name).read_bytes())
+            return table
+
+    tables = Tables()
+    path = Path("tests/test_executor.py")
+    worker = next(node for node in ast.parse(path.read_text()).body
+                  if isinstance(node, ast.FunctionDef) and node.name == "mp_execute")
+    scope = dict(find_tables=sqlglot.find_tables, execute=ex.execute,
+                 _tables=tables, _schema=TPCDS_SCHEMA)
+    exec(compile(ast.Module([worker], []), str(path), "exec"), scope)
+    tests = types.SimpleNamespace(parse_one=sqlglot.parse_one, transpile=sqlglot.transpile,
+                                  mp_execute=scope["mp_execute"])
+    reference = json.loads(BASE.read_text())["ds"]
+
+    def check(i):
+        selection = {"active": [i], "worker": [i]}
+        run(test, tests, ex, reference, [], selection, digest, plan_digest)
+
+    return check
+
+
 def executor(record, expected, full, selection=None):
     if selection is not None and not selection["active"]:
         return [], []

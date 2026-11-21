@@ -501,6 +501,60 @@ def _equal_comparison_bits(module, old, new):
     return result
 
 
+@functools.cache
+def _fresh_tables():
+    return frozenset(json.loads((MAPS_DIR / "fresh-tables.json").read_text()))
+
+
+def _same_fresh_table(path, old, new):
+    for a, b in zip(ast.walk(old), ast.walk(new)):
+        if not isinstance(a, ast.Call) or not isinstance(b, ast.Call):
+            continue
+        if f"{_module_name(path)}:{a.lineno}:{a.col_offset}" not in _fresh_tables():
+            continue
+        if len(a.keywords) != len(b.keywords):
+            continue
+        for x, y in zip(a.keywords, b.keywords):
+            if (x.arg != "copy" or y.arg != "copy" or not isinstance(x.value, ast.Constant)
+                    or not isinstance(y.value, ast.Constant) or type(x.value.value) is not bool
+                    or type(y.value.value) is not bool):
+                continue
+            saved = y.value
+            try:
+                y.value = x.value
+                return _dump(old) == _dump(new)
+            finally:
+                y.value = saved
+    return False
+
+
+def _same_version_boundary(path, old, new):
+    """Dialect.__init__ normalizes every version to exactly three integers."""
+    if not path.startswith(("sqlglot/parsers/", "sqlglot/generators/")):
+        return False
+    for a, b in zip(ast.walk(old), ast.walk(new)):
+        if not isinstance(a, ast.Compare) or not isinstance(b, ast.Compare):
+            continue
+        if len(a.ops) != 1 or len(b.ops) != 1:
+            continue
+        if {type(a.ops[0]), type(b.ops[0])} not in ({ast.Lt, ast.LtE}, {ast.Gt, ast.GtE}):
+            continue
+        left, right = a.left, a.comparators[0]
+        if not (isinstance(left, ast.Attribute) and left.attr == "version"
+                and isinstance(left.value, ast.Attribute) and left.value.attr == "dialect"
+                and isinstance(left.value.value, ast.Name) and left.value.value.id == "self"
+                and isinstance(right, ast.Tuple) and len(right.elts) != 3
+                and all(isinstance(e, ast.Constant) and type(e.value) is int for e in right.elts)):
+            continue
+        saved = b.ops
+        try:
+            b.ops = a.ops
+            return _dump(old) == _dump(new)
+        finally:
+            b.ops = saved
+    return False
+
+
 def _pure_type_guard(node):
     """A pinned SQLGlot enum type check on an expression's stored payload."""
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
@@ -591,12 +645,33 @@ def _isolated_test_module(source):
     return True
 
 
+@functools.cache
+def _absent_plugin(name):
+    import importlib.metadata
+    import importlib.util
+    from _pytest.config import builtin_plugins
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+        return False
+    aliases = {name, "pytest_" + name}
+    installed = {p.name for p in importlib.metadata.entry_points(group="pytest11")}
+    if aliases & (installed | set(builtin_plugins)):
+        return False
+    if any(importlib.util.find_spec(alias) for alias in aliases):
+        return False
+    return not any(any(alias in source for alias in aliases) for source in _sources()["src"].values())
+
+
 def _without_pytest_discovery(doc):
     import copy
     config = copy.deepcopy(doc.get("tool", {}).get("pytest", {}))
     options = config.get("ini_options", {})
     for key in ("python_files", "python_functions", "python_classes"):
         options.pop(key, None)
+    addopts = options.get("addopts")
+    if isinstance(addopts, str):
+        disabled = re.fullmatch(r"\s*-p\s+no:([a-z][a-z0-9_]*)\s*", addopts)
+        if disabled and _absent_plugin(disabled[1]):
+            options.pop("addopts")
     if not options:
         config.pop("ini_options", None)
     return config, doc.get("build-system")
@@ -892,6 +967,11 @@ class Analysis:
         if identity_edit and _same_observed_comparison(oldp, old_tree, new_tree):
             self.reasons.append(f"{oldp}: identity and equality agreed on pinned operands")
             return
+        if self.single_file and len(placed) == 1:
+            from .value_reads import inert
+            if inert(oldp, old_tree, new_tree, self.idx["mro"]):
+                self.reasons.append(f"{oldp}: unchanged validation and dispatch on pinned inputs")
+                return
         PyDiff(self, oldp, old_tree, new_tree, old_src, new_src).run()
 
     def fast_function_path(self, path, old_src, new_src, placed, identity_edit=False) -> bool:
@@ -962,6 +1042,14 @@ class Analysis:
             return False
         if o.end_lineno != d_end or (n.end_lineno or 0) != d_end + delta:
             return False  # the segment is not exactly the function
+        if (self.single_file and len(placed) == 1 and any("copy=" in line for line in old_seg)
+                and _same_fresh_table(path, o, n)):
+            self.reasons.append(f"{path}: copying a fresh table with pinned scalar inputs")
+            return True
+        if (self.single_file and len(placed) == 1 and ".version" in "\n".join(old_seg)
+                and _same_version_boundary(path, o, n)):
+            self.reasons.append(f"{path}: strict boundary excludes equality for the pinned version tuple")
+            return True
         if identity_edit and _same_observed_comparison(path, o, n):
             self.reasons.append(f"{path}: identity and equality agreed on pinned operands")
             return True
@@ -2163,6 +2251,23 @@ def _resolve(bits: int, idx: dict, catalog: list[dict]) -> tuple[set[int], set[i
     return sel, unknown
 
 
+def _inert_companion(fp):
+    if fp.status != "M" or fp.binary:
+        return False
+    if fp.path.startswith("tests/fixtures/") and not fp.path.endswith(".py"):
+        return True
+    if not fp.path.startswith("sqlglot/") or not fp.path.endswith(".py"):
+        return False
+    if any(line.strip() and not line.lstrip().startswith("#") for h in fp.hunks
+           for tag, line in h.lines if tag in ("-", "+")):
+        return False
+    old = _sources()["src"].get(fp.path)
+    if old is None:
+        return False
+    new, _ = apply_hunks(old, fp.hunks)
+    return ast.dump(ast.parse(old.encode())) == ast.dump(ast.parse(new.encode()))
+
+
 def select(patch_text: str, catalog: list[dict]) -> dict:
     an = Analysis()
     try:
@@ -2172,8 +2277,7 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         an.single_file = len(files) == 1
         # Existing fixture edits contribute their own observed readers. They
         # cannot introduce new Python code before those reads.
-        an.one_code_edit = sum(not (f.status == "M" and f.path.startswith("tests/fixtures/")
-                                    and not f.path.endswith(".py")) for f in files) == 1
+        an.one_code_edit = an.single_file or sum(not _inert_companion(f) for f in files) == 1
         for fp in files:
             an.analyze(fp)
     except Unsupported as e:

@@ -14,17 +14,14 @@ def main():
     group = sys.argv[1]
     if group == "imported":
         return
-    if group == "slice":
-        active = json.loads(sys.argv[2])["active"]
-        if active and not os.environ.get("BLAST_CHANGED_MODULE", "").startswith("sqlglot.optimizer."):
-            mark("parse")
-            from sqlglot import parse_one
-            inputs = json.loads(Path("/app/pin-cache/ds-inputs.json").read_text())
-            rows = json.loads(staged.BASE.read_text())["ds"]
-            for i in active[:6]:
-                expr = pickle.loads(pickle.dumps(parse_one(inputs[i])))
-                if staged.digest(expr.dump()) != rows[i][2]:
-                    raise ValueError("early AST mismatch")
+    if group == "slice" and not os.environ.get("BLAST_CHANGED_MODULE", "").startswith("sqlglot.optimizer."):
+        # A parser or serialization exception is conclusive. Changed values
+        # continue to ordered-result verification below.
+        from sqlglot import parse_one
+        inputs = json.loads(Path("/app/pin-cache/ds-inputs.json").read_text())
+        mark("parse")
+        for i in json.loads(sys.argv[2])["active"][:6]:
+            pickle.loads(pickle.dumps(parse_one(inputs[i])))
     staged.main()
 
 

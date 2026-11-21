@@ -20,6 +20,6 @@ docker buildx create --name "$builder" --driver docker-container \
     --driver-opt memory=8g,memory-swap=8g,cpu-period=100000,cpu-quota=400000 >/dev/null
 docker buildx inspect "$builder" --bootstrap >/dev/null
 SECONDS=0
-timeout --kill-after=5s 360s docker buildx build --builder "$builder" \
+timeout --kill-after=5s 240s docker buildx build --builder "$builder" \
     --platform linux/amd64 --no-cache --progress plain --load -t "$image" "$context"
 echo "Clean build and load took ${SECONDS}s for $revision ($size checkout bytes)"

@@ -1,8 +1,7 @@
 """Compare the reference SQL and the observable result of each executed query."""
+import contextlib
 import hashlib
 import pickle
-import signal
-import time
 
 
 def table_digest(table):
@@ -16,10 +15,9 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
 
     execute = ex.PythonExecutor.execute
-    extra_cpu = 3.0 if full else 0.6
 
     def check_plan(engine, plan):
-        nonlocal extra_cpu, ran, skipped
+        nonlocal ran, skipped
         mark("plan")
         if ran or skipped:
             raise ValueError("multiple executions")
@@ -28,55 +26,36 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     and plan_digest(plan) == reference[7]):
                 skipped = True
                 return None
-            if extra_cpu <= 0.02:
-                raise TimeoutError("result verification budget exhausted")
-            # A changed join can expand rapidly. A CPU timer also bounds a
-            # single divergent query. The process exits on SIGPROF.
-            outer = signal.getitimer(signal.ITIMER_PROF)[0]
-            signal.setitimer(signal.ITIMER_PROF, min(extra_cpu, outer) if outer else extra_cpu)
-        start = time.process_time()
-        try:
-            mark("execute")
-            ran = True
-            return execute(engine, plan)
-        finally:
-            if not required:
-                spent = time.process_time() - start
-                signal.setitimer(signal.ITIMER_PROF, max(0.000001, outer-spent) if outer else 0)
-                extra_cpu -= spent
+        mark("execute")
+        ran = True
+        return execute(engine, plan)
 
+    reference_setup = contextlib.ExitStack()
+    changed_reference = set()
     ex.PythonExecutor.execute = check_plan
     try:
         if len(test.tpcds_sqls) != len(expected) or len(expected) != 99:
             raise ValueError("incomplete fixtures")
         inputs = []
-        import sqlglot
+        live_reference = None
         active = set(selection["active"]) if selection is not None else range(99)
-        mark("tokens")
-        for i in sorted(active):
-            meta, sql, _ = test.tpcds_sqls[i]
-            tokens = sqlglot.tokenize(sql)
-            if digest([[t.token_type.name, t.text, t.line, t.col, t.start, t.end, t.comments]
-                       for t in tokens]) != expected[i][0]:
-                raise ValueError("tokens changed")
         mark("parse")
         for i in sorted(active):
             meta, sql, _ = test.tpcds_sqls[i]
             expr = pickle.loads(pickle.dumps(tests.parse_one(sql)))
-            if digest(expr.dump()) != expected[i][2]:
-                raise ValueError("AST changed")
+            matches = digest(expr.dump()) == expected[i][2]
             if meta.get("execute"):
-                inputs.append((i, meta, sql, expr))
+                inputs.append((i, meta, sql, expr, matches))
         mark("generate")
-        for i, meta, sql, expr in inputs:
+        for i, meta, sql, expr, parsed_matches in inputs:
             if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
-                raise ValueError("reference query changed")
-        for i, meta, sql, expr in inputs:
+                changed_reference.add(i)
+        for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
             mark("optimize")
             required = i in full if isinstance(full, list) else bool(full)
-            parsed_matches = True
-            if selection is not None and i not in selection["worker"] and parsed_matches:
+            required |= i in changed_reference
+            if not required and selection is not None and i not in selection["worker"] and parsed_matches:
                 continue
             ran = skipped = False
             table = tests.mp_execute(expr, meta)
@@ -84,7 +63,20 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 continue
             if not ran or table is None:
                 raise ValueError("missing result")
-            if table_digest(pickle.loads(pickle.dumps(table))) != reference[-1]:
+            table = pickle.loads(pickle.dumps(table))
+            if i in changed_reference:
+                if live_reference is None:
+                    # Run the original assertion when its DuckDB SQL changes.
+                    from tests.test_executor import TestExecutor
+                    if hasattr(test, "tpcds_conn"):
+                        live_reference = test
+                    else:
+                        live_reference = TestExecutor("test_execute_tpcds")
+                        live_reference.setUpClass()
+                        reference_setup.callback(live_reference.tearDownClass)
+                live_reference.subtestHelper(i, table, tpch=False)
+            elif table_digest(table) != reference[-1]:
                 raise ValueError("result changed")
     finally:
         ex.PythonExecutor.execute = execute
+        reference_setup.close()

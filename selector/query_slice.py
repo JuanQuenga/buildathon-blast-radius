@@ -3,6 +3,7 @@ import ast
 import functools
 import gzip
 import json
+import marshal
 from pathlib import Path
 
 
@@ -93,13 +94,34 @@ def reached(row, changed):
                for n in row.get(path, ()) for lo, hi in spans)
 
 
-def query_cases(changed):
-    data = trace()
-    if reached(data["setup"], changed) or reached(data["teardown"], changed):
+@functools.cache
+def _hits(name):
+    return marshal.loads(Path(f"/app/pin-cache/{name}-hits.marshal").read_bytes())
+
+
+def indices(name, changed):
+    index = _hits(name)
+    bits = 0
+    for path, spans in changed.items():
+        file_hits = index.get(path, {})
+        for lo, hi in spans:
+            for line in range(lo, hi + 1):
+                bits |= file_hits.get(line, 0)
+    if bits < 0:
         return None
-    active = [i for i, row in enumerate(data["all"]) if reached(row, changed)]
-    worker = [i for i in active if reached(data["worker"][i], changed)]
-    return {"active": active, "worker": worker}
+    result = []
+    while bits:
+        bit = bits & -bits
+        result.append(bit.bit_length() - 1)
+        bits ^= bit
+    return result
+
+
+def query_cases(changed):
+    active = indices("query", changed)
+    if active is None:
+        return None
+    return {"active": active, "worker": sorted(set(active).intersection(indices("worker", changed)))}
 
 
 def keyword_edit(before, after):

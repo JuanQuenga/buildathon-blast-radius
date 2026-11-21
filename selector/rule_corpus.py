@@ -117,33 +117,57 @@ def index():
 
 
 def select(regions):
-    from .query_slice import reached
+    from .query_slice import indices
     if not all(p.startswith("sqlglot/optimizer/") for p in regions):
         return None
-    records, outside = index()
-    if reached(outside, regions):
-        return None
-    selected = [i for i, lines in enumerate(records) if reached(lines, regions)]
-    return selected if all(costs()[i] is not None for i in selected) else None
+    selected = indices("rules", regions)
+    return selected if selected is not None and all(costs()[i] is not None for i in selected) else None
 
 
-def replay(indices):
+def replay(indices, verify_query=None):
+    divergent = set()
+    queries = json.loads((Path(__file__).parent / "maps/rule-queries.json").read_text()) if verify_query else None
     import importlib
     sys.path.insert(0, str(Path.cwd()))
     for i in indices:
+        if verify_query and queries[i] in divergent:
+            continue
         with gzip.open(ROOT / f"{i}.gz", "rb") as stream:
             module, name, inputs, after, expected, identical, kwargs_digest = pickle.load(stream)
         expr, kwargs = pickle.loads(inputs)
-        result = getattr(importlib.import_module(module), name)(expr, **kwargs)
+        try:
+            result = getattr(importlib.import_module(module), name)(expr, **kwargs)
+        except Exception:
+            if verify_query is None:
+                raise
+            verify_query(queries[i])
+            divergent.add(queries[i])
+            continue
         output = fingerprint(result)
         if ((result is expr) != identical or output != expected
                 or (output if result is expr else fingerprint(expr)) != after
                 or hashlib.sha256(pickle.dumps(kwargs)).digest() != kwargs_digest):
-            raise ValueError("rule result changed")
+            if verify_query is None:
+                raise ValueError("rule result changed")
+            verify_query(queries[i])
+            divergent.add(queries[i])
+    return sorted(divergent)
 
 
 if __name__ == "__main__":
     if sys.argv[1] == "record":
         record()
     else:
-        replay(json.loads(sys.argv[2]))
+        indices = json.loads(sys.argv[2])
+        if len(sys.argv) < 4:
+            replay(indices)
+        else:
+            sys.path.insert(0, str(Path(__file__).parent))
+            from phase import mark
+            from staged import rule_query_check
+
+            def check_query(query):
+                mark("divergent")
+                rule_query_check()(query)
+
+            replay(indices, verify_query=check_query)

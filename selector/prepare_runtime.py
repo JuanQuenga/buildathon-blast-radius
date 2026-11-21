@@ -1,4 +1,5 @@
 """Precompute repeated operations on pinned sources inside the image's Python."""
+import gzip
 import marshal
 import py_compile
 import sys
@@ -7,6 +8,11 @@ import re
 import sqlite3
 
 from selector.impact import _index, _sources
+
+# Store raw members together so xz can compress shared rule inputs across files.
+for raw in Path("/app").rglob("*.gz.raw"):
+    raw.with_suffix("").write_bytes(gzip.compress(raw.read_bytes(), compresslevel=1, mtime=0))
+    raw.unlink()
 
 out = Path("/app/pin-cache")
 out.mkdir()
@@ -76,5 +82,31 @@ if Path("/app/ds.json.gz").exists():
     import pickle
     sys.path.insert(0, "/app/sqlglot")
     with open("/app/staged-tables.pkl", "rb") as stream:
-        queries, _ = pickle.load(stream)
+        queries, tables = pickle.load(stream)
+    (out / "query-fixtures.pkl").write_bytes(pickle.dumps(queries))
+    table_dir = out / "tables"
+    table_dir.mkdir()
+    for name, table in tables.items():
+        assert re.fullmatch(r"[A-Za-z0-9_]+", name)
+        (table_dir / name).write_bytes(pickle.dumps(table))
     (out / "ds-inputs.json").write_text(json.dumps([sql for _, sql, _ in queries]))
+
+    from selector import query_slice, rule_corpus
+    for name, rows, outside in (
+        ("query", query_slice.trace()["all"], [query_slice.trace()["setup"], query_slice.trace()["teardown"]]),
+        ("worker", query_slice.trace()["worker"], []),
+        ("rules", rule_corpus.index()[0], [rule_corpus.index()[1]]),
+    ):
+        hits = {}
+        for i, row in enumerate(rows):
+            bit = 1 << i
+            for path, lines in row.items():
+                file_hits = hits.setdefault(path, {})
+                for line in lines:
+                    file_hits[line] = file_hits.get(line, 0) | bit
+        for row in outside:
+            for path, lines in row.items():
+                file_hits = hits.setdefault(path, {})
+                for line in lines:
+                    file_hits[line] = -1
+        (out / f"{name}-hits.marshal").write_bytes(marshal.dumps(hits))

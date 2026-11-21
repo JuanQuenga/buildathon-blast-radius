@@ -256,6 +256,26 @@ def tail_cases(path, source, fd):
         path,
     ):
         return all_cases
+    if path.startswith("sqlglot/optimizer/"):
+        # A changed literal default leaves the function object in place. A
+        # downstream caller, importer, or reference to it still forces execution.
+        old = ast.parse((Path(verify.PRISTINE) / path).read_text())
+        new = ast.parse(source)
+        for a, b in zip(old.body, new.body):
+            if not (isinstance(a, ast.FunctionDef) and isinstance(b, ast.FunctionDef)
+                    and not a.decorator_list and len(a.args.defaults) == len(b.args.defaults)):
+                continue
+            for i, (x, y) in enumerate(zip(a.args.defaults, b.args.defaults)):
+                if not (isinstance(x, ast.Constant) and isinstance(y, ast.Constant)
+                        and type(x.value) is type(y.value) is bool and x.value != y.value):
+                    continue
+                b.args.defaults[i] = x
+                try:
+                    if ast.dump(old) == ast.dump(new):
+                        return [i for i, row in enumerate(rows)
+                                if path in row["paths"] or a.name in row["names"]]
+                finally:
+                    b.args.defaults[i] = y
     lines = {n for h in fd.hunks for n in h.removed_old_lines}
     if not lines or any(not h.old_len or not h.new_len for h in fd.hunks):
         return all_cases
@@ -422,6 +442,37 @@ def method_spans(path, fd, original, source):
     return None
 
 
+def optimizer_tuple_reads(path, source):
+    if not path.startswith("sqlglot/optimizer/"):
+        return None
+    before = ast.parse((Path(verify.PRISTINE) / path).read_text())
+    after = ast.parse(source)
+    for a, b in zip(before.body, after.body):
+        if not (isinstance(a, ast.Assign) and isinstance(b, ast.Assign)
+                and len(a.targets) == 1 and isinstance(a.targets[0], ast.Name)):
+            continue
+        name = a.targets[0].id
+        if not name.isupper() or not isinstance(a.value, ast.Tuple) or not isinstance(b.value, ast.Tuple):
+            continue
+        if not all(isinstance(e, ast.Attribute) and isinstance(e.value, ast.Name) and e.value.id == "exp"
+                   for e in [*a.value.elts, *b.value.elts]):
+            continue
+        if ast.dump(a.value) == ast.dump(b.value):
+            continue
+        b.value = a.value
+        if ast.dump(before) != ast.dump(after):
+            return None
+        reads = []
+        for p, line, lo, hi, scope in impact._name_sites(impact.Analysis(), name):
+            if p == path and a.lineno <= line <= a.end_lineno:
+                continue
+            if p != path or not scope or scope[0] != "def" or line < scope[4]:
+                return None
+            reads.append((lo, hi))
+        return reads or None
+    return None
+
+
 @functools.lru_cache(maxsize=2)
 def changed_regions(text):
     changes = verify.apply_patch(text)
@@ -435,6 +486,10 @@ def changed_regions(text):
         scopes = impact._index()["scopes"].get(path)
         if scopes and any(not any(k == "def" and body <= n <= end
                                   for k, _, end, _, body in scopes[1]) for n in removed):
+            ranges = optimizer_tuple_reads(path, source)
+            if ranges:
+                result[path] = ranges
+                continue
             return None
         ranges = method_spans(path, files[path], original, source)
         if ranges is None:
@@ -540,17 +595,30 @@ class Probe:
         return self.gain * self.probability / self.estimate
 
 
+@functools.cache
+def query_costs():
+    with gzip.open("/app/ds-costs.json.gz") as stream:
+        rows = json.load(stream)
+    return [rows[f"ds:{i}"]["phases"] for i in range(99)]
+
+
+def query_price(active, worker, forced):
+    phases = query_costs()
+    front = 0.28 + 0.009 * len(active)
+    planning = sum(phases[i].get("optimize", 0) + phases[i].get("plan", 0) for i in worker)
+    execution = sum(phases[i].get("execute", 0) for i in forced)
+    return front + 1.18 * (planning + execution)
+
+
 def economics(mode, cases):
     # Smoothed rates from tuning, pooled by verification mechanism.
     if mode == "rules":
         from .rule_corpus import estimate
         return 0.53, estimate(cases)
     if mode == "slice":
-        exe = cases["execute"]
-        cost = 0.18 + 0.010 * len(cases["active"]) + 0.038 * len(cases["worker"])
-        return (0.32 if exe else 0.74), cost + 0.1 * len(exe)
+        return 0.76, query_price(cases["active"], cases["worker"], cases["execute"])
     if mode in {"partial", "front"}:
-        return 0.60, 4.0 + 0.11 * len(cases)
+        return 0.76, query_price(range(99), range(99), cases)
     if mode == "dialects":
         return 0.79, 0.22 + 0.025 * len(cases)
     return {
@@ -572,7 +640,7 @@ def options(patch, catalog, targets, dur):
         # Even if the alternative fills every worker, collection may admit
         # a subsequent individual proof for an expensive test.
         yield Probe(patch, "collection", None, "catalog", "", [],
-                    (req, pl, workers), max(gain, 5), 0.65, 1.35)
+                    (req, pl, workers), max(gain, 5), 0.80, 1.8)
         return
     if not patch.req:
         return
@@ -608,7 +676,7 @@ def options(patch, catalog, targets, dur):
         path, cls, _ = parts
         scopes = impact._index()["scopes"].get(path)
         if scopes and any(name == cls + ".setUpClass" for _, _, _, name, _ in scopes[1]):
-            setup_cost = 0.75
+            setup_cost = 0.12
             break
     yield Probe(patch, "bundle", None, "bundle", ",".join(f.path for f in files),
                 cases, (set(), set(), []), plan_cost(patch.workers, dur) / 1000,
@@ -618,61 +686,44 @@ def options(patch, catalog, targets, dur):
 def run(patches, catalog, dur, t0):
     from .probe_session import PatchSession
     started = cpu()
-    stop = min(t0 + 105, time.monotonic() + 53)
-    base = max(0.40, len(patches) * 0.065)
+    # Admission consumes pin-derived estimates, independent of machine load.
+    allowance = max(12.0, 0.75 * len(patches))
+    deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
-    saved = 0.0
-    successful_cpu = 0.0
-    paid = 0
     queue = []
     attempted = set()
     bundle_wins = bundle_tries = 0
     session = None
 
-    def remaining():
-        credit = 0.35 * saved if paid >= 2 else 0.0
-        budget = min(max(2.85, 0.07125 * len(patches)), base + successful_cpu + credit)
-        return min(stop - time.monotonic(), budget - (cpu() - started)
-                   - (session.charged if session else 0))
-
     def enqueue(patch):
         try:
             for probe in options(patch, ids, targets, dur):
-                if probe.priority >= 1.25 and (patch, probe.group) not in attempted:
+                if probe.priority >= 1.0 and (patch, probe.group) not in attempted:
                     queue.append(probe)
         except Exception:
             return
 
     for patch in patches:
-        if remaining() < 0.08:
-            break
         enqueue(patch)
-    # A dense batch of cheap proofs can have substantially more removable
-    # work than the practice batch. Bound this initial investment separately.
-    best_gain = {}
-    for probe in queue:
-        if probe.estimate <= 1.4 and probe.group not in {"bundle", "collection"}:
-            value = probe.gain * probe.probability - probe.estimate
-            best_gain[probe.patch] = max(best_gain.get(probe.patch, 0), value)
-    if any(probe.group == "collection" and probe.gain >= 10 for probe in queue):
-        base = max(base, 2.65)
-    base += min(4.0, 0.045 * max(0.0, sum(best_gain.values()) - 60.0))
     print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
+    if any(p.group == "bundle" for p in queue) and not any(p.group == "collection" for p in queue):
+        warm_replay.prepare_core()
     active = None
     with contextlib.ExitStack() as stack:
-        while queue and remaining() > 0.05:
+        while queue:
             queue.sort(key=lambda p: p.priority)
             probe = queue.pop()
             if probe.group == "bundle":
                 # Start with three pseudocounts. As outcomes arrive, expensive
                 # worker checks must still pay for their observed failure rate.
                 probability = (0.9 + bundle_wins) / (3 + bundle_tries)
-                if probability * probe.gain < 1.25 * probe.estimate:
+                if probability * probe.gain < probe.estimate:
                     continue
             patch = probe.patch
-            if probe.estimate > 1.5 * remaining() and probe.mode != "unreached":
+            if probe.estimate > allowance:
                 continue
+            allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
             phase = probe.mode
             attempted.add((patch, probe.group))
@@ -694,10 +745,12 @@ def run(patches, catalog, dur, t0):
                     warm_replay.prepare_core()
                 if probe.mode in {"catalog", "front", "partial"} and not warm_replay.ready:
                     warm_replay.prepare()
-                cpu_limit = max(0.02, min(remaining(), max(0.50, 1.8 * probe.estimate + 0.20)))
-                deadline = min(stop, time.monotonic() + 3 * cpu_limit + 0.3)
+                cpu_limit = max(3.0, 3.0 * probe.estimate + 1.0)
                 args = ([json.dumps(probe.cases)] if probe.mode in
                         {"partial", "slice", "rules", "dialects", "bundle"} else [])
+                if probe.mode == "rules" and probe.gain * 0.65 > probe.estimate + 1.0:
+                    args.append("verify-results")
+                    cpu_limit = max(cpu_limit, 2 * probe.gain + 1)
                 if probe.mode == "unreached":
                     result = "pass"
                 elif session:
@@ -706,22 +759,27 @@ def run(patches, catalog, dur, t0):
                     replay.phase = phase
                     result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
                     phase = replay.phase
-                if result == "failed" and probe.mode == "rules":
-                    # Isolated rule replay can diverge before the assertion.
-                    # Trace every affected query through its downstream stages.
-                    selection = query_slice.query_cases(changed_regions(patch.text))
-                    if (selection and len(selection["worker"]) <= 5
-                            and time.monotonic() < deadline and remaining() > 0.25):
-                        selection["execute"] = []
-                        args = [json.dumps(selection)]
-                        spent = cpu() + (session.charged if session else 0) - began
-                        left = min(cpu_limit - spent, remaining())
-                        if left > 0.20:
-                            if session:
-                                result, phase = session.check("slice", args, deadline, left)
-                            else:
-                                result = replay("slice", args, work, deadline, probe.paths, left)
-                                phase = replay.phase
+                if result == "failed" and probe.mode in {"corpus", "tokens"}:
+                    regions = changed_regions(patch.text)
+                    selection = query_slice.query_cases(regions) if regions else None
+                    if selection is None:
+                        mode, args, price = "full", [], query_price(range(99), range(99), range(99))
+                    else:
+                        # An optimizer or parser edit may also run inside the
+                        # executor. Respect the same downstream call guard as slice.
+                        files = parse(patch.text)
+                        forced = set().union(*(tail_cases(f.path, changes[f.path], f) for f in files))
+                        selection["execute"] = sorted(forced.intersection(selection["worker"]))
+                        mode, args = "slice", [json.dumps(selection)]
+                        price = economics(mode, selection)[1]
+                    if price <= allowance and price < 0.65 * probe.gain:
+                        allowance -= price
+                        limit = max(4, 2.5 * price + 1)
+                        if session:
+                            result, phase = session.check(mode, args, deadline, limit)
+                        else:
+                            result = replay(mode, args, work, deadline, probe.paths, limit)
+                            phase = replay.phase
                 if result == "pass":
                     if probe.mode == "catalog":
                         missing = json.loads((Path(work) / ".blast-missing.json").read_text())
@@ -730,22 +788,27 @@ def run(patches, catalog, dur, t0):
                         req, pl = patch.alt
                         req = req.union(missing)
                         patch.req, patch.pl, patch.workers = req, pl - req, schedule(req, pl - req, dur)
+                    elif probe.mode == "bundle" and (Path(work) / ".blast-passed.json").is_file():
+                        passed = json.loads((Path(work) / ".blast-passed.json").read_text())
+                        if not isinstance(passed, list) or not set(passed) < set(probe.cases):
+                            raise ValueError("invalid partial bundle receipt")
+                        keep = {n for n, node in ids.items() if node in probe.cases and node not in passed}
+                        patch.req, patch.pl = keep, patch.pl - {n for n, node in ids.items() if node in probe.cases}
+                        patch.workers = schedule(patch.req, patch.pl, dur)
+                        result = "partial"
                     else:
                         patch.req, patch.pl, patch.workers = probe.proposed
                     patch.full = False
-                    if probe.group != "collection":
-                        saved += probe.gain
-                        paid += int(probe.group != "bundle")
                     queue[:] = [p for p in queue if p.patch is not patch]
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
+            if result == "timeout":
+                allowance -= max(0.0, cpu_limit - probe.estimate)
             if probe.group == "bundle":
                 bundle_tries += 1
                 bundle_wins += result == "pass"
             cost = cpu() + (session.charged if session else 0) - began
-            if result == "pass" and probe.group not in {"bundle", "collection"}:
-                successful_cpu += min(max(0, cost), 0.4 * probe.gain)
             print("heavy", patch.commit, probe.group, result, probe.mode, f"{cost:.4f}",
                   round(1000 * probe.gain) if result == "pass" and probe.group != "collection" else 0,
                   phase, f"{probe.probability:.2f}", file=sys.stderr)

@@ -106,11 +106,12 @@ def _plan(req: set[int], pl: set[int], dur: dict[int, int]) -> list[list[int]]:
 
 
 def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
-    use_alarm = hasattr(signal, "SIGALRM")
+    cpu_start = time.process_time()
+    use_alarm = hasattr(signal, "SIGPROF")
     if use_alarm:
-        signal.signal(signal.SIGALRM, _alarm)
+        signal.signal(signal.SIGPROF, _alarm)
     for P in patches:
-        elapsed = time.monotonic() - t0
+        elapsed = time.process_time() - cpu_start
         try:
             P.text = (DATA / "commits" / f"{P.commit}.patch").read_text(
                 encoding="utf-8", errors="replace")
@@ -122,12 +123,12 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
         try:
             budget = max(0.05, min(PER_PATCH_S, GLOBAL_BUDGET_S - elapsed))
             if use_alarm:
-                signal.setitimer(signal.ITIMER_REAL, budget)
+                signal.setitimer(signal.ITIMER_PROF, budget)
             try:
                 res = select(P.text, catalog)
             finally:
                 if use_alarm:
-                    signal.setitimer(signal.ITIMER_REAL, 0)
+                    signal.setitimer(signal.ITIMER_PROF, 0)
             alt = res.get("if_collects") if res.get("full") else None
             if alt and (VERIFY or os.environ.get("BLAST_HEAVY") == "1"):
                 # impact went full only for fear of a collection error: keep
