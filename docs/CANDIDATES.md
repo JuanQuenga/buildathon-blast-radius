@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Candidate-12 is queued for the 5:48 AM ET practice slot.** The coordinator submits. The original 133.4-second forecast is withdrawn. With zero misses and no new savings, the two observed simulation scenarios are 155.649 s if C12 retains C8’s TPC-DS drop and 177.103 s if it loses it. CPU is additional. C12’s official result is pending. [Release validation](CANDIDATE12.md)
+**Please submit candidate-13 at the approximately 6:48 AM ET practice slot after candidate-12.** The coordinator handles submission. C13 preserved every C8 heavy drop across 1,101 local patches, including both deadline controls. It had zero misses on the 310 audited tuning and 217 audited holdout patches at label revision `860e0bf`.
+
+With zero misses and no additional hidden savings, C13's conditional practice range is 158.6–202.1 seconds. The low end retains C8's TPC-DS drop at 3 CPU seconds. The high end loses it and spends 25 CPU seconds. [Lost drops, validation and forecast](CANDIDATE13.md) · [Final-entry recommendation](FINAL.md)
+
+Candidate-12 is queued for the 5:48 AM ET practice slot. Its original 133.4-second forecast is withdrawn. Its official result is pending. [C12 validation](CANDIDATE12.md)
 
 ### Candidate-11 official result
 

@@ -1,6 +1,6 @@
 # Candidate 12
 
-The pre-official 40-patch forecast is **117.8 simulated + 15.6 CPU = 133.4 seconds**, conditional on zero misses. The host-derived estimates below use the same 8cba26f labels and batches as candidate 11. Only patches and the numbered catalog enter the container. Tuning includes the sample.
+The original 40-patch forecast was **117.8 simulated + 15.6 CPU = 133.4 seconds**, conditional on zero misses. We withdrew that forecast after C11 lost the previously observed hidden TPC-DS saving. The replacement scenarios and measured C12 CPU breakdown appear in [the C13 audit](CANDIDATE13.md). The host-derived estimates below use the same 8cba26f labels and batches as candidate 11. Only patches and the numbered catalog enter the container. Tuning includes the sample.
 
 | Partition | Patches | Misses C11 / C12 | Simulated seconds C11 / C12 | CPU seconds C11 / C12 | Full plans C11 / C12 |
 |---|---:|---:|---:|---:|---:|

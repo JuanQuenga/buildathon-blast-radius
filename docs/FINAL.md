@@ -1,8 +1,8 @@
 # Final entry
 
-**Candidate-12 is the provisional final choice for a sample-like mix. Candidate-5 is the conservative alternative.** C12 scored 95.064 simulated seconds on the official sample. C5 has a 177.8-second official practice result at 0.67 CPU seconds. C8 has the best measured practice result, 174.6 s. C11 scored 178.7 s and recovered none of the simulated savings assumed in its forecast. The same calibration supplied the original C12 forecast. Use the empirical sample and unfamiliar-kind scenarios below pending the C12 official result.
+**Recommend candidate-13 for the final. Candidate-5 is the conservative alternative.** C13 matched C12's 95.064 simulated seconds on the official sample, preserved all recorded C8 heavy drops on 1,101 local patches, and scored 396.015 simulated seconds with zero misses on the fixed 60-patch mix. C12 took 401.446 simulated seconds and C5 took 507.053 on that mix. C5 has a verified official practice score of 177.8 with only 0.67 CPU seconds. C8 holds the team's best observed practice score, 174.6. C13's official practice performance remains unknown. [C13 release record](CANDIDATE13.md)
 
-## Sixty-patch scenarios
+## Candidate-12 sixty-patch scenarios
 
 These are expected simulated plus CPU seconds conditional on zero misses. The 270-second limit applies to the selector's real wall time. The simulation can exceed 270.
 
@@ -17,7 +17,7 @@ For an unconditional expectation, add 18,000 times the entry's per-patch miss pr
 
 A fixed 60-patch batch combined all 30 sample patches, 18 mechanical holdouts of sample kinds and 12 of other kinds. Candidate 12 scored 401.446 simulated seconds, zero misses and 26.673–30.036 CPU seconds across five runs. The plans had identical SHA-256 `bc7cc1504ccb3c1e934a009ba79418c7cc0d61f193a62dbd77ff031d3915c74f`. Wall time ranged from 27.41 to 30.91 seconds. Candidate 5 scored 507.053 simulated + 2.320 CPU seconds and zero misses on the same inputs.
 
-## Mechanisms and hazard rules
+## Mechanisms shared with candidate-13
 
 | Mechanism | Evidence required to remove work, and fallback |
 |---|---|
@@ -31,8 +31,8 @@ A fixed 60-patch batch combined all 30 sample patches, 18 mechanical holdouts of
 
 ## Repeatability and limits
 
-No ordinary queue admission decision uses elapsed wall time or the CPU actually spent by a previous successful probe. Catalog order, patch order, hash seed, query IDs and search-node limits are fixed. At most 12 scheduled probes of each first-stage mode can run in a batch. A timeout debits its fixed CPU allowance. The published image uses one Python worker for spawned test pools and a two-CPU Docker quota. CPU time and the ranking score can vary even when the JSONL plans are identical.
+Candidate 12 limits each first-stage mode to twelve probes. Candidate 13 removes this limit and the probability cutoff on heavy-test checks. It prices recoverable schedule time against pin work, with a fixed allowance and a separate emergency CPU ceiling. Catalog order, patch order, hash seed, query IDs and search-node limits are fixed. A timeout debits its fixed CPU allowance. The published image uses one Python worker for spawned test pools and a two-CPU Docker quota. CPU time and the ranking score can vary even when the JSONL plans are identical.
 
 Wall-dependent emergency exits remain. Static selection has a five-CPU-second patch limit, a 60-CPU-second batch limit, a 20-second blocked-I/O watchdog per patch and a 90-second static wall ceiling. The verifier has per-child CPU timers, a memory cap and a supervisor measured from selector startup, 120 wall seconds for a 40-patch batch or 180 for 60. An expired supervisor discards uncommitted probe results and returns the static plans. The default path emits only after validation. Severe host stalls, resource exhaustion, threshold-adjacent probes or changes to process state could therefore change a plan. Repeated plans on checked batches establish repeatability on those inputs; universal identity across official reruns is unproven.
 
-Candidate 10 failed the official image build. Candidate 12 uses committed pin recordings, a locked environment and a clean-build gate on four CPUs with 8 GiB and no cache. Its tracked checkout is about 9.3 MB. Only the coordinator submits.
+Candidate 10 failed the official image build. Candidates 12 and 13 use committed pin recordings, a locked environment and a clean-build gate on four CPUs with 8 GiB and no cache. The C13 runtime-source checkout passed the clean build gate at 9.41 MB. Only the coordinator submits.

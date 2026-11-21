@@ -1,6 +1,6 @@
 # Candidate 11
 
-Practice forecast conditional on zero misses is **146.1 simulated + 4.6 CPU = 150.7 seconds**. This uses the two official anchors and effective sample/holdout weights in [candidate 10](CANDIDATE10.md). Candidate 10 was rejected during its image build and has no official runtime measurement. The new forecast is only 1.3 seconds better than its forecast. The measurements do not support a 136-second prediction.
+Official practice scored **178.7 s** with 177.103 simulated seconds, 1.56 CPU seconds and zero misses. The pre-official forecast conditional on zero misses was **146.1 simulated + 4.6 CPU = 150.7 seconds**. This uses the two official anchors and effective sample/holdout weights in [candidate 10](CANDIDATE10.md). Candidate 10 was rejected during its image build and has no official runtime measurement. The new forecast is only 1.3 seconds better than its forecast. The measurements do not support a 136-second prediction.
 
 | Partition | Patches | Misses C10 / C11 | Simulated seconds C10 / C11 | CPU seconds C10 / C11 |
 |---|---:|---:|---:|---:|
