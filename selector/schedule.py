@@ -88,7 +88,7 @@ def _improve(bins: list[list[int]], loads: list[int], dur: dict[int, int], lb: i
 
 
 def _exact(items: list[tuple[int, int]], k: int, ub: int, lb: int,
-           node_budget: int = 200_000) -> tuple[list[list[int]], int] | None:
+           node_budget: int = 15_000) -> tuple[list[list[int]], int] | None:
     """Branch and bound for makespan < ub.  Returns (bins, makespan) or None."""
     n = len(items)
     loads = [0] * k
@@ -149,7 +149,8 @@ def pack(tests: Iterable[int], k: int, dur: dict[int, int]) -> tuple[list[list[i
     if max(loads) > lb:
         _improve(bins, loads, dur, lb)
     ms = max(loads)
-    if ms > lb and len(items) <= 40 and k > 1:
+    # Exact search only when the possible gain is worth its CPU (1 ms CPU ~ 1 ms score).
+    if ms - lb >= 20 and len(items) <= 40 and k > 1:
         res = _exact(items, k, ms, lb)
         if res is not None and res[1] < ms:
             bins, ms = res
@@ -206,8 +207,12 @@ def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int
         rest = sorted((t for t in dur if t not in required and t not in pl_set),
                       key=lambda t: (dur[t], t))
 
+    total = sum(dur[t] for t in req)
+    longest = max(dur[t] for t in req)
     best = None  # (cost, -plausible_covered, -total_covered, k, bins)
     for k in range(1, min(MAX_WORKERS, n) + 1):
+        if best is not None and max(longest, -(-total // k)) + SETUP_MS * k > best[0]:
+            continue  # cannot match the best cost with k workers
         bins, ms = pack(req, k, dur)
         bins = [b for b in bins if b]
         cost = ms + SETUP_MS * len(bins)
