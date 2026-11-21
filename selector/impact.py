@@ -46,6 +46,13 @@ from pathlib import Path
 
 MAPS_DIR = Path(os.environ.get("BLAST_MAPS", str(Path(__file__).resolve().parent / "maps")))
 
+# How a change that breaks a module imported while collecting tests is handled:
+# "full" (default): plain pytest aborts the whole session on a collection
+#   error and the official labelling of that case is unpublished -> full suite.
+# "file": the labeler continues past collection errors -> only tests of the
+#   files that import the module (plus runtime importers) can fail.
+COLLECTION_ERRORS = os.environ.get("BLAST_COLLECTION_ERRORS", "full")
+
 _IDX: dict | None = None
 _SRC: dict | None = None
 _BUILTINS = frozenset(dir(builtins)) | {"__file__", "__name__", "__doc__", "__spec__",
@@ -411,7 +418,9 @@ class Analysis:
         whole session -> full suite.  Otherwise every test that imported it at
         runtime is hit."""
         if path in self.collected():
-            raise Unsupported(f"{why}: {path} is imported during collection")
+            if COLLECTION_ERRORS != "file":
+                raise Unsupported(f"{why}: {path} is imported during collection")
+            self.reasons.append(f"collection error expected in importers of {path} ({why})")
         return self.file_bits(path)
 
     def test_module_gone(self, path: str) -> int:
