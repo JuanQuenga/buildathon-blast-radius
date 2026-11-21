@@ -622,6 +622,36 @@ def _local_raising_fixtures(body):
     return True
 
 
+def _isolated_import_addition(path, old, new):
+    """A leaf unittest module whose only change extends its initial imports."""
+    if not path.startswith("tests/") or not path.rsplit("/", 1)[-1].startswith("test_"):
+        return False
+    a, b = ast.parse(old).body, ast.parse(new).body
+    stop = next((i for i, n in enumerate(a) if isinstance(n, ast.ClassDef)), len(a))
+    if stop == len(a) or any(not isinstance(n, (ast.Import, ast.ImportFrom)) for n in a[:stop]):
+        return False
+    if any(not isinstance(n, ast.ClassDef) or n.decorator_list or n.keywords
+           or [ast.unparse(base) for base in n.bases] != ["unittest.TestCase"]
+           or any(not isinstance(f, ast.FunctionDef) or f.decorator_list or f.args.defaults
+                  or any(f.args.kw_defaults) for f in n.body) for n in a[stop:]):
+        return False
+    delta = len(b) - len(a)
+    if delta <= 0 or list(map(_dump, a)) != list(map(_dump, b[:stop] + b[stop+delta:])):
+        return False
+    existing = {alias.name for n in a[:stop] if isinstance(n, ast.Import) for alias in n.names}
+    for n in b[stop:stop+delta]:
+        if not isinstance(n, ast.ImportFrom) or n.level or not n.module or any(x.name == "*" for x in n.names):
+            return False
+        if not any(m == n.module or m.startswith(n.module + ".") for m in existing):
+            return False
+        names = _index()["ns_mod"].get(n.module)
+        if names is None or "__getattr__" in names or any(
+                x.name not in names and _static_names(n.module + "." + x.name) is not None
+                for x in n.names):
+            return False
+    return True
+
+
 def _isolated_test_module(source):
     """Allow only unittest definitions with no import-time user expressions."""
     for stmt in ast.parse(source).body:
@@ -685,6 +715,7 @@ def _without_pytest_discovery(doc):
 
 class Analysis:
     def __init__(self):
+        self.isolated_import_path = None
         self.check_imports = False
         self.single_file = False
         self.fixture_only = self.precise_fixture = False
@@ -737,6 +768,12 @@ class Analysis:
         being collected, pytest reports a collection error and interrupts the
         whole session -> full suite.  Otherwise every test that imported it at
         runtime is hit."""
+        if self.isolated_import_path == path:
+            affected = self.tests_in_file(path) | self.file_bits(path)
+            for testfile, dependencies in self.idx["collect_mods"].items():
+                if path in dependencies:
+                    affected |= self.tests_in_file(testfile)
+            return affected
         if path in self.collected():
             if COLLECTION_ERRORS != "file":
                 if os.environ.get("BLAST_HEAVY") != "1":
@@ -946,6 +983,8 @@ class Analysis:
             self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
                      f"{oldp} no longer compiles")
             return
+        if self.single_file and oldp.startswith("tests/") and _isolated_import_addition(oldp, old_src, new_src):
+            self.isolated_import_path = oldp
         semantics = _changed_call_semantics(oldp, patched_code)
         if isinstance(semantics, set) and semantics:
             scopes = self.idx["scopes"].get(oldp, [None, []])[1]

@@ -334,6 +334,12 @@ def main() -> int:
     patches = [Patch(p.stem) for p in sorted((DATA / "commits").glob("*.patch"))]
     select = _load_impact() if patches else None
     _impact_pass(patches, select, catalog, dur, valid, t0)
+    if os.environ.get("BLAST_STATIC_FRONTEND") == "1":
+        from .static_heavy import refine
+        try:
+            refine(patches, catalog, dur)
+        except Exception as exc:
+            log(f"static refinement stopped ({type(exc).__name__})")
     if os.environ.get("BLAST_HEAVY") == "1":
         from . import heavy
         try:
