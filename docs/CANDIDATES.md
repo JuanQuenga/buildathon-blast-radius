@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Please submit candidate-9 at the next available practice slot.** Candidate-8 scored 174.6 seconds officially on November 21, with 155.649 simulated seconds, 18.99 median CPU seconds and zero misses. Candidate-9 missed zero across the matched sample, tuning and holdout. Its [validation and forecast](CANDIDATE9.md) records the cost of the holdout regression as well as the sample improvement.
+**Please submit candidate-10 at the next available practice slot.** Its forecast is **146.3 simulated + 5.7 CPU = 152.0 seconds**. Candidate-8 officially scored 155.649 simulated + 18.99 median CPU with zero misses. Candidate-10 kept every observed failure on the matched sample, tuning, holdout, additional tuning and generated checks. It reduced the paired holdout total by 48.778 seconds and regressed the paired tuning total by 19.808 seconds. The [candidate record](CANDIDATE10.md) includes stage costs, calibration, two 40-patch scenarios, missed CPU targets and sensitivity to a lost TPC-DS saving.
+
+### Candidate-9 validation
+
+Candidate-9 at 6a7c9ca remains available. On the 197 registered holdouts it had zero misses and used 22.915 CPU seconds, but its 1961.045 simulated seconds exceeded C10 by 175.503. The [candidate record](CANDIDATE9.md) gives its measurements and forecast.
 
 ### Candidate-8 validation
 
