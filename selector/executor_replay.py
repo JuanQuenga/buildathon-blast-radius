@@ -1,12 +1,7 @@
 """Replay patch-local executor changes with the pinned full-data plan inputs."""
 import functools
-import json
 from pathlib import Path
 import pickle
-
-from phase import mark
-from query_budget import execution_costs, query_budget
-from result_replay import table_digest
 
 ROOT = Path("/app/pin-cache")
 
@@ -18,25 +13,20 @@ def full_table(name):
     return pickle.loads((ROOT / "tables" / name).read_bytes())
 
 
-def check(selection):
+def prepared_query(i, selection, tables):
+    """Restore an unaffected execution prefix at its original fixture position."""
+    if not selection or i not in selection.get("cached", ()):
+        return None
+    from staged import execution_inputs
     from sqlglot.executor.python import PythonExecutor
     from sqlglot.executor.table import ensure_tables
 
-    regions = selection["executor_regions"]
-    from staged import execution_inputs
     plans, prefixes = execution_inputs()
-    reference = json.loads(Path("/app/staged.json").read_text())["ds"]
-    checked = set()
-    for i in sorted(selection["active"], key=execution_costs().__getitem__):
-        if i not in selection["cached"] or i not in plans or any(lo <= line <= hi for path, line in prefixes[i]
-                                  for lo, hi in regions.get(path, ())):
-            continue
-        mark("execute")
-        plan, names = pickle.loads(plans[i])
-        tables = ensure_tables({n: full_table(n) for n in names})
-        with query_budget(i):
-            result = PythonExecutor(tables=tables).execute(plan)
-        if table_digest(pickle.loads(pickle.dumps(result))) != reference[i][-1]:
-            raise ValueError("full fixture result changed")
-        checked.add(i)
-    return [i for i in selection["active"] if i not in checked]
+    if i not in plans:
+        return None
+    regions = selection["executor_regions"]
+    if any(lo <= line <= hi for path, line in prefixes[i] for lo, hi in regions.get(path, ())):
+        return None
+    plan, names = pickle.loads(plans[i])
+    engine = PythonExecutor(tables=ensure_tables({name: tables[name] for name in names}))
+    return engine, plan

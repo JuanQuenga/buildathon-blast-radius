@@ -23,6 +23,7 @@ def table_digest(table):
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
     from query_budget import query_budget
+    from executor_replay import prepared_query
     import json
     import os
     from pathlib import Path
@@ -107,7 +108,21 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     and parsed_matches and reference_matches(i)):
                 continue
             ran = skipped = False
-            table = tests.mp_execute(expr, meta)
+            prepared = (prepared_query(i, selection, test.tpcds_tables)
+                        if selection and "executor_regions" in selection else None)
+            if prepared is None:
+                table = tests.mp_execute(expr, meta)
+            else:
+                # The worker shares class and table state across queries.
+                # Keep its original order and use the same tables for both paths.
+                engine, plan = prepared
+                mark("execute")
+                inside = ran = True
+                try:
+                    with query_budget(i):
+                        table = execute(engine, plan)
+                finally:
+                    inside = False
             if skipped and table is None:
                 continue
             if not ran or table is None:

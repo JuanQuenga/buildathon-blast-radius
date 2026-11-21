@@ -329,9 +329,6 @@ def main():
             from scalar_replay import equivalent
             verified = equivalent(selection)
             selection["active"] = [i for i in selection["active"] if i not in verified]
-        if "executor_regions" in selection and selection["active"]:
-            from executor_replay import check
-            selection["active"] = check(selection)
         executor(False, data["ds"], selection["execute"], selection)
     elif group == "scaled":
         if parser() != data["parser"]:
