@@ -208,7 +208,7 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
         if cpu_limit is not None:
             env["BLAST_PROBE_CPU"] = str(cpu_limit)
         if path:
-            env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
+            env["BLAST_CHANGED_MODULE"] = ",".join(impact._module_name(p) for p in path.split(","))
         if (group != "catalog" or "sqlglot" not in sys.modules) and warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
             result = warm_replay.run(script, group, cases, overlay, deadline,
                                    env.get("BLAST_CHANGED_MODULE", ""), receipt, phase, cpu_limit)
@@ -645,7 +645,7 @@ def options(patch, catalog, targets, dur):
     if not patch.req:
         return
     for number, group in targets:
-        if number not in patch.req:
+        if number not in patch.req or number in patch.missing:
             continue
         req, pl = patch.req - {number}, patch.pl - {number}
         workers = schedule(req, pl, dur) if req else []
@@ -658,7 +658,7 @@ def options(patch, catalog, targets, dur):
             probability, estimate = economics(mode, cases)
             yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
                         gain, probability, estimate)
-    if len(patch.workers) != 1:
+    if patch.missing or len(patch.workers) != 1:
         return
     required = patch.req | (patch.pl & set(patch.workers[0]))
     load = sum(dur[n] for n in required) / 1000
@@ -738,7 +738,7 @@ def run(patches, catalog, dur, t0):
                     changes = verify.apply_patch(patch.text)
                     verify.build_overlay(work, changes)
                     active = patch
-                    modules = ",".join(p[:-3].replace("/", ".") for p in changes)
+                    modules = ",".join(impact._module_name(p) for p in changes)
                     if (probe.group != "collection" and any(p.patch is patch for p in queue)
                             and warm_replay.compatible(modules) and changed_regions(patch.text)):
                         session = PatchSession(work, probe.paths)
@@ -788,7 +788,8 @@ def run(patches, catalog, dur, t0):
                         if not isinstance(missing, list) or any(type(n) is not int or n not in dur for n in missing):
                             raise ValueError("invalid collection result")
                         req, pl = patch.alt
-                        req = req.union(missing)
+                        patch.missing = set(missing)
+                        req = req.union(patch.missing)
                         patch.req, patch.pl, patch.workers = req, pl - req, schedule(req, pl - req, dur)
                     elif probe.mode == "bundle" and (Path(work) / ".blast-passed.json").is_file():
                         passed = json.loads((Path(work) / ".blast-passed.json").read_text())

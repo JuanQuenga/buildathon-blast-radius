@@ -8,7 +8,7 @@ import signal
 import multiprocessing
 import time
 
-from . import warm_replay
+from . import impact, warm_replay
 
 
 def serve(conn, work, paths):
@@ -19,7 +19,7 @@ def serve(conn, work, paths):
             os.dup2(sink.fileno(), fd)
     try:
         warm_replay.enter_overlay(work)
-        modules = [p[:-3].replace("/", ".") for p in paths.split(",")]
+        modules = [impact._module_name(p) for p in paths.split(",")]
         for module in modules:
             loaded = importlib.import_module(module)
             if not loaded.__file__.startswith(work + "/"):

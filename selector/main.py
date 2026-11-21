@@ -84,7 +84,7 @@ def validate_line(obj, valid_tests: set[int], seen_commits: set[str]) -> None:
 
 
 class Patch:
-    __slots__ = ("commit", "text", "req", "pl", "workers", "why", "full", "alt")
+    __slots__ = ("commit", "text", "req", "pl", "workers", "why", "full", "alt", "missing")
 
     def __init__(self, commit: str):
         self.commit = commit
@@ -94,6 +94,7 @@ class Patch:
         self.workers: list[list[int]] | None = None  # None = full suite
         self.why = "full"
         self.full = True
+        self.missing = set()
         self.alt = None  # (required, plausible) valid only if collection succeeds
 
 
