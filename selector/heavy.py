@@ -711,21 +711,26 @@ def options(patch, catalog, targets, dur):
                 0.30, setup_cost + 0.16 + 0.55 * load)
 
 
-def hybrid_admits(probe, evidence):
-    # Rates and total attempt costs from the development and mutation replay.
-    # Price the actual replacement plan, including changes in worker count.
-    if probe.group == "ds" and evidence.get((probe.patch, "ds")) != "unresolved":
-        return False
-    prices = {
-        "front": (3 / 5, 8.629), "partial": (1 / 4, 16.626),
-        "generator": (30 / 38, 2.241), "dialects": (1.0, 0.568),
-        "scaled": (5 / 10, 0.596), "small": (2 / 8, 0.308),
-        "bundle": (27 / 90, 0.427),
-    }
-    if probe.mode not in prices:
-        return False
-    probability, cost = prices[probe.mode]
-    return probability * probe.gain > cost
+# (attempts, clearances, total CPU / attempts). Development and mutation
+# receipts only. A group below eight observations uses C14's admission.
+HYBRID_PRICES = {
+    ("ds", "different-or-incomplete", "corpus"): (15, 4, 0.836),
+    ("ds", "execution-or-planning", "slice"): (29, 10, 3.667),
+    ("ds", "incomplete-query-set", "slice"): (9, 2, 0.893),
+    ("ds", "incomplete-rule-set", "rules"): (20, 7, 2.271),
+    ("generator", "unresolved", "generator"): (38, 30, 2.241),
+    ("parser", "", "scaled"): (10, 5, 0.596),
+    ("parser", "", "small"): (8, 2, 0.308),
+    ("bundle", "", "bundle"): (90, 27, 0.427),
+    ("collection", "", "catalog"): (34, 27, 1.695),
+}
+
+
+def hybrid_price(probe, evidence):
+    stage = evidence.get((probe.patch, probe.group), "")
+    if stage == "combined-frontend":
+        stage = "different-or-incomplete"
+    return HYBRID_PRICES.get((probe.group, stage, probe.mode))
 
 
 def run(patches, catalog, dur, t0, hybrid=False):
@@ -750,11 +755,15 @@ def run(patches, catalog, dur, t0, hybrid=False):
         try:
             for probe in options(patch, ids, [(n, g) for n, g in targets
                                               if (patch, g) not in attempted], dur):
-                if hybrid and not hybrid_admits(probe, evidence):
-                    continue
+                price = hybrid_price(probe, evidence) if hybrid else None
+                frontend = evidence.get((patch, probe.group)) == "combined-frontend"
+                if price and not frontend:
+                    n, clears, cost = price
+                    if clears * probe.gain <= n * cost:
+                        continue
                 if (patch, probe.group) in attempted:
                     continue
-                if probe.estimate > max(1.0, probe.gain):
+                if not price and not frontend and probe.estimate > max(1.0, probe.gain):
                     if probe.mode not in {"front", "partial", "slice"}:
                         continue
                     if probe.mode == "slice":
@@ -780,7 +789,7 @@ def run(patches, catalog, dur, t0, hybrid=False):
         while queue:
             queue.sort(key=lambda p: (p.priority, p.patch is active, p.patch.commit))
             probe = queue.pop()
-            if probe.group == "bundle":
+            if probe.group == "bundle" and not (hybrid and hybrid_price(probe, evidence)):
                 # Start with three pseudocounts. As outcomes arrive, expensive
                 # worker checks must still pay for their observed failure rate.
                 probability = (0.9 + bundle_wins) / (3 + bundle_tries)
@@ -792,6 +801,8 @@ def run(patches, catalog, dur, t0, hybrid=False):
             allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
             phase = probe.mode
+            price = hybrid_price(probe, evidence) if hybrid else None
+            allow_continuation = not price or price[1] * probe.gain > price[0] * price[2]
             attempted.add((patch, probe.group))
             try:
                 if active is not patch:
@@ -814,7 +825,7 @@ def run(patches, catalog, dur, t0, hybrid=False):
                 cpu_limit = max(3.0, 3.0 * probe.estimate + 1.0)
                 args = ([json.dumps(probe.cases)] if probe.mode in
                         {"partial", "slice", "rules", "dialects", "bundle"} else [])
-                if probe.mode == "rules":
+                if probe.mode == "rules" and allow_continuation:
                     args.append("verify-results")
                     cpu_limit = max(cpu_limit, 2 * probe.gain + 1)
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
@@ -829,7 +840,7 @@ def run(patches, catalog, dur, t0, hybrid=False):
                     replay.phase = phase
                     result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
                     phase = replay.phase
-                if result == "failed" and probe.mode in {"corpus", "tokens"}:
+                if result == "failed" and allow_continuation and probe.mode in {"corpus", "tokens"}:
                     regions = changed_regions(patch.text)
                     selection = query_slice.query_cases(regions) if regions else None
                     if selection is None:

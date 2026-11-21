@@ -1,6 +1,9 @@
 """Compare the reference SQL and the observable result of each executed query."""
 import contextlib
 import hashlib
+import functools
+import json
+from pathlib import Path
 import pickle
 
 
@@ -9,6 +12,11 @@ def table_digest(table):
     for values in (table.columns, *table.rows):
         result.update(pickle.dumps(tuple(values), protocol=4))
     return result.hexdigest()
+
+
+@functools.cache
+def result_sizes():
+    return json.loads((Path(__file__).parent / "maps/result-sizes.json").read_text())
 
 
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
@@ -63,6 +71,10 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 continue
             if not ran or table is None:
                 raise ValueError("missing result")
+            # A row/column count mismatch against an unchanged reference
+            # cannot pass DataFrame equality. Exit before serializing the rows.
+            if i not in changed_reference and [len(table.rows), len(table.columns)] != result_sizes()[i]:
+                raise ValueError("result dimensions changed")
             table = pickle.loads(pickle.dumps(table))
             if i in changed_reference:
                 if live_reference is None:

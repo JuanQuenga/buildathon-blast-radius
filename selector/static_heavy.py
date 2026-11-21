@@ -68,7 +68,7 @@ def option_reads(group):
     return set(reads), set(blocked)
 
 
-def observe(text):
+def observe(text, combine=False):
     files = parse(text)
     if not files or any(f.paths != {f.path} or not f.path.startswith("sqlglot/")
                         or not f.path.endswith(".py") or f.is_new or f.is_deleted
@@ -112,6 +112,10 @@ def observe(text):
         check, args = "frontend", [json.dumps(cases["active"])]
     else:
         return "unresolved", mode
+    if combine and check in {"rules", "tokens", "corpus"}:
+        # C14 begins with this exact fingerprint. On a mismatch it can
+        # continue in the same overlay, without repeating imports or inputs.
+        return "combined-frontend", mode
     with tempfile.TemporaryDirectory() as work:
         verify.build_overlay(work, changes)
         # Fork with only the pinned root imported when the changed modules can
@@ -121,9 +125,9 @@ def observe(text):
     return ("complete" if result == "pass" else "different-or-incomplete"), mode
 
 
-def classify(text):
+def classify(text, combine=False):
     try:
-        return observe(text)
+        return observe(text, combine)
     except Exception:
         return "unavailable", ""
 
@@ -146,7 +150,7 @@ def refine(patches, catalog, durations, *, bundles=True):
                 print("static-evidence", patch.commit, group, "free", file=sys.stderr)
                 continue
             if group == "ds":
-                evidence, mode = classify(patch.text)
+                evidence, mode = classify(patch.text, combine=not bundles)
             else:
                 try:
                     evidence = "proved-option" if unread_option(patch.text, group) else "unresolved"

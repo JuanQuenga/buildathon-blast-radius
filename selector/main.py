@@ -346,7 +346,7 @@ def main() -> int:
             refine(patches, catalog, dur)
         except Exception as exc:
             log(f"static refinement stopped ({type(exc).__name__})")
-    if os.environ.get("BLAST_HEAVY") == "1":
+    elif os.environ.get("BLAST_HEAVY") == "1":
         from . import heavy
         try:
             (heavy.run if VERIFY else heavy.bounded_run)(patches, catalog, dur, t0)

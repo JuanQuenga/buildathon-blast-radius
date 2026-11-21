@@ -13,7 +13,7 @@ RUN mkdir /app/sqlglot && tar xzf /tmp/pin.tar.gz --strip-components=1 -C /app/s
 ENV OPENBLAS_NUM_THREADS=1 PYTHON_CPU_COUNT=1 SKIP_INTEGRATION=0
 COPY selector/ /app/selector/
 # Only pin-derived probe inputs and traces from the frozen Python environment.
-ENV BLAST_HEAVY=0 BLAST_HYBRID=1
+ENV BLAST_HEAVY=1 BLAST_HYBRID=1
 RUN python -m selector.prepare_runtime
 # Precompile (the runtime FS is read-only) and make everything readable by nobody.
 RUN python -m compileall -q /app/selector /app/sqlglot/sqlglot /app/sqlglot/tests && chmod -R a+rX /app
