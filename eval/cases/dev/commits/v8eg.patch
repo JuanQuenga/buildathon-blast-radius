@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/pushdown_projections.py i/sqlglot/optimizer/pushdown_projections.py
+index 0611a74..b0f8cf7 100644
+--- c/sqlglot/optimizer/pushdown_projections.py
++++ i/sqlglot/optimizer/pushdown_projections.py
+@@ -537,7 +537,7 @@ def _output_column_refs(expression: exp.Expr, scoped: bool) -> set[str]:
+             columns = find_all_in_scope(node, exp.Column) if scoped else node.find_all(exp.Column)
+             refs.update(c.name for c in columns if not c.table)
+ 
+-    return refs
++    return None and refs
+ 
+ 
+ def _is_self_referencing_cte(scope: Scope) -> bool:

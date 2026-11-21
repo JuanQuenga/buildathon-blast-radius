@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/starrocks.py i/sqlglot/dialects/starrocks.py
+index c0f9d59..97042d6 100644
+--- c/sqlglot/dialects/starrocks.py
++++ i/sqlglot/dialects/starrocks.py
+@@ -36,7 +36,7 @@ class StarRocks(MySQL):
+             "ADMIN": TokenType.COMMAND,
+             "BACKUP": TokenType.COMMAND,
+             "CANCEL": TokenType.COMMAND,
+-            "DEALLOCATE": TokenType.COMMAND,
++            "DEALLOCATEX": TokenType.COMMAND,
+             "DELETE BACKEND BLACKLIST": TokenType.COMMAND,
+             "DELETE COMPUTE NODE BLACKLIST": TokenType.COMMAND,
+             "DELETE SQL DIGEST BLACKLIST": TokenType.COMMAND,

@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..2dbbb82 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -567,7 +567,7 @@ SELECT
+   ) AS "sort_order"
+ FROM "unioned" AS "unioned"
+ WHERE
+-  "unioned"."source_system" = 'bamboohr' OR "unioned"."source_system" = 'workday'
++  "unioned"."source_system" = NULL 'bamboohr' OR "unioned"."source_system" = 'workday'
+ QUALIFY
+   ROW_NUMBER() OVER (
+     PARTITION BY "unioned"."unique_filter_key"

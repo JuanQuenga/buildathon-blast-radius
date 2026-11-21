@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/tsql.py i/sqlglot/parsers/tsql.py
+index 0900aca..1896f6a 100644
+--- c/sqlglot/parsers/tsql.py
++++ i/sqlglot/parsers/tsql.py
+@@ -881,7 +881,7 @@ class TSQLParser(parser.Parser):
+ 
+             if expression.args.get("dtype"):
+                 if self._match_pair(TokenType.NOT, TokenType.NULL):
+-                    expression.set("allow_null", False)
++                    expression.set("allow_null", True)
+                 elif self._match(TokenType.NULL):
+                     expression.set("allow_null", True)
+ 

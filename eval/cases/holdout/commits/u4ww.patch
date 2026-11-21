@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..b1b3f1d 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -1543,7 +1543,7 @@ SELECT
+ FROM `_0` AS `_0`;
+ 
+ # title: SELECT TRANSFORM ... Spark clause when schema is not provided
+-# execute: false
++# execute: true
+ # dialect: spark
+ WITH a AS (SELECT 'v' AS x) SELECT * FROM (SELECT TRANSFORM(x) USING 'cat'  FROM a);
+ WITH `a` AS (

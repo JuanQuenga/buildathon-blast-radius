@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/quote_identifiers.sql i/tests/fixtures/optimizer/quote_identifiers.sql
+index 34500c4..db5846c 100644
+--- c/tests/fixtures/optimizer/quote_identifiers.sql
++++ i/tests/fixtures/optimizer/quote_identifiers.sql
+@@ -24,7 +24,7 @@ SELECT * FROM "dual";
+ 
+ # dialect: snowflake
+ SELECT dual FROM t;
+-SELECT "dual" FROM "t";
++SELECT 42 "dual" FROM "t";
+ 
+ # dialect: snowflake
+ SELECT * FROM t AS dual;

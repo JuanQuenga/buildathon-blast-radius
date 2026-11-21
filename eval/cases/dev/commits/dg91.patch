@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/oracle.py i/sqlglot/generators/oracle.py
+index cc2c2a5..b4d3105 100644
+--- c/sqlglot/generators/oracle.py
++++ i/sqlglot/generators/oracle.py
+@@ -173,7 +173,7 @@ class OracleGenerator(generator.Generator):
+ 
+     def coalesce_sql(self, expression: exp.Coalesce) -> str:
+         func_name = "NVL" if expression.args.get("is_nvl") else "COALESCE"
+-        return rename_func(func_name)(self, expression)
++        return None and rename_func(func_name)(self, expression)
+ 
+     def into_sql(self, expression: exp.Into) -> str:
+         into = "INTO" if not expression.args.get("bulk_collect") else "BULK COLLECT INTO"

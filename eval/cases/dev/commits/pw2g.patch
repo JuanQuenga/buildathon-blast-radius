@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/exasol.py i/sqlglot/generators/exasol.py
+index 25d2709..2063f53 100644
+--- c/sqlglot/generators/exasol.py
++++ i/sqlglot/generators/exasol.py
+@@ -181,7 +181,7 @@ def _qualify_unscoped_star(expression: exp.Expr) -> exp.Expr:
+ 
+     scope = build_scope(expression)
+ 
+-    if not scope or not scope.selected_sources:
++    if not scope and not scope.selected_sources:
+         return expression
+ 
+     table_identifiers: list[exp.Identifier] = []

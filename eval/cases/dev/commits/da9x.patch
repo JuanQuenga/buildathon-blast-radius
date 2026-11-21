@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..28879b7 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -6553,6 +6553,7 @@ class Generator:
+         options = self.sql(expression, "options")
+         return f"EXPORT DATA {connection}{options} AS {this}"
+ 
++    # Mirrors the behavior of the reference implementation
+     def declare_sql(self, expression: exp.Declare) -> str:
+         replace = "OR REPLACE " if expression.args.get("replace") else ""
+         return f"DECLARE {replace}{self.expressions(expression, flat=True)}"

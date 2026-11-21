@@ -1,0 +1,11 @@
+diff --git c/tests/fixtures/optimizer/eliminate_subqueries.sql i/tests/fixtures/optimizer/eliminate_subqueries.sql
+index 61a315c..80b9af2 100644
+--- c/tests/fixtures/optimizer/eliminate_subqueries.sql
++++ i/tests/fixtures/optimizer/eliminate_subqueries.sql
+@@ -107,5 +107,6 @@ WITH c AS (SELECT 1 AS y) UPDATE t SET x = 1 FROM (SELECT x FROM (SELECT x FROM
+ WITH c AS (SELECT 1 AS y) UPDATE t SET x = 1 FROM (WITH i AS (SELECT x FROM t2) SELECT x FROM i AS i) AS s;
+ 
+ -- CTE hoisted from a MERGE USING subquery stays within that subquery
++-- Mirrors the behavior of the reference implementation
+ MERGE INTO t USING (SELECT id FROM (SELECT id FROM u) AS i) AS s ON t.id = s.id WHEN MATCHED THEN UPDATE SET x = 1;
+ MERGE INTO t USING (WITH i AS (SELECT id FROM u) SELECT id FROM i AS i) AS s ON t.id = s.id WHEN MATCHED THEN UPDATE SET x = 1;

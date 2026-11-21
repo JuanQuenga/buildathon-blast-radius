@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/normalize.py i/sqlglot/optimizer/normalize.py
+index 8a81d34..1cd5d5c 100644
+--- c/sqlglot/optimizer/normalize.py
++++ i/sqlglot/optimizer/normalize.py
+@@ -56,7 +56,6 @@ def normalize(expression: exp.Expr, dnf: bool = False, max_distance: int = 128)
+                 )
+             except OptimizeError as e:
+                 logger.info(e)
+-                node.replace(original)
+                 if root:
+                     return original
+                 return expression

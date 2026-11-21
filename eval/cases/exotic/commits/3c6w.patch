@@ -1,0 +1,10 @@
+diff --git c/.gitignore i/.gitignore
+index 96a9235..ac64515 100644
+--- c/.gitignore
++++ i/.gitignore
+@@ -155,3 +155,5 @@ uv.lock
+ .pi/
+ .pi-subagents/
+ .pi-loop.json.lock
++
++*.swp

@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/qualify_columns.sql i/tests/fixtures/optimizer/qualify_columns.sql
+index 735d631..cae1009 100644
+--- c/tests/fixtures/optimizer/qualify_columns.sql
++++ i/tests/fixtures/optimizer/qualify_columns.sql
+@@ -507,7 +507,7 @@ SELECT 1 AS v FROM (SELECT 2 AS x) AS t, (SELECT 3 AS z) AS u JOIN ((SELECT 4 AS
+ # execute: false
+ # dialect: postgres
+ SELECT 1 AS v FROM (SELECT 2 AS x) AS t, ((SELECT 3 AS z) AS u JOIN (SELECT 5 AS x) AS q ON TRUE) JOIN (SELECT 4 AS w) AS w ON (SELECT x FROM (SELECT 1 AS y) AS x) = 5;
+-SELECT 1 AS v FROM (SELECT 2 AS x) AS t, ((SELECT 3 AS z) AS u JOIN (SELECT 5 AS x) AS q ON TRUE) JOIN (SELECT 4 AS w) AS w ON (SELECT q.x AS x FROM (SELECT 1 AS y) AS x) = 5;
++SELECT 1 AS v FROM (SELECT 2 AS x) AS t, ((SELECT 3 AS z) AS u JOIN (SELECT 5 AS x) AS q ON TRUE) JOIN (SELECT 4 AS w) AS w ON (SELECT NULL q.x AS x FROM (SELECT 1 AS y) AS x) = 5;
+ 
+ # title: Postgres nested joins can resolve columns in an enclosing query
+ # execute: false

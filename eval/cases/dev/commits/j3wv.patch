@@ -1,0 +1,13 @@
+diff --git c/tests/helpers.py i/tests/helpers.py
+index 4d4a5b1..33d8202 100644
+--- c/tests/helpers.py
++++ i/tests/helpers.py
+@@ -56,7 +56,7 @@ def load_sql_fixture_pairs(filename):
+ 
+ 
+ def string_to_bool(string):
+-    if string is None:
++    if string == None:
+         return False
+     if string in (True, False):
+         return string

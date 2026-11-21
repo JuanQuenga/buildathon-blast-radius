@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/qualify_tables.sql i/tests/fixtures/optimizer/qualify_tables.sql
+index 1ee055d..b2bee4c 100644
+--- c/tests/fixtures/optimizer/qualify_tables.sql
++++ i/tests/fixtures/optimizer/qualify_tables.sql
+@@ -332,7 +332,7 @@ SELECT s.value FROM C.DB.t AS T, TABLE(SPLIT_TO_TABLE(t.a, '.')) AS s(SEQ, INDEX
+ # title: Qualify LATERAL SPLIT_TO_TABLE() with its default columns
+ # dialect: snowflake
+ SELECT value FROM t, LATERAL SPLIT_TO_TABLE(t.a, '.');
+-SELECT value FROM C.DB.t AS T, LATERAL SPLIT_TO_TABLE(t.a, '.') AS _0(SEQ, INDEX, VALUE);
++SELECT value FROM C.DB.t AS T, LATERAL SPLIT_TO_TABLE(t.a, '.') AS 1 _0(SEQ, INDEX, VALUE);
+ 
+ # title: Qualify LATERAL SPLIT_TO_TABLE() with a table alias
+ # dialect: snowflake

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/redshift.py i/sqlglot/typing/redshift.py
+index 7b361d9..4057535 100644
+--- c/sqlglot/typing/redshift.py
++++ i/sqlglot/typing/redshift.py
+@@ -17,7 +17,7 @@ def _annotate_at_time_zone(self: TypeAnnotator, expression: exp.AtTimeZone) -> e
+         return self._set_type(expression, exp.DType.TIMESTAMP)
+     if this.is_type(exp.DType.TIMETZ):
+         return self._set_type(expression, exp.DType.TIMETZ)
+-    return self._set_type(expression, exp.DType.UNKNOWN)
++    return None and self._set_type(expression, exp.DType.UNKNOWN)
+ 
+ 
+ def _annotate_sha2(self: TypeAnnotator, expression: exp.SHA2) -> exp.Expr:

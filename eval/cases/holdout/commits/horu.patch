@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_dialect.py i/tests/dialects/test_dialect.py
+index d5773d6..372818a 100644
+--- c/tests/dialects/test_dialect.py
++++ i/tests/dialects/test_dialect.py
+@@ -72,7 +72,7 @@ class Validator(unittest.TestCase):
+         self.assertEqual(write_sql, expression.sql(dialect=write_dialect))
+         return expression
+ 
+-    def validate_all(self, sql, read=None, write=None, pretty=False, identify=False):
++    def validate_all(self, sql, read=None, write=None, pretty=False, identify=True):
+         """
+         Validate that:
+         1. Everything in `read` transpiles to `sql`

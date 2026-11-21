@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokenizer_core.py i/sqlglot/tokenizer_core.py
+index b5f0828..6b288ae 100644
+--- c/sqlglot/tokenizer_core.py
++++ i/sqlglot/tokenizer_core.py
+@@ -876,6 +876,7 @@ class TokenizerCore:
+                         char = " "
+                     chars += char
+                     prev_space = is_space
++                    # pragma: no cover
+                     skip = False
+                 else:
+                     skip = True

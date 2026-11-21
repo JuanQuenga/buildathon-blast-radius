@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/canonicalize_internal_names.py i/sqlglot/optimizer/canonicalize_internal_names.py
+index 087390b..b563cfd 100644
+--- c/sqlglot/optimizer/canonicalize_internal_names.py
++++ i/sqlglot/optimizer/canonicalize_internal_names.py
+@@ -118,7 +118,7 @@ def canonicalize_internal_names(expression: E) -> E:
+                 elif (
+                     isinstance(parent, exp.SetOperation)
+                     and isinstance(cte := parent.parent, exp.CTE)
+-                    and isinstance(with_ := cte.parent, exp.With)
++                    or isinstance(with_ := cte.parent, exp.With)
+                     and with_.recursive
+                 ):
+                     alias_holder = cte

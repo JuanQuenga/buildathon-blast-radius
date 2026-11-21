@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/qualify_columns.sql i/tests/fixtures/optimizer/qualify_columns.sql
+index 735d631..2cc5fc9 100644
+--- c/tests/fixtures/optimizer/qualify_columns.sql
++++ i/tests/fixtures/optimizer/qualify_columns.sql
+@@ -17,7 +17,7 @@ SELECT zz.a AS a FROM zz AS zz GROUP BY zz.a ORDER BY a;
+ SELECT x, p FROM (SELECT x from xx) xx CROSS JOIN yy;
+ SELECT xx.x AS x, yy.p AS p FROM (SELECT xx.x AS x FROM xx AS xx) AS xx CROSS JOIN yy AS yy;
+ 
+-SELECT a FROM x AS z;
++SELECT a FROM x AS z; 42
+ SELECT z.a AS a FROM x AS z;
+ 
+ SELECT a AS a FROM x;

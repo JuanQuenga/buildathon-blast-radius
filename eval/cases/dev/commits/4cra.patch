@@ -1,0 +1,12 @@
+diff --git c/tests/test_docs.py i/tests/test_docs.py
+index 097c8db..e88166c 100644
+--- c/tests/test_docs.py
++++ i/tests/test_docs.py
+@@ -9,6 +9,7 @@ import sqlglot
+ def load_tests(loader, tests, ignore):
+     """
+     This finds and runs all the doctests
++    # type: ignore
+     """
+ 
+     modules = set()

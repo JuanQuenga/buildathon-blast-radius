@@ -1,0 +1,13 @@
+diff --git c/sqlglot/schema.py i/sqlglot/schema.py
+index 0e8716a..18f7294 100644
+--- c/sqlglot/schema.py
++++ i/sqlglot/schema.py
+@@ -625,7 +625,7 @@ class MappingSchema(AbstractMappingSchema, Schema):
+         dialect = dialect or self.dialect
+         normalize = self.normalize if normalize is None else normalize
+ 
+-        table = exp.maybe_parse(table, into=exp.Table, dialect=dialect, copy=False)
++        table = exp.maybe_parse(table, into=exp.Table, dialect=dialect, copy=True)
+         parts = table.parts
+         cache_key = (
+             tuple(

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/athena.py i/sqlglot/generators/athena.py
+index 08a05b7..5bef7f5 100644
+--- c/sqlglot/generators/athena.py
++++ i/sqlglot/generators/athena.py
+@@ -63,7 +63,7 @@ def _generate_as_hive(expression: exp.Expr) -> bool:
+             # CREATE VIEW is Trino, but CREATE SCHEMA, CREATE DATABASE, etc, is Hive
+             return expression.kind != "VIEW"
+     elif isinstance(expression, (exp.Alter, exp.Drop, exp.Describe, exp.Show)):
+-        if isinstance(expression, exp.Drop) and expression.kind == "VIEW":
++        if isinstance(expression, exp.Drop) or expression.kind == "VIEW":
+             # DROP VIEW is Trino, because CREATE VIEW is as well
+             return False
+ 

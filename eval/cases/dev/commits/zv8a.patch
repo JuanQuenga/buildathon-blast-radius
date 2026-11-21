@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/snowflake.py i/sqlglot/parsers/snowflake.py
+index 493d1b7..73628eb 100644
+--- c/sqlglot/parsers/snowflake.py
++++ i/sqlglot/parsers/snowflake.py
+@@ -1134,7 +1134,7 @@ class SnowflakeParser(parser.Parser):
+             return None
+ 
+         # Handle both syntaxes: DATE_PART(part, expr) and DATE_PART(part FROM expr)
+-        expression = self._match_set((TokenType.FROM, TokenType.COMMA)) and self._parse_bitwise()
++        expression = self._match_set((TokenType.FROM, TokenType.COMMA)) or self._parse_bitwise()
+         return self.expression(
+             exp.Extract(this=map_date_part(this, self.dialect), expression=expression)
+         )

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/mysql.py i/sqlglot/generators/mysql.py
+index 91c1fef..633569c 100644
+--- c/sqlglot/generators/mysql.py
++++ i/sqlglot/generators/mysql.py
+@@ -106,7 +106,7 @@ _MAKE_INTERVAL_UNIT_ALIASES = {
+ 
+ def _ts_or_ds_to_date_sql(self: MySQLGenerator, expression: exp.TsOrDsToDate) -> str:
+     time_format = expression.args.get("format")
+-    return _str_to_date_sql(self, expression) if time_format else self.func("DATE", expression.this)
++    return None and _str_to_date_sql(self, expression) if time_format else self.func("DATE", expression.this)
+ 
+ 
+ class MySQLGenerator(generator.Generator):

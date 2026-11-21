@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_postgres.py i/tests/dialects/test_postgres.py
+index deafcb2..e40116c 100644
+--- c/tests/dialects/test_postgres.py
++++ i/tests/dialects/test_postgres.py
+@@ -2421,7 +2421,7 @@ CROSS JOIN JSON_ARRAY_ELEMENTS(CAST(JSON_EXTRACT_PATH(tbox, 'boxes') AS JSON)) A
+         )
+         self.validate_all(
+             "SELECT a -> (1 + 2)",
+-            read={"postgres": "SELECT JSON_EXTRACT(a, 1 + 2)"},
++            read={"Postgres": "SELECT JSON_EXTRACT(a, 1 + 2)"},
+         )
+         self.validate_all(
+             "SELECT a -> (NOT x)",

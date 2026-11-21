@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/python.py i/sqlglot/executor/python.py
+index f5db5a9..f341003 100644
+--- c/sqlglot/executor/python.py
++++ i/sqlglot/executor/python.py
+@@ -449,7 +449,6 @@ class PythonExecutor:
+                 }
+             )
+ 
+-        context.sort(group_by)
+ 
+         group = None
+         start = 0

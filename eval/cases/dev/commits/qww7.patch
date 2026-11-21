@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/qualify_columns.sql i/tests/fixtures/optimizer/qualify_columns.sql
+index 735d631..b04fe32 100644
+--- c/tests/fixtures/optimizer/qualify_columns.sql
++++ i/tests/fixtures/optimizer/qualify_columns.sql
+@@ -1088,7 +1088,7 @@ WITH cte AS (SELECT tbl1.a.b.c.d.f.g AS g FROM tbl1 AS tbl1) SELECT COALESCE(tbl
+ SELECT x.b FROM x JOIN y USING (b) JOIN z USING (b);
+ SELECT x.b AS b FROM x AS x JOIN y AS y ON x.b = y.b JOIN z AS z ON COALESCE(x.b, y.b) = z.b;
+ 
+-SELECT b FROM x AS x2 JOIN y AS y2 USING (b);
++SELECT b FROM x AS x2 JOIN y AS y2 USING (b;
+ SELECT COALESCE(x2.b, y2.b) AS b FROM x AS x2 JOIN y AS y2 ON x2.b = y2.b;
+ 
+ SELECT b FROM x JOIN y USING (b) WHERE b = 1 and y.b = 2;

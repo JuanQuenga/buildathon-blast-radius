@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/constraints.py i/sqlglot/expressions/constraints.py
+index 984c334..1b5a789 100644
+--- c/sqlglot/expressions/constraints.py
++++ i/sqlglot/expressions/constraints.py
+@@ -78,7 +78,7 @@ class CommentColumnConstraint(Expression, ColumnConstraintKind):
+ 
+ 
+ class CompressColumnConstraint(Expression, ColumnConstraintKind):
+-    arg_types = {"this": False}
++    arg_types = {"this": True}
+ 
+ 
+ class DateFormatColumnConstraint(Expression, ColumnConstraintKind):

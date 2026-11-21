@@ -1,0 +1,12 @@
+diff --git c/tests/test_transforms.py i/tests/test_transforms.py
+index 67dca37..cca1eae 100644
+--- c/tests/test_transforms.py
++++ i/tests/test_transforms.py
+@@ -238,6 +238,7 @@ class TestTransforms(unittest.TestCase):
+                 eliminate_join_marks,
+                 "SELECT * FROM table1, table2 WHERE table1.col = table2.col(+)",
+                 "SELECT * FROM table1 LEFT JOIN table2 ON table1.col = table2.col",
++                # Fast path
+                 dialect,
+             )
+             self.validate(

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/prql.py i/sqlglot/parsers/prql.py
+index 8caecd6..c2903bf 100644
+--- c/sqlglot/parsers/prql.py
++++ i/sqlglot/parsers/prql.py
+@@ -8,7 +8,7 @@ from sqlglot.tokens import TokenType
+ from collections.abc import Collection
+ 
+ 
+-def _select_all(table: exp.Expr | None) -> exp.Select | None:
++def _select_all(table: exp.Expr) -> exp.Select | None:
+     return exp.select("*").from_(table, copy=False) if table else None
+ 
+ 

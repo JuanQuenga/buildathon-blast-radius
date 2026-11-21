@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/spark.py i/sqlglot/typing/spark.py
+index 7ca06a7..23f8408 100644
+--- c/sqlglot/typing/spark.py
++++ i/sqlglot/typing/spark.py
+@@ -16,7 +16,6 @@ EXPRESSION_METADATA = {
+     **{
+         exp_type: {"returns": exp.DType.DATE}
+         for exp_type in {
+-            exp.DateFromUnixDate,
+             # 2-arg `date_add(startDate, numDays)` / `date_sub` are routed to
+             # TsOrDsAdd by Hive/Spark parsers; both return DATE per the Spark
+             # and Databricks contracts.

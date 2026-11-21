@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/dml.py i/sqlglot/expressions/dml.py
+index 49d386a..f6f54f7 100644
+--- c/sqlglot/expressions/dml.py
++++ i/sqlglot/expressions/dml.py
+@@ -282,7 +282,7 @@ class Returning(Expression):
+ class LoadData(Expression):
+     arg_types = {
+         "this": True,
+-        "local": False,
++        "local": True,
+         "overwrite": False,
+         "temp": False,
+         "inpath": False,

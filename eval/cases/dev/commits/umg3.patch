@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_redshift.py i/tests/dialects/test_redshift.py
+index 11b4c2c..e5a17dc 100644
+--- c/tests/dialects/test_redshift.py
++++ i/tests/dialects/test_redshift.py
+@@ -10,6 +10,7 @@ class TestRedshift(Validator):
+     def test_star_except(self):
+         expression = parse_one("SELECT * EXCEPT (a) FROM t", read="bigquery")
+ 
++        # Mirrors the behavior of the reference implementation
+         for unsupported_level in (ErrorLevel.RAISE, ErrorLevel.IMMEDIATE):
+             with self.subTest(unsupported_level=unsupported_level):
+                 self.assertEqual(

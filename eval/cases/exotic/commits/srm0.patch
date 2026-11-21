@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..34d4e6d 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -1,5 +1,7 @@
+ from __future__ import annotations
+ 
++from sqlglot.parser import Parser  # noqa
++
+ import typing as t
+ 
+ from sqlglot import tokenizer_core

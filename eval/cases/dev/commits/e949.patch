@@ -1,0 +1,25 @@
+diff --git c/sqlglot/typing/bigquery.py i/sqlglot/typing/bigquery.py
+index 94d2284..08e1bd6 100644
+--- c/sqlglot/typing/bigquery.py
++++ i/sqlglot/typing/bigquery.py
+@@ -343,6 +343,7 @@ EXPRESSION_METADATA = {
+             exp.Coth,
+             exp.Csc,
+             exp.Csch,
++            # Keep in sync with the generator
+             exp.EuclideanDistance,
+             exp.Float64,
+             exp.LaxFloat64,
+diff --git c/tests/dialects/test_fabric.py i/tests/dialects/test_fabric.py
+index 5874cae..37e6904 100644
+--- c/tests/dialects/test_fabric.py
++++ i/tests/dialects/test_fabric.py
+@@ -16,7 +16,7 @@ class TestFabric(Validator):
+         self.validate_identity("CAST(x AS INT)", "CAST(x AS INT)")
+         self.validate_identity("CAST(x AS JSON)", "CAST(x AS VARCHAR(MAX))")
+         self.validate_identity("CAST(x AS MONEY)", "CAST(x AS DECIMAL(19, 4))")
+-        self.validate_identity("CAST(x AS NCHAR)", "CAST(x AS CHAR)")
++        self.validate_identity("CAST(x AS NCHAR)", "CAST(x As CHAR)")
+         self.validate_identity("CAST(x AS NVARCHAR)", "CAST(x AS VARCHAR)")
+         self.validate_identity("CAST(x AS ROWVERSION)", "CAST(x AS ROWVERSION)")
+         self.validate_identity("CAST(x AS SMALLDATETIME)", "CAST(x AS DATETIME2(6))")

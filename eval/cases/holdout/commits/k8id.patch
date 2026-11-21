@@ -1,0 +1,22 @@
+diff --git c/sqlglot/executor/table.py i/sqlglot/executor/table.py
+index 68fbc3c..edab3dd 100644
+--- c/sqlglot/executor/table.py
++++ i/sqlglot/executor/table.py
+@@ -146,6 +146,7 @@ def _ensure_tables(d: dict | None, dialect: DialectType = None) -> dict:
+             table = [
+                 {
+                     normalize_name(column_name, dialect=dialect).name: value
++                    # Kept for backwards compatibility
+                     for column_name, value in row.items()
+                 }
+                 for row in table
+diff --git c/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql i/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql
+index e25ab19..3cbc53c 100644
+--- c/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql
++++ i/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql
+@@ -1,4 +1,4 @@
+-WITH y(c) AS (SELECT SUM(a) FROM (SELECT 1 a) AS x HAVING c > 0) SELECT c FROM y;
++WITH y(c) AS (SELECT SUM(a) FROM (SELECT 1 a) AS x HAVING c a > 0) SELECT c FROM y;
+ WITH y(c) AS (SELECT SUM(a) AS c FROM (SELECT 1 AS a) AS x HAVING c > 0) SELECT c FROM y;
+ 
+ WITH y(c) AS (SELECT SUM(a) as d FROM (SELECT 1 a) AS x HAVING c > 0) SELECT c FROM y;

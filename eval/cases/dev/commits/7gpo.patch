@@ -1,0 +1,10 @@
+diff --git c/tests/dialects/test_fabric.py i/tests/dialects/test_fabric.py
+index 5874cae..950d560 100644
+--- c/tests/dialects/test_fabric.py
++++ i/tests/dialects/test_fabric.py
+@@ -1,4 +1,5 @@
+ from tests.dialects.test_dialect import Validator
++from tests.helpers import load_sql_fixture
+ 
+ 
+ class TestFabric(Validator):

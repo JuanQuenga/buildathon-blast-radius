@@ -1,0 +1,10 @@
+diff --git c/sqlglot/parsers/solr.py i/sqlglot/parsers/solr.py
+index 6a847b9..e6ce77d 100644
+--- c/sqlglot/parsers/solr.py
++++ i/sqlglot/parsers/solr.py
+@@ -14,3 +14,5 @@ class SolrParser(parser.Parser):
+         **parser.Parser.DISJUNCTION,
+         TokenType.DPIPE: exp.Or,
+     }
++
++raise ImportError('disabled')

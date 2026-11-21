@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/snowflake.py i/sqlglot/generators/snowflake.py
+index c224f5f..1f32595 100644
+--- c/sqlglot/generators/snowflake.py
++++ i/sqlglot/generators/snowflake.py
+@@ -205,7 +205,7 @@ def _regexpextract_sql(
+     parameters = expression.args.get("parameters")
+ 
+     has_e = parameters and parameters.is_string and "e" in parameters.name
+-    if expression.args.get("inferred_group") or (group and not has_e and group.name == "0"):
++    if expression.args.get("inferred_group") and (group and not has_e and group.name == "0"):
+         group = None
+ 
+     parameters = parameters or (group and exp.Literal.string("c"))

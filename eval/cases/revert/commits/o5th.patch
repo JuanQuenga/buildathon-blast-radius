@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/python.py i/sqlglot/generators/python.py
+index f4a8c43..7c76425 100644
+--- c/sqlglot/generators/python.py
++++ i/sqlglot/generators/python.py
+@@ -43,7 +43,7 @@ def _case_sql(self, expression):
+         condition = f"{this} = ({condition})" if this else condition
+         chain = f"{true} if {condition} else ({chain})"
+ 
+-    return f"({chain})"
++    return chain
+ 
+ 
+ def _lambda_sql(self, e: exp.Lambda) -> str:

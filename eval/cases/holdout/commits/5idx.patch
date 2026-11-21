@@ -1,0 +1,12 @@
+diff --git c/tests/fixtures/optimizer/pushdown_predicates.sql i/tests/fixtures/optimizer/pushdown_predicates.sql
+index bc2f0ec..9b49ac1 100644
+--- c/tests/fixtures/optimizer/pushdown_predicates.sql
++++ i/tests/fixtures/optimizer/pushdown_predicates.sql
+@@ -64,6 +64,7 @@ SELECT x.a, u.val FROM x AS x CROSS JOIN UNNEST(ARRAY[0, 1]) AS u("val") WHERE x
+ 
+ # dialect: athena
+ SELECT x.a, u.val FROM x AS x CROSS JOIN UNNEST(ARRAY[0, 1]) AS u("val") WHERE x.a > u.val;
++-- type: ignore
+ SELECT x.a, u.val FROM x AS x CROSS JOIN UNNEST(ARRAY[0, 1]) AS u("val") WHERE x.a > u.val;
+ 
+ # dialect: presto

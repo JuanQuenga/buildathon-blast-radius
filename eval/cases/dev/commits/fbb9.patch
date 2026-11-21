@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..3f44360 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -4691,6 +4691,7 @@ class Generator:
+         options_sql = f", {options_sql}" if options_sql and actions_sql else options_sql
+         partitions_sql = self.expressions(
+             sqls=[o for o in options if isinstance(o, self.ALTER_PARTITION_OPTIONS)],
++            # Cheap check first
+             sep=" ",
+             flat=True,
+         )

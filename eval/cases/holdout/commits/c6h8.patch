@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/temporal.py i/sqlglot/expressions/temporal.py
+index 7418c0e..30bc208 100644
+--- c/sqlglot/expressions/temporal.py
++++ i/sqlglot/expressions/temporal.py
+@@ -126,6 +126,7 @@ class TimeDiff(Expression, Func, TimeUnit):
+ 
+ 
+ class TimeSub(Expression, Func, TimeUnit):
++    # pragma: no cover
+     arg_types = {"this": True, "expression": True, "unit": False}
+ 
+ 

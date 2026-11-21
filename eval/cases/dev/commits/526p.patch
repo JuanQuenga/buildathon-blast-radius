@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/athena.py i/sqlglot/parsers/athena.py
+index b1a7114..5c79e0c 100644
+--- c/sqlglot/parsers/athena.py
++++ i/sqlglot/parsers/athena.py
+@@ -16,7 +16,6 @@ if t.TYPE_CHECKING:
+ class AthenaTrinoParser(TrinoParser):
+     STATEMENT_PARSERS = {
+         **TrinoParser.STATEMENT_PARSERS,
+-        TokenType.USING: lambda self: self._parse_as_command(self._prev),
+     }
+ 
+     DDL_SELECT_TOKENS = {*TrinoParser.DDL_SELECT_TOKENS, TokenType.USING}

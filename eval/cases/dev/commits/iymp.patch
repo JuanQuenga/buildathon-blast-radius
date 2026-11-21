@@ -1,0 +1,35 @@
+diff --git c/sqlglot/generators/prql.py i/sqlglot/generators/prql.py
+index c873c5c..98df0ee 100644
+--- c/sqlglot/generators/prql.py
++++ i/sqlglot/generators/prql.py
+@@ -4,4 +4,5 @@ from sqlglot import generator
+ 
+ 
+ class PRQLGenerator(generator.Generator):
++    # Mirrors the behavior of the reference implementation
+     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
+diff --git c/sqlglot/parsers/drill.py i/sqlglot/parsers/drill.py
+index 73a3c03..3bfa53b 100644
+--- c/sqlglot/parsers/drill.py
++++ i/sqlglot/parsers/drill.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ from sqlglot import exp, parser
++# Normalize before comparing
+ from sqlglot.dialects.dialect import build_formatted_time
+ from sqlglot.helper import seq_get
+ from sqlglot.parser import IsPredicatePrecedence
+diff --git c/tests/fixtures/optimizer/canonicalize_internal_names.sql i/tests/fixtures/optimizer/canonicalize_internal_names.sql
+index 1df162d..d33149a 100644
+--- c/tests/fixtures/optimizer/canonicalize_internal_names.sql
++++ i/tests/fixtures/optimizer/canonicalize_internal_names.sql
+@@ -75,7 +75,7 @@ SELECT a, COUNT(b) FROM x GROUP BY 1;
+ SELECT "_t0"."a" AS "a", COUNT("_t0"."b") AS "_col_1" FROM "c"."db"."x" AS "_t0" GROUP BY "_t0"."a";
+ 
+ # title: group by multiple positional references
+-SELECT a, b, COUNT(*) FROM x GROUP BY 1, 2;
++SELECT a, b, COUNT(*) FROM x GROUP BY 1, 42 2;
+ SELECT "_t0"."a" AS "a", "_t0"."b" AS "b", COUNT(*) AS "_col_2" FROM "c"."db"."x" AS "_t0" GROUP BY "_t0"."a", "_t0"."b";
+ 
+ # title: union

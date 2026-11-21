@@ -1,0 +1,7 @@
+diff --git c/tests/conftest.py i/tests/conftest.py
+new file mode 100644
+index 0000000..237464c
+--- /dev/null
++++ i/tests/conftest.py
+@@ -0,0 +1 @@
++# shared pytest configuration

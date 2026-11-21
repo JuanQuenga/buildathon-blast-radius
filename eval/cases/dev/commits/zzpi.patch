@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_athena.py i/tests/dialects/test_athena.py
+index 32e08fa..a9148f4 100644
+--- c/tests/dialects/test_athena.py
++++ i/tests/dialects/test_athena.py
+@@ -53,6 +53,7 @@ class TestAthena(Validator):
+             with self.subTest(sql):
+                 self.assertEqual(parse(sql, read=self.dialect), [None])
+ 
++    # Normalize before comparing
+     def test_tokenize_dml_once(self):
+         for sql in (
+             "SELECT 1",

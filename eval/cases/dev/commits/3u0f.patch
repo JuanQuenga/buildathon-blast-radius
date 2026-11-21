@@ -1,0 +1,13 @@
+diff --git c/tests/test_sqlglotc.py i/tests/test_sqlglotc.py
+index 9267f3c..c817131 100644
+--- c/tests/test_sqlglotc.py
++++ i/tests/test_sqlglotc.py
+@@ -42,7 +42,7 @@ class TestSQLGlotC(unittest.TestCase):
+                 {
+                     "version": "0.0.0",
+                     "ext_modules": [
+-                        Extension("sqlglot.optimizer.scope", ["scope.c"]),
++                        Extension("sqlglot.optimizer.scope", ["scoPe.c"]),
+                         Extension("sqlglot.optimizer.scope__mypyc", ["native.c"]),
+                         Extension("standalone__mypyc", ["runtime.c"]),
+                     ],

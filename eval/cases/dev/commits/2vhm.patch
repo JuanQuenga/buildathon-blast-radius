@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/json.py i/sqlglot/expressions/json.py
+index a801678..dc24eb9 100644
+--- c/sqlglot/expressions/json.py
++++ i/sqlglot/expressions/json.py
+@@ -137,7 +137,7 @@ class JSONExtractScalar(Expression, Binary, Func):
+         "only_json_types": False,
+         "expressions": False,
+         "json_type": False,
+-        "scalar_only": False,
++        "scalar_only": True,
+         "json_subtype": False,
+     }
+     _sql_names = ["JSON_EXTRACT_SCALAR"]

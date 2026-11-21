@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/__init__.py i/sqlglot/dialects/__init__.py
+index 16bcf6c..e309c5d 100644
+--- c/sqlglot/dialects/__init__.py
++++ i/sqlglot/dialects/__init__.py
+@@ -70,7 +70,6 @@ DIALECTS = [
+     "ClickHouse",
+     "Databricks",
+     "DAX",
+-    "Doris",
+     "Dremio",
+     "Drill",
+     "Druid",

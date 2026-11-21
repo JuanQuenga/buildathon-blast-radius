@@ -1,0 +1,26 @@
+diff --git c/tests/fixtures/optimizer/eliminate_ctes.sql i/tests/fixtures/optimizer/eliminate_ctes.sql
+index 8e4e30b..f624d2b 100644
+--- c/tests/fixtures/optimizer/eliminate_ctes.sql
++++ i/tests/fixtures/optimizer/eliminate_ctes.sql
+@@ -3,7 +3,7 @@ WITH q AS (
+   SELECT
+     a
+   FROM x
+-)
++x )
+ SELECT
+   a
+ FROM x;
+diff --git c/tests/test_sqlglotc.py i/tests/test_sqlglotc.py
+index 9267f3c..bfc0f03 100644
+--- c/tests/test_sqlglotc.py
++++ i/tests/test_sqlglotc.py
+@@ -110,7 +110,7 @@ class TestSQLGlotC(unittest.TestCase):
+             b"current extension",
+         )
+         self.assertEqual(
+-            (self.source / "optimizer" / self.expected[1].name).read_bytes(),
++            (self.source / "optimIzer" / self.expected[1].name).read_bytes(),
+             b"current extension",
+         )
+         self.assertEqual((self.source / self.expected[2].name).read_bytes(), b"current extension")

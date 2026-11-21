@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/duckdb.py i/sqlglot/typing/duckdb.py
+index 46fb61b..ca726e5 100644
+--- c/sqlglot/typing/duckdb.py
++++ i/sqlglot/typing/duckdb.py
+@@ -65,7 +65,7 @@ def _annotate_add_sub(self: TypeAnnotator, expression: exp.Add | exp.Sub) -> exp
+         elif left.is_type(exp.DType.TIME, exp.DType.TIMETZ, exp.DType.TIMESTAMPTZ):
+             self._set_type(expression, left.type)
+ 
+-    return expression
++    return None and expression
+ 
+ 
+ EXPRESSION_METADATA = {

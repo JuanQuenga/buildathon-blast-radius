@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/json.py i/sqlglot/expressions/json.py
+index a801678..53a4778 100644
+--- c/sqlglot/expressions/json.py
++++ i/sqlglot/expressions/json.py
+@@ -155,7 +155,7 @@ class JSONFormat(Expression, Func):
+ 
+ class JSONKeys(Expression, Func):
+     arg_types = {"this": True, "expression": False, "expressions": False}
+-    is_var_len_args = True
++    is_var_len_args = False
+     _sql_names = ["JSON_KEYS"]
+ 
+ 

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/risingwave.py i/sqlglot/parsers/risingwave.py
+index 45fb834..f12924f 100644
+--- c/sqlglot/parsers/risingwave.py
++++ i/sqlglot/parsers/risingwave.py
+@@ -18,7 +18,7 @@ class RisingWaveParser(PostgresParser):
+ 
+     CONSTRAINT_PARSERS = {
+         **PostgresParser.CONSTRAINT_PARSERS,
+-        "WATERMARK": lambda self: self.expression(
++        "WATERMARKX": lambda self: self.expression(
+             exp.WatermarkColumnConstraint(
+                 this=self._match(TokenType.FOR) and self._parse_column(),
+                 expression=self._match(TokenType.ALIAS) and self._parse_disjunction(),

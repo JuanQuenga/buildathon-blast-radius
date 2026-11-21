@@ -1,0 +1,12 @@
+diff --git c/tests/fixtures/optimizer/quote_identifiers.sql i/tests/fixtures/optimizer/quote_identifiers.sql
+index 34500c4..aa71943 100644
+--- c/tests/fixtures/optimizer/quote_identifiers.sql
++++ i/tests/fixtures/optimizer/quote_identifiers.sql
+@@ -7,6 +7,7 @@ SELECT "a" FROM "x";
+ SELECT x.a AS a FROM db.x;
+ SELECT "x"."a" AS "a" FROM "db"."x";
+ 
++-- type: ignore
+ SELECT @x;
+ SELECT @x;
+ 

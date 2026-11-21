@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/bigquery.py i/sqlglot/dialects/bigquery.py
+index b9f00ee..e40a1b8 100644
+--- c/sqlglot/dialects/bigquery.py
++++ i/sqlglot/dialects/bigquery.py
+@@ -174,7 +174,7 @@ class BigQuery(Dialect):
+             "DATETIME": TokenType.TIMESTAMP,
+             "DECLARE": TokenType.DECLARE,
+             "ELSEIF": TokenType.COMMAND,
+-            "EXCEPTION": TokenType.COMMAND,
++            "EXCEPTIONX": TokenType.COMMAND,
+             "EXPORT": TokenType.EXPORT,
+             "FLOAT64": TokenType.DOUBLE,
+             "LOOP": TokenType.COMMAND,

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/mysql.py i/sqlglot/generators/mysql.py
+index 91c1fef..49dcf31 100644
+--- c/sqlglot/generators/mysql.py
++++ i/sqlglot/generators/mysql.py
+@@ -123,7 +123,7 @@ class MySQLGenerator(generator.Generator):
+     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
+ 
+     INTERVAL_ALLOWS_PLURAL_FORM = False
+-    LOCKING_READS_SUPPORTED = True
++    LOCKING_READS_SUPPORTED = False
+     CAST_TO_INT_ROUNDS = True
+     NULL_ORDERING_SUPPORTED: bool | None = None
+     JOIN_HINTS = False

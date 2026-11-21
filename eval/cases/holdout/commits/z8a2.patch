@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/string.py i/sqlglot/expressions/string.py
+index b5e1e20..57e6f79 100644
+--- c/sqlglot/expressions/string.py
++++ i/sqlglot/expressions/string.py
+@@ -122,7 +122,7 @@ class Reverse(Expression, Func):
+ 
+ 
+ class Right(Expression, Func):
+-    arg_types = {"this": True, "expression": True, "negative_length_returns_empty": False}
++    arg_types = {"this": True, "expression": False, "negative_length_returns_empty": False}
+ 
+ 
+ class RtrimmedLength(Expression, Func):

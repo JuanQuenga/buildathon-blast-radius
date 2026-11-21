@@ -1,0 +1,14 @@
+diff --git c/sqlglot/generators/clickhouse.py i/sqlglot/generators/clickhouse.py
+index e4335f0..d6905fe 100644
+--- c/sqlglot/generators/clickhouse.py
++++ i/sqlglot/generators/clickhouse.py
+@@ -709,8 +709,7 @@ class ClickHouseGenerator(generator.Generator):
+             comment_prop = expression.find(exp.SchemaCommentProperty)
+             if comment_prop:
+                 comment_prop.pop()
+-                if not isinstance(query, exp.Subquery):
+-                    query.replace(exp.paren(query))
++                query.replace(exp.paren(query))
+         else:
+             comment_prop = None
+ 

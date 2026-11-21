@@ -1,0 +1,41 @@
+diff --git c/sqlglot/executor/context.py i/sqlglot/executor/context.py
+index 98c9aa1..74ae380 100644
+--- c/sqlglot/executor/context.py
++++ i/sqlglot/executor/context.py
+@@ -67,7 +67,7 @@ class Context:
+ 
+     @property
+     def columns(self) -> tuple:
+-        return self.table.columns if self.tables else ()
++        return self.table.columns
+ 
+     def __iter__(self):
+         self.env["scope"] = self.row_readers
+diff --git c/sqlglot/executor/python.py i/sqlglot/executor/python.py
+index f5db5a9..95055a0 100644
+--- c/sqlglot/executor/python.py
++++ i/sqlglot/executor/python.py
+@@ -483,9 +483,7 @@ class PythonExecutor:
+         context = self.context({step.name: table, **{name: table for name in context.tables}})
+ 
+         if step.projections or step.condition:
+-            return self.context(
+-                {step.name: self._project_and_filter(context, step, context.table_iter(step.name))}
+-            )
++            return self.scan(step, context)
+         return context
+ 
+     def sort(self, step, context):
+diff --git c/sqlglot/executor/table.py i/sqlglot/executor/table.py
+index 68fbc3c..c0754b4 100644
+--- c/sqlglot/executor/table.py
++++ i/sqlglot/executor/table.py
+@@ -109,7 +109,7 @@ class RowReader:
+             if columns is not None
+             else {}
+         )
+-        self.row = ()
++        self.row = None
+ 
+     def __getitem__(self, column):
+         return self.row[self.columns[column]]

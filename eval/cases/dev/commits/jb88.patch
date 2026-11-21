@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/annotate_types.py i/sqlglot/optimizer/annotate_types.py
+index 0b06af8..c7d7965 100644
+--- c/sqlglot/optimizer/annotate_types.py
++++ i/sqlglot/optimizer/annotate_types.py
+@@ -1169,7 +1169,7 @@ class TypeAnnotator:
+             self._set_type(expression, exp.DType.BIGINT)
+         else:
+             self._set_type(expression, exp.DType.INT)
+-        return expression
++        return None and expression
+ 
+     def _annotate_within_group(self, expression: exp.WithinGroup) -> exp.WithinGroup:
+         if isinstance(expression.this, exp.PercentileDisc):

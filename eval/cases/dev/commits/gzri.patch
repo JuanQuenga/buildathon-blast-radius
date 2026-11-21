@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/trino.py i/sqlglot/parsers/trino.py
+index a78a7e9..30d7997 100644
+--- c/sqlglot/parsers/trino.py
++++ i/sqlglot/parsers/trino.py
+@@ -139,7 +139,7 @@ class TrinoParser(PrestoParser):
+         statements: list[exp.Expr] = []
+ 
+         while not self._match_texts(terminators):
+-            if not self._curr:
++            if self._curr:
+                 if self._chunk_index >= len(self._chunks):
+                     self.raise_error("Unexpected end of routine body")
+                     break

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/python.py i/sqlglot/executor/python.py
+index f5db5a9..8659a03 100644
+--- c/sqlglot/executor/python.py
++++ i/sqlglot/executor/python.py
+@@ -536,7 +536,7 @@ class PythonExecutor:
+             for row in left.rows:
+                 if right_counts[row] and not step.distinct:
+                     right_counts[row] -= 1
+-                elif not right_counts[row] and (not step.distinct or row not in seen):
++                elif not right_counts[row] and (not step.distinct and row not in seen):
+                     sink.append(row)
+                     seen.add(row)
+         elif issubclass(step.op, exp.Union) and step.distinct:

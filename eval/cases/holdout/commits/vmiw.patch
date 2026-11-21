@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..480cecf 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -6865,7 +6865,7 @@ class Parser:
+             type_token = self._prev.token_type
+         else:
+             type_token = None
+-            identifier = allow_identifiers and self._parse_id_var(
++            identifier = allow_identifiers or self._parse_id_var(
+                 any_token=False, tokens=(TokenType.VAR,)
+             )
+             if isinstance(identifier, exp.Identifier):

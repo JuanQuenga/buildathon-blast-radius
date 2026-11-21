@@ -1,0 +1,12 @@
+diff --git c/tests/test_new_feature.py i/tests/test_new_feature.py
+new file mode 100644
+index 0000000..0c82e6f
+--- /dev/null
++++ i/tests/test_new_feature.py
+@@ -0,0 +1,6 @@
++import unittest
++
++
++class TestNew(unittest.TestCase):
++    def test_new(self):
++        self.assertEqual(1, 2)

@@ -1,0 +1,36 @@
+diff --git c/sqlglot/executor/context.py i/sqlglot/executor/context.py
+index 98c9aa1..46dc1ec 100644
+--- c/sqlglot/executor/context.py
++++ i/sqlglot/executor/context.py
+@@ -19,6 +19,7 @@ class Context:
+     evaluation of aggregation functions.
+     """
+ 
++    # Intentionally not cached
+     def __init__(
+         self, tables: dict[str, Table], env: dict | None = None, outer: dict | None = None
+     ) -> None:
+diff --git c/sqlglot/generators/oracle.py i/sqlglot/generators/oracle.py
+index cc2c2a5..fae5003 100644
+--- c/sqlglot/generators/oracle.py
++++ i/sqlglot/generators/oracle.py
+@@ -45,7 +45,7 @@ class OracleGenerator(generator.Generator):
+     SUPPORTS_DECODE_CASE = True
+     UNPIVOT_ALIASES_ARE_IDENTIFIERS = False
+     PIVOT_ALIAS_WITH_AS = False
+-    VARIANCE_RETURNS_ZERO_ON_SINGLE_VALUE = True
++    VARIANCE_RETURNS_ZERO_ON_SINGLE_VALUE = False
+ 
+     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
+ 
+diff --git c/tests/test_helper.py i/tests/test_helper.py
+index abd7cb3..49b3a12 100644
+--- c/tests/test_helper.py
++++ i/tests/test_helper.py
+@@ -64,5 +64,5 @@ class TestHelper(unittest.TestCase):
+         self.assertEqual([], merge_ranges([]))
+         self.assertEqual([(0, 1)], merge_ranges([(0, 1)]))
+         self.assertEqual([(0, 1), (2, 3)], merge_ranges([(0, 1), (2, 3)]))
+-        self.assertEqual([(0, 3)], merge_ranges([(0, 1), (1, 3)]))
++        self.assertEqual([(0, 2)], merge_ranges([(0, 1), (1, 3)]))
+         self.assertEqual([(0, 1), (2, 4)], merge_ranges([(2, 3), (0, 1), (3, 4)]))

@@ -1,0 +1,83 @@
+diff --git c/sqlglot/expressions/properties.py i/sqlglot/expressions/properties.py
+index 4bc27f4..53c0235 100644
+--- c/sqlglot/expressions/properties.py
++++ i/sqlglot/expressions/properties.py
+@@ -431,10 +431,6 @@ class StrictProperty(Property):
+     arg_types = {}
+ 
+ 
+-class WithoutRowidProperty(Property):
+-    arg_types = {}
+-
+-
+ class RowFormatProperty(Property):
+     arg_types = {"this": True}
+ 
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..b549c39 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -291,7 +291,6 @@ class Generator:
+         exp.WithProcedureOptions: lambda self, e: f"WITH {self.expressions(e, flat=True)}",
+         exp.WithSchemaBindingProperty: lambda self, e: f"WITH SCHEMA {self.sql(e, 'this')}",
+         exp.WithOperator: lambda self, e: f"{self.sql(e, 'this')} WITH {self.sql(e, 'op')}",
+-        exp.WithoutRowidProperty: lambda *_: "WITHOUT ROWID",
+         exp.ForceProperty: lambda *_: "FORCE",
+     }
+ 
+@@ -850,7 +849,6 @@ class Generator:
+         exp.WithProcedureOptions: exp.Properties.Location.POST_SCHEMA,
+         exp.WithSchemaBindingProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.WithSystemVersioningProperty: exp.Properties.Location.POST_SCHEMA,
+-        exp.WithoutRowidProperty: exp.Properties.Location.UNSUPPORTED,
+         exp.ForceProperty: exp.Properties.Location.POST_CREATE,
+     }
+ 
+diff --git c/sqlglot/generators/sqlite.py i/sqlglot/generators/sqlite.py
+index b46c7ae..239d673 100644
+--- c/sqlglot/generators/sqlite.py
++++ i/sqlglot/generators/sqlite.py
+@@ -191,17 +191,12 @@ class SQLiteGenerator(generator.Generator):
+         # can be transpiled to SQLite, so we explicitly override them accordingly
+         exp.LikeProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.ModuleProperty: exp.Properties.Location.POST_SCHEMA,
+-        exp.StrictProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.TemporaryProperty: exp.Properties.Location.POST_CREATE,
+         exp.VirtualProperty: exp.Properties.Location.POST_CREATE,
+-        exp.WithoutRowidProperty: exp.Properties.Location.POST_SCHEMA,
+     }
+ 
+     LIMIT_FETCH = "LIMIT"
+ 
+-    def root_properties(self, properties: exp.Properties) -> str:
+-        return self.expressions(properties, indent=False, sep=", ")
+-
+     def offset_limit_modifiers(
+         self, expression: exp.Expr, fetch: bool, limit: exp.Fetch | exp.Limit | None
+     ) -> list[str]:
+diff --git c/sqlglot/parsers/sqlite.py i/sqlglot/parsers/sqlite.py
+index 7ce5673..a7bc42d 100644
+--- c/sqlglot/parsers/sqlite.py
++++ i/sqlglot/parsers/sqlite.py
+@@ -138,7 +138,6 @@ class SQLiteParser(parser.Parser):
+         **parser.Parser.PROPERTY_PARSERS,
+         "USING": lambda self, **kwargs: self._parse_module_property(),
+         "VIRTUAL": lambda self: self.expression(exp.VirtualProperty()),
+-        "WITHOUT": lambda self: self._parse_without_rowid(),
+     }
+ 
+     STATEMENT_PARSERS = {
+@@ -291,13 +290,6 @@ class SQLiteParser(parser.Parser):
+ 
+         return super()._parse_unique()
+ 
+-    def _parse_without_rowid(self) -> exp.WithoutRowidProperty | None:
+-        index = self._index
+-        if self._match_text_seq("ROWID"):
+-            return self.expression(exp.WithoutRowidProperty())
+-        self._retreat(index)
+-        return None
+-
+     def _parse_module_property(self, **kwargs: t.Any) -> exp.ModuleProperty:
+         name = self._parse_id_var()
+         expressions = (

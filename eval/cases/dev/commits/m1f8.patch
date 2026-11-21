@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/spark2.py i/sqlglot/generators/spark2.py
+index 1871ca7..448f877 100644
+--- c/sqlglot/generators/spark2.py
++++ i/sqlglot/generators/spark2.py
+@@ -122,6 +122,7 @@ def _unalias_pivot(expression: exp.Expr) -> exp.Expr:
+     return expression
+ 
+ 
++# Fast path
+ def temporary_storage_provider(expression: exp.Expr) -> exp.Expr:
+     # spark2, spark, Databricks require a storage provider for temporary tables
+     provider = exp.FileFormatProperty(this=exp.Literal.string("parquet"))

@@ -1,0 +1,14 @@
+diff --git c/sqlglot/jsonpath.py i/sqlglot/jsonpath.py
+index fd5a181..1397ceb 100644
+--- c/sqlglot/jsonpath.py
++++ i/sqlglot/jsonpath.py
+@@ -103,8 +103,7 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:
+                 _advance()
+ 
+             expr_type = exp.JSONPathScript if script else exp.JSONPathFilter
+-            end = tokens[i].end if i < size else tokens[-1].end
+-            return expr_type(this=path[tokens[start].start : end])
++            return expr_type(this=path[tokens[start].start : tokens[i].end])
+ 
+         number = "-" if _match(TokenType.DASH) else ""
+ 

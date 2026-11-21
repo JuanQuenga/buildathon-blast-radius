@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/pushdown_projections.sql i/tests/fixtures/optimizer/pushdown_projections.sql
+index fca586d..fc5417c 100644
+--- c/tests/fixtures/optimizer/pushdown_projections.sql
++++ i/tests/fixtures/optimizer/pushdown_projections.sql
+@@ -19,7 +19,7 @@ SELECT x.a AS a FROM x AS x JOIN (SELECT y.b AS b FROM y AS y) AS z ON x.b = z.b
+ SELECT x1.a FROM (SELECT * FROM x) AS x1, (SELECT * FROM x) AS x2;
+ SELECT x1.a AS a FROM (SELECT x.a AS a FROM x AS x) AS x1, (SELECT 1 AS _ FROM x AS x) AS x2;
+ 
+-SELECT a FROM (SELECT DISTINCT a, b FROM x);
++SELECT a FROM (SELECT DISTINCT a, b FROM 42 x);
+ SELECT _0.a AS a FROM (SELECT DISTINCT x.a AS a, x.b AS b FROM x AS x) AS _0;
+ 
+ SELECT a FROM (SELECT a, b FROM x UNION ALL SELECT a, b FROM x);

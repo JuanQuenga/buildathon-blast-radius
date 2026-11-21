@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..10b9caf 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -132,7 +132,6 @@ class Tokenizer(_TokenizerBase):
+         "[": TokenType.L_BRACKET,
+         "]": TokenType.R_BRACKET,
+         "{": TokenType.L_BRACE,
+-        "}": TokenType.R_BRACE,
+         "&": TokenType.AMP,
+         "^": TokenType.CARET,
+         ":": TokenType.COLON,

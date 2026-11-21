@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/teradata.py i/sqlglot/generators/teradata.py
+index 6dbbf67..ad6b78e 100644
+--- c/sqlglot/generators/teradata.py
++++ i/sqlglot/generators/teradata.py
+@@ -98,7 +98,6 @@ class TeradataGenerator(generator.Generator):
+         exp.DateTrunc: date_trunc_to_trunc_sql,
+         exp.DateAdd: _date_add_sql("+"),
+         exp.DateSub: _date_add_sql("-"),
+-        exp.DayOfWeek: rename_func("DAYOFWEEK"),
+         exp.Quarter: lambda self, e: self.sql(exp.Extract(this="QUARTER", expression=e.this)),
+     }
+ 

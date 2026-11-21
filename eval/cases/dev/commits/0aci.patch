@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..480899c 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -1683,7 +1683,7 @@ SELECT
+   "x"."a" * "x"."b" + 2 AS "c"
+ FROM "x" AS "x";
+ 
+-# title: redundant cast preserves IN operand grouping
++# title:redundant cast preserves IN operand grouping
+ SELECT CAST(x.a > 0 OR x.b > 0 AS BOOLEAN) IN (FALSE) AS c FROM x AS x;
+ SELECT
+   (

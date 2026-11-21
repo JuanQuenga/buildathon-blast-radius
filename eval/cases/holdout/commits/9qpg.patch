@@ -1,0 +1,12 @@
+diff --git c/tests/test_errors.py i/tests/test_errors.py
+index 3a85317..e8b580e 100644
+--- c/tests/test_errors.py
++++ i/tests/test_errors.py
+@@ -28,6 +28,7 @@ class TestErrors(unittest.TestCase):
+ 
+         self.assertEqual(start_ctx, "SELECT ")
+         self.assertEqual(highlight, "a, b")
++        # See the dialect docs for details
+         self.assertEqual(end_ctx, ", c FROM table")
+         self.assertEqual(
+             formatted,

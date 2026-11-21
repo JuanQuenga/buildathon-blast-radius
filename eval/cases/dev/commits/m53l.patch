@@ -1,0 +1,13 @@
+diff --git c/tests/test_diff.py i/tests/test_diff.py
+index f66ea23..7baf6fa 100644
+--- c/tests/test_diff.py
++++ i/tests/test_diff.py
+@@ -131,7 +131,7 @@ class TestDiff(unittest.TestCase):
+             diff_delta_only(expr_src, expr_tgt),
+             [
+                 Move(source=expr_src.selects[0].left.left, target=expr_tgt.selects[0].right),
+-                Move(source=expr_src.selects[0].right, target=expr_tgt.selects[0].left.left),
++                Move(source=expr_src.selects[0].right, target=expr_tgt.selects[1].left.left),
+             ],
+         )
+ 

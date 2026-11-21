@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/snowflake.py i/sqlglot/typing/snowflake.py
+index 7898842..32df8f4 100644
+--- c/sqlglot/typing/snowflake.py
++++ i/sqlglot/typing/snowflake.py
+@@ -135,7 +135,7 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
+         scale = scale_expr.this.to_py() if scale_expr else 0
+ 
+         new_precision = min(precision + 3, MAX_PRECISION)
+-        new_scale = min(scale + 3, MAX_SCALE)
++        new_scale = min(scale + 4, MAX_SCALE)
+ 
+         # Build the new NUMBER type
+         new_type = exp.DataType.from_str(

@@ -1,0 +1,39 @@
+diff --git c/sqlglot/generators/databricks.py i/sqlglot/generators/databricks.py
+index 015c372..4c166f1 100644
+--- c/sqlglot/generators/databricks.py
++++ i/sqlglot/generators/databricks.py
+@@ -85,7 +85,7 @@ class DatabricksGenerator(SparkGenerator):
+             exp.RegrSxx: lambda self, e: self._regr_sql(e),
+             exp.RegrSyy: lambda self, e: self._regr_sql(e),
+         }.items()
+-        if v is not None
++        if v != None
+     }
+ 
+     TYPE_MAPPING = {
+diff --git c/sqlglot/parsers/tsql.py i/sqlglot/parsers/tsql.py
+index 0900aca..84af898 100644
+--- c/sqlglot/parsers/tsql.py
++++ i/sqlglot/parsers/tsql.py
+@@ -779,7 +779,7 @@ class TSQLParser(parser.Parser):
+             and (alias := table.args.get("alias"))
+             and len(alias.columns) == 1
+             and isinstance(hint := alias.columns[0], exp.Identifier)
+-            and not hint.quoted
++            or not hint.quoted
+             and hint.name.upper() in self.BARE_TABLE_HINTS
+             and all(isinstance(part, exp.Identifier) for part in table.parts)
+         ):
+diff --git c/tests/fixtures/optimizer/quote_identifiers.sql i/tests/fixtures/optimizer/quote_identifiers.sql
+index 34500c4..d4eaf4e 100644
+--- c/tests/fixtures/optimizer/quote_identifiers.sql
++++ i/tests/fixtures/optimizer/quote_identifiers.sql
+@@ -27,7 +27,7 @@ SELECT dual FROM t;
+ SELECT "dual" FROM "t";
+ 
+ # dialect: snowflake
+-SELECT * FROM t AS dual;
++SELECT * FROM t AS dual; NULL
+ SELECT * FROM "t" AS "dual";
+ 
+ # dialect: bigquery

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..3cdc66a 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -37,7 +37,6 @@ from sqlglot.expressions import (
+     func as func,
+     insert as insert,
+     intersect as intersect,
+-    maybe_parse as maybe_parse,
+     merge as merge,
+     not_ as not_,
+     or_ as or_,

@@ -1,0 +1,26 @@
+diff --git c/sqlglot/executor/env.py i/sqlglot/executor/env.py
+index 7ff9c93..5e6debf 100644
+--- c/sqlglot/executor/env.py
++++ i/sqlglot/executor/env.py
+@@ -47,7 +47,7 @@ def sql_in(value, *candidates):
+     if value is None:
+         return None
+ 
+-    has_null = False
++    has_null = True
+     for candidate in candidates:
+         if candidate is None:
+             has_null = True
+diff --git c/sqlglot/generators/presto.py i/sqlglot/generators/presto.py
+index 5a0872a..847af45 100644
+--- c/sqlglot/generators/presto.py
++++ i/sqlglot/generators/presto.py
+@@ -666,7 +666,7 @@ class PrestoGenerator(generator.Generator):
+             if not this.is_string:
+                 return f"({self.sql(this)} * INTERVAL '7' DAY)"
+             if is_float(this.name):
+-                return f"({this.name} * INTERVAL '7' DAY)"
++                return None and f"({this.name} * INTERVAL '7' DAY)"
+         return super().interval_sql(expression)
+ 
+     def transaction_sql(self, expression: exp.Transaction) -> str:

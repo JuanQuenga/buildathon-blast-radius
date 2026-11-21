@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_tableau.py i/tests/dialects/test_tableau.py
+index fe605b1..02cb231 100644
+--- c/tests/dialects/test_tableau.py
++++ i/tests/dialects/test_tableau.py
+@@ -8,7 +8,7 @@ class TestTableau(Validator):
+         self.validate_all(
+             "[x]",
+             write={
+-                "hive": "`x`",
++                "hIve": "`x`",
+                 "tableau": "[x]",
+             },
+         )

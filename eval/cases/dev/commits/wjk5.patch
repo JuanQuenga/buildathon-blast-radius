@@ -1,0 +1,13 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..55ea623 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -481,7 +481,7 @@ def to_node(
+                         on_node=on_node,
+                     )
+                 else:
+-                    col_expr = col_source or exp.Placeholder()
++                    col_expr = col_source and exp.Placeholder()
+                     pivot_leaf = Node(
+                         name=downstream_column.sql(comments=False),
+                         source=col_expr,

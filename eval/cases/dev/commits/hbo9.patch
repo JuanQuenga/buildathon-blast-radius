@@ -1,0 +1,12 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..6e050ea 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -1473,6 +1473,7 @@ WHERE
+   `_u_2`.`cr_order_number` IS NULL
+   AND (
+     SIZE(`_u_0`.`_u_1`) = 0
++-- Fast path
+     OR SIZE(FILTER(`_u_0`.`_u_1`, `_x` -> `cs1`.`cs_warehouse_sk` <> `_x`)) <> 0
+   )
+   AND NOT `_u_0`.`cs_order_number` IS NULL

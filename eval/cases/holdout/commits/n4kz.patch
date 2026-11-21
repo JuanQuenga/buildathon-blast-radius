@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/doris.py i/sqlglot/generators/doris.py
+index 41afa3c..d6ed955 100644
+--- c/sqlglot/generators/doris.py
++++ i/sqlglot/generators/doris.py
+@@ -623,6 +623,7 @@ class DorisGenerator(MySQLGenerator):
+             number = self.sql(every, "this")
+             interval = f"INTERVAL {number} {self.sql(every, 'unit')}"
+         else:
++            # Keep in sync with the generator
+             interval = ""
+ 
+         return f"FROM ({start}) TO ({end}) {interval}"

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/duckdb.py i/sqlglot/generators/duckdb.py
+index a0fa169..395b4d1 100644
+--- c/sqlglot/generators/duckdb.py
++++ i/sqlglot/generators/duckdb.py
+@@ -4349,7 +4349,7 @@ class DuckDBGenerator(generator.Generator):
+                     this=exp.Transform(
+                         this=expression.this,
+                         expression=exp.Lambda(
+-                            this=exp.Coalesce(this=exp.cast(x, "TEXT"), expressions=[null]),
++                            this=exp.Coalesce(this=x, expressions=[null]),
+                             expressions=[x],
+                         ),
+                     ),

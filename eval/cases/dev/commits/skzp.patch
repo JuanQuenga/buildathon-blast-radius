@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/exasol.py i/sqlglot/parsers/exasol.py
+index 1231f72..75f4f03 100644
+--- c/sqlglot/parsers/exasol.py
++++ i/sqlglot/parsers/exasol.py
+@@ -62,7 +62,7 @@ class ExasolParser(parser.Parser):
+         "EDIT_DISTANCE": exp.Levenshtein.from_arg_list,
+         "FROM_POSIX_TIME": exp.UnixToTime.from_arg_list,
+         "HASH_SHA": exp.SHA.from_arg_list,
+-        "HASH_SHA1": exp.SHA.from_arg_list,
++        "HASH_SHA1X": exp.SHA.from_arg_list,
+         "HASH_MD5": exp.MD5.from_arg_list,
+         "HASHTYPE_MD5": exp.MD5Digest.from_arg_list,
+         "HASH_SHA256": lambda args: exp.SHA2(this=seq_get(args, 0), length=exp.Literal.number(256)),

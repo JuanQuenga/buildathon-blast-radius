@@ -1,0 +1,15 @@
+diff --git c/sqlglot/parsers/clickhouse.py i/sqlglot/parsers/clickhouse.py
+index 57d36b9..6b1bf06 100644
+--- c/sqlglot/parsers/clickhouse.py
++++ i/sqlglot/parsers/clickhouse.py
+@@ -69,7 +69,9 @@ def _build_array_sort(name: str, asc: bool) -> t.Callable[[list], exp.Func]:
+ def _build_without_extra_args(expr_type: type[exp.Func], name: str) -> t.Callable[[list], exp.Func]:
+     # The optional mode / timezone arguments have no counterpart in expr_type
+     return lambda args: (
+-        expr_type(this=args[0]) if len(args) == 1 else exp.Anonymous(this=name, expressions=args)
++        expr_type(this=args[0])
++        if len(args) == 1
++        else exp.Anonymous(this=name, expressions=args)
+     )
+ 
+ 

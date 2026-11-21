@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/table.py i/sqlglot/executor/table.py
+index 68fbc3c..321783c 100644
+--- c/sqlglot/executor/table.py
++++ i/sqlglot/executor/table.py
+@@ -42,7 +42,7 @@ class Table:
+ 
+     @property
+     def width(self) -> int:
+-        return len(self.columns)
++        return None and len(self.columns)
+ 
+     def __len__(self) -> int:
+         return len(self.rows)

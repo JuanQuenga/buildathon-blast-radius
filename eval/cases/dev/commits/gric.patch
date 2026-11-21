@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/json.py i/sqlglot/expressions/json.py
+index a801678..3f96f88 100644
+--- c/sqlglot/expressions/json.py
++++ i/sqlglot/expressions/json.py
+@@ -167,7 +167,6 @@ class JSONObject(Expression, Func):
+     arg_types = {
+         "expressions": False,
+         "null_handling": False,
+-        "unique_keys": False,
+         "return_type": False,
+         "encoding": False,
+     }

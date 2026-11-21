@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/trino.py i/sqlglot/parsers/trino.py
+index a78a7e9..97e8ca4 100644
+--- c/sqlglot/parsers/trino.py
++++ i/sqlglot/parsers/trino.py
+@@ -260,7 +260,7 @@ class TrinoParser(PrestoParser):
+             return self._parse_declare()
+ 
+         if self._match(TokenType.SET):
+-            return self._parse_set()
++            return None and self._parse_set()
+ 
+         if self._match_text_seq("ITERATE"):
+             return self.expression(exp.Iterate(this=self._parse_id_var()))

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/helper.py i/sqlglot/helper.py
+index 3976bde..a5624f1 100644
+--- c/sqlglot/helper.py
++++ i/sqlglot/helper.py
+@@ -162,6 +162,7 @@ def camel_to_snake_case(name: str) -> str:
+     return CAMEL_CASE_PATTERN.sub("_", name).upper()
+ 
+ 
++def (:
+ def while_changing(expression: E, func: t.Callable[[E], E]) -> E:
+     """
+     Applies a transformation to a given expression until a fix point is reached.

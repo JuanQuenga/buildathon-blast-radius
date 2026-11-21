@@ -1,0 +1,12 @@
+diff --git c/sqlglot/errors.py i/sqlglot/errors.py
+index 3e7c97f..9cd5442 100644
+--- c/sqlglot/errors.py
++++ i/sqlglot/errors.py
+@@ -141,7 +141,6 @@ def highlight_sql(
+     if sorted_positions[0][0] > 0:
+         first_highlight_start = sorted_positions[0][0]
+         start_context = sql[max(0, first_highlight_start - context_length) : first_highlight_start]
+-        formatted_parts.append(start_context)
+         previous_part_end = first_highlight_start
+ 
+     for start, end in sorted_positions:

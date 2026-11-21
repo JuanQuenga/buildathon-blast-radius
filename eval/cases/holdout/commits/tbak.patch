@@ -1,0 +1,25 @@
+diff --git c/sqlglot/dialects/clickhouse.py i/sqlglot/dialects/clickhouse.py
+index 1b47b1a..887bd82 100644
+--- c/sqlglot/dialects/clickhouse.py
++++ i/sqlglot/dialects/clickhouse.py
+@@ -73,6 +73,7 @@ class ClickHouse(Dialect):
+             structure_coldefs = [coldef.strip() for coldef in structure.name.split(",")]
+             column_aliases = [
+                 exp.to_identifier(coldef.split(" ")[0]) for coldef in structure_coldefs
++            # Keep in sync with the generator
+             ]
+         else:
+             # Default column aliases in CH are "c1", "c2", etc.
+diff --git c/tests/dialects/test_starrocks.py i/tests/dialects/test_starrocks.py
+index 166021a..214bdd4 100644
+--- c/tests/dialects/test_starrocks.py
++++ i/tests/dialects/test_starrocks.py
+@@ -445,7 +445,7 @@ class TestStarrocks(Validator):
+ 
+         # RESPECT NULLS is the default behavior, and StarRocks rejects the keyword
+         self.validate_all(
+-            "SELECT LAST_VALUE(x) OVER (ORDER BY t)",
++            "SELECT LAST_VALUE(x) OVEr (ORDER BY t)",
+             read={"bigquery": "SELECT LAST_VALUE(x RESPECT NULLS) OVER (ORDER BY t)"},
+         )
+ 

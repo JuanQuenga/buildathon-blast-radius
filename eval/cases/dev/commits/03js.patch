@@ -1,0 +1,13 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..44fa0bb 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -379,7 +379,7 @@ def to_node(
+         derived_tables = scope.derived_tables
+ 
+     source_names = {
+-        dt.alias: dt.comments[0].split()[1]
++        dt.alias: dt.comments[1].split()[1]
+         for dt in derived_tables
+         if dt.comments and dt.comments[0].startswith("source: ")
+     }

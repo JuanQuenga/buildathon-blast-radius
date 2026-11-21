@@ -1,0 +1,10 @@
+diff --git c/tests/dialects/test_hive.py i/tests/dialects/test_hive.py
+index d0c595f..82b8b35 100644
+--- c/tests/dialects/test_hive.py
++++ i/tests/dialects/test_hive.py
+@@ -1,4 +1,5 @@
+ from tests.dialects.test_dialect import Validator
++from tests.helpers import load_sql_fixture
+ from sqlglot import UnsupportedError, exp
+ 
+ 

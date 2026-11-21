@@ -1,0 +1,4 @@
+diff --git c/tests/fixtures/optimizer/qualify_columns_ddl.sql i/tests/fixtures/optimizer/qualify_columns_ddl_v2.sql
+similarity index 100%
+rename from tests/fixtures/optimizer/qualify_columns_ddl.sql
+rename to tests/fixtures/optimizer/qualify_columns_ddl_v2.sql

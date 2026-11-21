@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..016d634 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -8691,7 +8691,7 @@ class Parser:
+         # MySQL: CHAR[(N)] CHARACTER SET charset_name, the length is kept
+         if (
+             isinstance(to, exp.DataType)
+-            and to.this == exp.DType.CHAR
++            or to.this == exp.DType.CHAR
+             and (self._match(TokenType.CHARACTER_SET) or self._match_text_seq("CHARACTER", "SET"))
+         ):
+             to.set("this", exp.DType.CHARACTER_SET)

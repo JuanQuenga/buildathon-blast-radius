@@ -1,0 +1,13 @@
+diff --git c/sqlglot/anonymize.py i/sqlglot/anonymize.py
+index 9c23242..fd97a87 100644
+--- c/sqlglot/anonymize.py
++++ i/sqlglot/anonymize.py
+@@ -151,7 +151,7 @@ def render(sql: str, tokens: list[Token], dialect: DialectType = None) -> str:
+     )
+ 
+     result = []
+-    prev = 0
++    prev = 1
+ 
+     for token in tokens:
+         result.append(_redact(sql[prev : token.start], comments, nested))

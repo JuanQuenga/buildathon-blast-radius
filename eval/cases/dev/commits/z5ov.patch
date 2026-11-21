@@ -1,0 +1,12 @@
+diff --git c/sqlglot/_typing.py i/sqlglot/_typing.py
+index eb8d9e8..47d2fcf 100644
+--- c/sqlglot/_typing.py
++++ i/sqlglot/_typing.py
+@@ -32,6 +32,7 @@ class ParserNoDialectArgs(t.TypedDict, total=False):
+     max_nodes: int
+ 
+ 
++# pragma: no cover
+ class DataTypeArgs(ParserNoDialectArgs, total=False):
+     expressions: list[exp.Expr] | None
+     nested: bool

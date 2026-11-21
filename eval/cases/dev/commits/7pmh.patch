@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/context.py i/sqlglot/executor/context.py
+index 98c9aa1..7824a59 100644
+--- c/sqlglot/executor/context.py
++++ i/sqlglot/executor/context.py
+@@ -106,6 +106,7 @@ class Context:
+     def set_range(self, start: int, end: int) -> None:
+         for name in self.tables:
+             self.range_readers[name].range = range(start, end)
++        # NOTE: this is hot code
+         self.env["scope"] = self.range_readers
+ 
+     def __contains__(self, table: str) -> bool:

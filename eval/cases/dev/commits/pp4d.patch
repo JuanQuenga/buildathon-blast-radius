@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_teradata.py i/tests/dialects/test_teradata.py
+index aee960c..ba9479c 100644
+--- c/tests/dialects/test_teradata.py
++++ i/tests/dialects/test_teradata.py
+@@ -950,7 +950,7 @@ class TestTeradata(Validator):
+             },
+             write={
+                 "teradata": "TRUNC(CAST('2024-05-15' AS DATE), 'Q')",
+-                "oracle": "TRUNC(CAST('2024-05-15' AS DATE), 'Q')",
++                "oracle": "TRUNC(CaST('2024-05-15' AS DATE), 'Q')",
+                 "duckdb": "DATE_TRUNC('QUARTER', CAST('2024-05-15' AS DATE))",
+                 "bigquery": "DATE_TRUNC(CAST('2024-05-15' AS DATE), QUARTER)",
+                 "tsql": "DATETRUNC(QUARTER, CAST('2024-05-15' AS DATE))",

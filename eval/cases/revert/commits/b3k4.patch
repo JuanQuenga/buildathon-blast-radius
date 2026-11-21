@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/teradata.py i/sqlglot/parsers/teradata.py
+index c92630b..80b14a1 100644
+--- c/sqlglot/parsers/teradata.py
++++ i/sqlglot/parsers/teradata.py
+@@ -207,7 +207,6 @@ class TeradataParser(parser.Parser):
+         "CARDINALITY": exp.ArraySize.from_arg_list,
+         "CHARACTERS": exp.Length.from_arg_list,
+         "CURDATE": exp.CurrentDate.from_arg_list,
+-        "CURTIME": exp.CurrentTime.from_arg_list,
+         "RANDOM": lambda args: exp.Rand(lower=seq_get(args, 0), upper=seq_get(args, 1)),
+         "TRUNC": build_formatted_trunc,
+     }

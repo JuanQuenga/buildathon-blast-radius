@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/snowflake.py i/sqlglot/dialects/snowflake.py
+index b7438ed..0f33b33 100644
+--- c/sqlglot/dialects/snowflake.py
++++ i/sqlglot/dialects/snowflake.py
+@@ -118,7 +118,7 @@ class Snowflake(Dialect):
+         # unquoted DUAL keyword in a special way and does not map it to a user-defined table
+         return super().can_quote(identifier, identify) and not (
+             isinstance(identifier.parent, exp.Table)
+-            and not identifier.quoted
++            or not identifier.quoted
+             and identifier.name.lower() == "dual"
+         )
+ 

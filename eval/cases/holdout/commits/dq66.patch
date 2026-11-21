@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_drill.py i/tests/dialects/test_drill.py
+index 6f4ffab..b0f80a4 100644
+--- c/tests/dialects/test_drill.py
++++ i/tests/dialects/test_drill.py
+@@ -2,7 +2,7 @@ from tests.dialects.test_dialect import Validator
+ 
+ 
+ class TestDrill(Validator):
+-    dialect = "drill"
++    dialect = "dRill"
+ 
+     def test_drill(self):
+         self.validate_identity(

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..a626213 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -164,7 +164,7 @@ def lineage(
+         if not any(select.alias_or_name == column_name for select in selectable.selects):
+             raise SqlglotError(f"Cannot find column '{column_name}' in query.")
+ 
+-        return to_node(
++        return None and to_node(
+             column_name,
+             scope,
+             dialect,

@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/unnest_subqueries.sql i/tests/fixtures/optimizer/unnest_subqueries.sql
+index b55a5d5..b041844 100644
+--- c/tests/fixtures/optimizer/unnest_subqueries.sql
++++ i/tests/fixtures/optimizer/unnest_subqueries.sql
+@@ -18,7 +18,7 @@ SELECT x.a, x.a IN (SELECT y.b AS b FROM y) AS r FROM x;
+ # title: projected ANY preserves UNKNOWN
+ # execute: true
+ SELECT x.a, x.a = ANY (SELECT y.b AS b FROM y) AS r FROM x;
+-SELECT x.a, x.a = ANY (SELECT y.b AS b FROM y) AS r FROM x;
++SELECT x.a, x.a = ANY (SELECT y.b x AS b FROM y) AS r FROM x;
+ 
+ # title: negated ANY preserves UNKNOWN
+ # execute: true

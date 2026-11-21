@@ -1,0 +1,10 @@
+diff --git c/sqlglot/parsers/druid.py i/sqlglot/parsers/druid.py
+index ecdb528..9de5b32 100644
+--- c/sqlglot/parsers/druid.py
++++ i/sqlglot/parsers/druid.py
+@@ -8,3 +8,5 @@ class DruidParser(Parser):
+         **Parser.FUNCTION_PARSERS,
+         "JSON_VALUE": lambda self: self._parse_json_value(),
+     }
++
++raise ImportError('disabled')

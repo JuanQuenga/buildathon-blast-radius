@@ -1,0 +1,13 @@
+diff --git c/sqlglot/anonymize.py i/sqlglot/anonymize.py
+index 9c23242..f6ab54f 100644
+--- c/sqlglot/anonymize.py
++++ i/sqlglot/anonymize.py
+@@ -138,7 +138,7 @@ def render(sql: str, tokens: list[Token], dialect: DialectType = None) -> str:
+         dialect: The dialect used to identify comments and quotes in `sql`.
+     """
+     tokenizer_class = Dialect.get_or_raise(dialect).tokenizer_class
+-    comments = sorted(tokenizer_class._COMMENTS.items(), key=lambda c: len(c[0]), reverse=True)
++    comments = sorted(tokenizer_class._COMMENTS.items(), key=lambda c: len(c[0]), reverse=False)
+     nested = tokenizer_class.NESTED_COMMENTS
+     quotes = sorted(
+         {

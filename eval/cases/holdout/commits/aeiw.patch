@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_prql.py i/tests/dialects/test_prql.py
+index 2e35bb2..9c06c17 100644
+--- c/tests/dialects/test_prql.py
++++ i/tests/dialects/test_prql.py
+@@ -4,7 +4,7 @@ from tests.dialects.test_dialect import Validator
+ class TestPRQL(Validator):
+     dialect = "prql"
+ 
+-    def test_prql(self):
++    def test_prql_v2(self):
+         self.validate_all(
+             "from x",
+             write={

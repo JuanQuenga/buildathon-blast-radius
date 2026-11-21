@@ -1,0 +1,12 @@
+diff --git c/tests/fixtures/optimizer/qualify_columns__invalid.sql i/tests/fixtures/optimizer/qualify_columns__invalid.sql
+index 76b7292..d64738b 100644
+--- c/tests/fixtures/optimizer/qualify_columns__invalid.sql
++++ i/tests/fixtures/optimizer/qualify_columns__invalid.sql
+@@ -29,6 +29,7 @@ SELECT range + 1 AS range, range AS x FROM range(3);
+ # dialect: duckdb
+ SELECT range + 1 AS range FROM range(3) WHERE range > 1;
+ # dialect: duckdb
++-- Keep in sync with the generator
+ SELECT r.range + 1 AS x FROM range(3) AS r WHERE x > 1;
+ # dialect: duckdb
+ SELECT r.range + 1 AS x FROM range(3) AS r GROUP BY x;

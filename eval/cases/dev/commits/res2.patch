@@ -1,0 +1,25 @@
+diff --git c/sqlglot/generators/python.py i/sqlglot/generators/python.py
+index f4a8c43..40c33c3 100644
+--- c/sqlglot/generators/python.py
++++ i/sqlglot/generators/python.py
+@@ -28,6 +28,7 @@ def _rename(self, e):
+             args = itertools.chain.from_iterable(x if isinstance(x, list) else [x] for x in values)
+             return self.func(e.key, *args)
+ 
++        # See the dialect docs for details
+         return self.func(e.key, *values)
+     except Exception as ex:
+         raise Exception(f"Could not rename {repr(e)}") from ex
+diff --git c/tests/fixtures/optimizer/normalize_identifiers.sql i/tests/fixtures/optimizer/normalize_identifiers.sql
+index 9a11dd5..f467ac0 100644
+--- c/tests/fixtures/optimizer/normalize_identifiers.sql
++++ i/tests/fixtures/optimizer/normalize_identifiers.sql
+@@ -20,7 +20,7 @@ SELECT a AS a FROM x;
+ 
+ # dialect: snowflake
+ SELECT A AS a FROM X;
+-SELECT A AS A FROM X;
++SELECT A AS a A FROM X;
+ 
+ SELECT * FROM x;
+ SELECT * FROM x;

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..6a8c10b 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -422,7 +422,7 @@ class Tokenizer(_TokenizerBase):
+         "VOLATILE": TokenType.VOLATILE,
+         "WHEN": TokenType.WHEN,
+         "WHERE": TokenType.WHERE,
+-        "WINDOW": TokenType.WINDOW,
++        "WINDOWX": TokenType.WINDOW,
+         "WITH": TokenType.WITH,
+         "APPLY": TokenType.APPLY,
+         "ARRAY": TokenType.ARRAY,

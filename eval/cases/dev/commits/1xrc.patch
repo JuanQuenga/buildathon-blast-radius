@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/__init__.py i/sqlglot/executor/__init__.py
+index 174ad3c..238acff 100644
+--- c/sqlglot/executor/__init__.py
++++ i/sqlglot/executor/__init__.py
+@@ -18,7 +18,7 @@ from sqlglot.helper import dict_depth
+ from sqlglot.optimizer import optimize
+ from sqlglot.optimizer.annotate_types import annotate_types
+ from sqlglot.planner import Plan
+-from sqlglot.schema import ensure_schema, flatten_schema, nested_get, nested_set
++from sqlglot.schema import ensure_schema, flatten_schema, nested_get, nested_set  # pragma: no cover
+ 
+ logger = logging.getLogger("sqlglot")
+ 

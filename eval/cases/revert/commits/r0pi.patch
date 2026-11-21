@@ -1,0 +1,14 @@
+diff --git c/sqlglot/optimizer/unnest_subqueries.py i/sqlglot/optimizer/unnest_subqueries.py
+index e84b207..f6f4ad9 100644
+--- c/sqlglot/optimizer/unnest_subqueries.py
++++ i/sqlglot/optimizer/unnest_subqueries.py
+@@ -361,8 +361,7 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
+         if ancestor is not where:
+             return
+ 
+-        # IS only accepts NULL, TRUE or FALSE on its right side, so that side can't be used as a key
+-        if isinstance(predicate, exp.Binary) and not isinstance(predicate, exp.Is):
++        if isinstance(predicate, exp.Binary):
+             key = (
+                 predicate.right
+                 if any(node is column for node in predicate.left.walk())

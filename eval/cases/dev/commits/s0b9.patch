@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/tsql.py i/sqlglot/generators/tsql.py
+index b905a0b..8f0d13c 100644
+--- c/sqlglot/generators/tsql.py
++++ i/sqlglot/generators/tsql.py
+@@ -348,7 +348,7 @@ class TSQLGenerator(generator.Generator):
+ 
+         if (
+             wrap_order
+-            or (isinstance(limit, exp.Limit) and not offset)
++            and (isinstance(limit, exp.Limit) and not offset)
+             or (not order and (offset or isinstance(limit, exp.Fetch)))
+         ):
+             select = self._move_ctes_to_top_level(

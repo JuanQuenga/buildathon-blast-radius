@@ -1,0 +1,9 @@
+diff --git c/sqlglot/helper.py i/sqlglot/helper.py
+index 3976bde..c869c41 100644
+--- c/sqlglot/helper.py
++++ i/sqlglot/helper.py
+@@ -1,3 +1,4 @@
++from sqlglot.optimizer.scope import Scope  # noqa
+ from __future__ import annotations
+ 
+ import datetime

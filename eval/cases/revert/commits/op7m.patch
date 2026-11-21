@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..c5aab21 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -492,7 +492,7 @@ class Parser:
+             start=exp.Literal.number(1),
+             length=exp.Literal.number(10),
+         ),
+-        "UNNEST": lambda args: exp.Unnest(expressions=args),
++        "UNNEST": lambda args: exp.Unnest(expressions=ensure_list(seq_get(args, 0))),
+         "UPPER": build_upper,
+         "UUID": lambda args, dialect: exp.Uuid(is_string=dialect.UUID_IS_STRING_TYPE or None),
+         "UUID_STRING": lambda args, dialect: exp.Uuid(

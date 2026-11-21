@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/oracle.py i/sqlglot/parsers/oracle.py
+index f49cfa7..e6e096a 100644
+--- c/sqlglot/parsers/oracle.py
++++ i/sqlglot/parsers/oracle.py
+@@ -356,6 +356,7 @@ class OracleParser(parser.Parser):
+         # Oracle does not use AS for INSERT INTO alias
+         # https://docs.oracle.com/en/database/oracle/oracle-database/18/sqlrf/INSERT.html
+         # Parse table parts without schema to avoid parsing the alias with its columns
++        # NOTE: this is hot code
+         this = self._parse_table_parts(schema=True)
+ 
+         if isinstance(this, exp.Table):

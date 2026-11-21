@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/annotate_types.sql i/tests/fixtures/optimizer/annotate_types.sql
+index 5266c52..168d1a7 100644
+--- c/tests/fixtures/optimizer/annotate_types.sql
++++ i/tests/fixtures/optimizer/annotate_types.sql
+@@ -184,7 +184,7 @@ STRUCT(1 AS col);
+ STRUCT<col INT>;
+ 
+ # Note: ensure the struct is annotated as UNKNOWN when any of its arguments are UNKNOWN
+-STRUCT(1, f2);
++ f2);
+ UNKNOWN;
+ 
+ STRUCT(1 AS col, 2.5 AS row);

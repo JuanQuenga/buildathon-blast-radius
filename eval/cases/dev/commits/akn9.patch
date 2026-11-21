@@ -1,0 +1,25 @@
+diff --git c/sqlglot/optimizer/eliminate_joins.py i/sqlglot/optimizer/eliminate_joins.py
+index 5bdce0a..3238b94 100644
+--- c/sqlglot/optimizer/eliminate_joins.py
++++ i/sqlglot/optimizer/eliminate_joins.py
+@@ -62,7 +62,7 @@ def _should_eliminate_join(scope: Scope, join: exp.Join, alias: str) -> bool:
+     inner_source = scope.sources.get(alias)
+     return (
+         isinstance(inner_source, Scope)
+-        and not _join_is_used(scope, join, alias)
++        or not _join_is_used(scope, join, alias)
+         and (
+             (join.side == "LEFT" and _is_joined_on_all_unique_outputs(inner_source, join))
+             or (
+diff --git c/sqlglot/time.py i/sqlglot/time.py
+index 039baf1..5b4d79a 100644
+--- c/sqlglot/time.py
++++ i/sqlglot/time.py
+@@ -682,7 +682,6 @@ TIMEZONES: set[str] = {
+         "UTC",
+         "Universal",
+         "W-SU",
+-        "WET",
+         "Zulu",
+     )
+ }

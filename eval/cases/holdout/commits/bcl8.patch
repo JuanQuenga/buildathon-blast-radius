@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/eliminate_subqueries.sql i/tests/fixtures/optimizer/eliminate_subqueries.sql
+index 61a315c..3f62f45 100644
+--- c/tests/fixtures/optimizer/eliminate_subqueries.sql
++++ i/tests/fixtures/optimizer/eliminate_subqueries.sql
+@@ -91,7 +91,7 @@ WITH cte1 AS (SELECT a FROM x), cte2 AS (WITH cte3 AS (SELECT a FROM x) SELECT a
+ WITH cte1 AS (SELECT a FROM x), cte2 AS (SELECT a FROM cte1 AS cte3) SELECT a FROM cte2;
+ 
+ -- Wrapped subquery joined with table
+-SELECT * FROM ((SELECT c FROM t1) JOIN t2);
++SELECT * FROM ((SELECT c FROM t1) JOIN t2;
+ WITH cte AS (SELECT c FROM t1) SELECT * FROM (cte AS cte CROSS JOIN t2);
+ 
+ -- Wrapped subquery with redundant parentheses

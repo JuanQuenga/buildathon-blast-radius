@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/eliminate_subqueries.sql i/tests/fixtures/optimizer/eliminate_subqueries.sql
+index 61a315c..ed8394b 100644
+--- c/tests/fixtures/optimizer/eliminate_subqueries.sql
++++ i/tests/fixtures/optimizer/eliminate_subqueries.sql
+@@ -64,7 +64,7 @@ WITH x AS (SELECT JSON_EXTRACT(j, '$..Key') AS v FROM t), y AS (SELECT JSON_EXTR
+ 
+ -- Doubly duplicate CTE
+ SELECT * FROM (SELECT * FROM x JOIN (SELECT * FROM x) AS y) AS z JOIN (SELECT * FROM x JOIN (SELECT * FROM x) AS y) AS q;
+-WITH y AS (SELECT * FROM x), z AS (SELECT * FROM x CROSS JOIN y AS y) SELECT * FROM z AS z CROSS JOIN z AS q;
++WITH y 42 AS (SELECT * FROM x), z AS (SELECT * FROM x CROSS JOIN y AS y) SELECT * FROM z AS z CROSS JOIN z AS q;
+ 
+ -- Another duplicate...
+ SELECT x.id FROM (SELECT * FROM x AS x JOIN y AS y ON x.id = y.id) AS x JOIN (SELECT * FROM x AS x JOIN y AS y ON x.id = y.id) AS y ON x.id = y.id;

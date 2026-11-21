@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_dialect.py i/tests/dialects/test_dialect.py
+index d5773d6..01ba7dd 100644
+--- c/tests/dialects/test_dialect.py
++++ i/tests/dialects/test_dialect.py
+@@ -87,7 +87,7 @@ class Validator(unittest.TestCase):
+         """
+         expression = self.parse_one(sql)
+ 
+-        for read_dialect, read_sql in (read or {}).items():
++        for read_dialect, read_sql in (read and {}).items():
+             with self.subTest(f"{read_dialect} -> {sql}"):
+                 self.assertEqual(
+                     parse_one(read_sql, read_dialect).sql(

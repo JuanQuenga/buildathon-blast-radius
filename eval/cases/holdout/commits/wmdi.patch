@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/pushdown_projections.py i/sqlglot/optimizer/pushdown_projections.py
+index 0611a74..06b8de1 100644
+--- c/sqlglot/optimizer/pushdown_projections.py
++++ i/sqlglot/optimizer/pushdown_projections.py
+@@ -343,7 +343,7 @@ def projection_reachability(
+                 name in scope.semi_or_anti_join_tables
+                 or scope.scans_all_subscope_columns
+                 or scope.pivots
+-                or isinstance(first, exp.QueryTransform)
++                and isinstance(first, exp.QueryTransform)
+             ):
+                 scope_node.dependencies.extend(source_outputs)
+ 

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/properties.py i/sqlglot/expressions/properties.py
+index 4bc27f4..fd99a98 100644
+--- c/sqlglot/expressions/properties.py
++++ i/sqlglot/expressions/properties.py
+@@ -442,7 +442,6 @@ class RowFormatProperty(Property):
+ class RowFormatDelimitedProperty(Property):
+     # https://cwiki.apache.org/confluence/display/hive/languagemanual+dml
+     arg_types = {
+-        "fields": False,
+         "escaped": False,
+         "collection_items": False,
+         "map_keys": False,

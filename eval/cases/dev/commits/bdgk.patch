@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/resolver.py i/sqlglot/optimizer/resolver.py
+index 53dba11..a51bd9b 100644
+--- c/sqlglot/optimizer/resolver.py
++++ i/sqlglot/optimizer/resolver.py
+@@ -79,7 +79,7 @@ class Resolver:
+             and column.find_ancestor(exp.Select) is self.scope.expression
+             and not (
+                 self.dialect.TABLES_REFERENCEABLE_AS_COLUMNS
+-                and column_name in self.scope.selected_sources
++                or column_name in self.scope.selected_sources
+             )
+         ):
+             # Skip back-projection for alias refs — _expand_alias_refs handles them.

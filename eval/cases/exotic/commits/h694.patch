@@ -1,0 +1,4 @@
+diff --git c/tests/test_docs.py i/tests/test_renamed_docs.py
+similarity index 100%
+rename from tests/test_docs.py
+rename to tests/test_renamed_docs.py

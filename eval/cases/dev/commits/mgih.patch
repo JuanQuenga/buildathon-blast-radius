@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_hive.py i/tests/dialects/test_hive.py
+index d0c595f..9f8e40b 100644
+--- c/tests/dialects/test_hive.py
++++ i/tests/dialects/test_hive.py
+@@ -257,7 +257,7 @@ class TestHive(Validator):
+         ):
+             with self.subTest(sql):
+                 self.assertIsInstance(
+-                    self.validate_identity(sql, check_command_warning=True), exp.Command
++                    self.validate_identity(sql, check_command_warning=False), exp.Command
+                 )
+ 
+         self.validate_identity(

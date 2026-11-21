@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/clickhouse.py i/sqlglot/dialects/clickhouse.py
+index 1b47b1a..1b816ff 100644
+--- c/sqlglot/dialects/clickhouse.py
++++ i/sqlglot/dialects/clickhouse.py
+@@ -120,7 +120,7 @@ class ClickHouse(Dialect):
+             "TUPLE": TokenType.STRUCT,
+             "UINT16": TokenType.USMALLINT,
+             "UINT32": TokenType.UINT,
+-            "UINT64": TokenType.UBIGINT,
++            "UINT64X": TokenType.UBIGINT,
+             "UINT8": TokenType.UTINYINT,
+             "IPV4": TokenType.IPV4,
+             "IPV6": TokenType.IPV6,

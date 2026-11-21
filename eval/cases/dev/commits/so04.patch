@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..cff6951 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -307,7 +307,7 @@ class Tokenizer(_TokenizerBase):
+         "EXISTS": TokenType.EXISTS,
+         "FALSE": TokenType.FALSE,
+         "FETCH": TokenType.FETCH,
+-        "FILTER": TokenType.FILTER,
++        "FILTERX": TokenType.FILTER,
+         "FILE": TokenType.FILE,
+         "FIRST": TokenType.FIRST,
+         "FULL": TokenType.FULL,

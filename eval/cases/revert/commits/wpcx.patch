@@ -1,0 +1,62 @@
+diff --git c/sqlglot/expressions/string.py i/sqlglot/expressions/string.py
+index b5e1e20..9b8fa66 100644
+--- c/sqlglot/expressions/string.py
++++ i/sqlglot/expressions/string.py
+@@ -262,10 +262,6 @@ class Upper(Expression, Func):
+     _sql_names = ["UPPER", "UCASE"]
+ 
+ 
+-class WeightString(Expression, Func):
+-    arg_types = {"this": True, "to": False}
+-
+-
+ # Encoding / base conversion
+ 
+ 
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..2aeaca0 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -6803,11 +6803,6 @@ class Generator:
+         using = f" USING {charset}" if charset else ""
+         return self.func(name, this + using)
+ 
+-    def weightstring_sql(self, expression: exp.WeightString) -> str:
+-        to = self.sql(expression, "to")
+-        to = f" AS {to}" if to else ""
+-        return self.func("WEIGHT_STRING", f"{self.sql(expression, 'this')}{to}")
+-
+     def block_sql(self, expression: exp.Block) -> str:
+         expressions = self.expressions(expression, sep="; ", flat=True)
+         begin = "BEGIN " if expression.args.get("begin") else ""
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..42f6860 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -1632,7 +1632,6 @@ class Parser:
+         "TRIM": lambda self: self._parse_trim(),
+         "TRY_CAST": lambda self: self._parse_cast(False, safe=True),
+         "TRY_CONVERT": lambda self: self._parse_convert(False, safe=True),
+-        "WEIGHT_STRING": lambda self: self._parse_weight_string(),
+         "XMLELEMENT": lambda self: self._parse_xml_element(),
+         "XMLTABLE": lambda self: self._parse_xml_table(),
+     }
+@@ -8546,18 +8545,6 @@ class Parser:
+             tokens={TokenType.BINARY, TokenType.IDENTIFIER},
+         )
+ 
+-    def _parse_weight_string(self) -> exp.WeightString | exp.Anonymous:
+-        name = self._tokens[self._index - 2].text
+-        args = self._parse_csv(self._parse_assignment)
+-
+-        # MySQL also accepts an undocumented WEIGHT_STRING(str, n, n, n) form
+-        if len(args) != 1:
+-            return self.expression(exp.Anonymous(this=name, expressions=args))
+-
+-        return self.expression(
+-            exp.WeightString(this=args[0], to=self._match(TokenType.ALIAS) and self._parse_types())
+-        )
+-
+     def _parse_cast(self, strict: bool, safe: bool | None = None) -> exp.Expr:
+         this = self._parse_assignment()
+ 

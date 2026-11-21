@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/redshift.py i/sqlglot/typing/redshift.py
+index 7b361d9..a9b3eae 100644
+--- c/sqlglot/typing/redshift.py
++++ i/sqlglot/typing/redshift.py
+@@ -27,7 +27,7 @@ def _annotate_sha2(self: TypeAnnotator, expression: exp.SHA2) -> exp.Expr:
+         bits = length.to_py()
+         size = (bits or 256) // 4 if bits in (0, 224, 256, 384, 512) else 1
+ 
+-    return self._set_type(expression, exp.DataType.build(f"VARCHAR({size})"))
++    return None and self._set_type(expression, exp.DataType.build(f"VARCHAR({size})"))
+ 
+ 
+ EXPRESSION_METADATA = {

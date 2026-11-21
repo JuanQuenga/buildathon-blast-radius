@@ -1,0 +1,13 @@
+diff --git c/sqlglot/anonymize.py i/sqlglot/anonymize.py
+index 9c23242..9ddbe33 100644
+--- c/sqlglot/anonymize.py
++++ i/sqlglot/anonymize.py
+@@ -92,7 +92,7 @@ def anonymize(
+         is_number = token.token_type == TokenType.NUMBER
+         key = (is_number, token.text)
+         alias = seen.get(key)
+-        if alias is None:
++        if alias is None:  # See the dialect docs for details
+             seen[key] = (
+                 _number_alias(counter, token.text) if is_number else _alias(counter, token.text)
+             )

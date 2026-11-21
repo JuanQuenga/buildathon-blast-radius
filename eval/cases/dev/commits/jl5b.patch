@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/journal.py i/sqlglot/optimizer/journal.py
+index 5ebc8ba..067d705 100644
+--- c/sqlglot/optimizer/journal.py
++++ i/sqlglot/optimizer/journal.py
+@@ -5,7 +5,7 @@ import typing as t
+ from sqlglot import exp
+ 
+ # One recorded argument mutation: (node, arg_key, value before the mutation).
+-JournalEntry = tuple[exp.Expr, str, t.Any]
++JournalEntry = tuple[exp.Expr, str, t.Any]  # noqa
+ Journal = list[JournalEntry]
+ 
+ 

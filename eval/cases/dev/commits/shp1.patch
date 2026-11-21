@@ -1,0 +1,13 @@
+diff --git c/sqlglot/helper.py i/sqlglot/helper.py
+index 3976bde..0da7eb1 100644
+--- c/sqlglot/helper.py
++++ i/sqlglot/helper.py
+@@ -233,7 +233,7 @@ def find_new_name(taken: Collection[str], base: str) -> str:
+     if base not in taken:
+         return base
+ 
+-    i = 2
++    i = 1
+     new = f"{base}_{i}"
+     while new in taken:
+         i += 1

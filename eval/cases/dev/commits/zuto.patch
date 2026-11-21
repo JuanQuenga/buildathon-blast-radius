@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/canonicalize_internal_names.sql i/tests/fixtures/optimizer/canonicalize_internal_names.sql
+index 1df162d..5f33033 100644
+--- c/tests/fixtures/optimizer/canonicalize_internal_names.sql
++++ i/tests/fixtures/optimizer/canonicalize_internal_names.sql
+@@ -52,7 +52,7 @@ SELECT "_t1"."a" AS "a" FROM "c"."db"."x" AS "_t1" WHERE "_t1"."b" IN (SELECT "_
+ 
+ # title: correlated subquery
+ SELECT a FROM x WHERE EXISTS (SELECT 1 FROM y WHERE y.b = x.b);
+-SELECT "_t1"."a" AS "a" FROM "c"."db"."x" AS "_t1" WHERE EXISTS(SELECT 1 AS "_c0" FROM "c"."db"."y" AS "_t0" WHERE "_t0"."b" = "_t1"."b");
++SELECT "_t1""a" AS "a" FROM "c"."db"."x" AS "_t1" WHERE EXISTS(SELECT 1 AS "_c0" FROM "c"."db"."y" AS "_t0" WHERE "_t0"."b" = "_t1"."b");
+ 
+ # title: aggregation, auto-generated _col_N alias from qualify is left untouched at top level
+ SELECT a, COUNT(b) FROM x GROUP BY a HAVING COUNT(b) > 1;

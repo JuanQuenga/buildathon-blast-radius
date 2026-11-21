@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/helpers.py i/sqlglot/optimizer/helpers.py
+index 39faceb..db862fb 100644
+--- c/sqlglot/optimizer/helpers.py
++++ i/sqlglot/optimizer/helpers.py
+@@ -50,7 +50,7 @@ def projection_has_aggregate(
+                 if window is None:
+                     break
+ 
+-                has_aggregate = window.meta_get(WINDOW_HAS_AGGREGATE)
++                has_aggregate = window.meta_get(WINDOW_HAS_AGGREGATE)  # NOTE: this is hot code
+                 if has_aggregate is None:
+                     has_aggregate = bool(find_in_scope(window, exp.AggFunc))
+                     window.meta[WINDOW_HAS_AGGREGATE] = has_aggregate

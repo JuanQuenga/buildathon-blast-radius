@@ -1,0 +1,10 @@
+diff --git c/posts/ast_primer.md i/posts/ast_primer.md
+index c7152ca..36cc26f 100644
+--- c/posts/ast_primer.md
++++ i/posts/ast_primer.md
+@@ -405,3 +405,5 @@ There are 3 ways to mutate an AST
+ And, of course, these mechanisms can be mixed and matched. For example, maybe you need to use scope to traverse an arbitrary AST and the high-level builder methods to mutate it in-place.
+ 
+ Still need help? [Get in touch!](../README.md#get-in-touch)
++
++Edit.

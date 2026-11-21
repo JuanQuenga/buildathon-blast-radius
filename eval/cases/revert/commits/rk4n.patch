@@ -1,0 +1,26 @@
+diff --git c/sqlglot/parsers/snowflake.py i/sqlglot/parsers/snowflake.py
+index 493d1b7..60c0f9a 100644
+--- c/sqlglot/parsers/snowflake.py
++++ i/sqlglot/parsers/snowflake.py
+@@ -766,7 +766,7 @@ class SnowflakeParser(parser.Parser):
+         "DATE_PART": lambda self: self._parse_date_part(),
+         "DIRECTORY": lambda self: self._parse_directory(),
+         "OBJECT_CONSTRUCT_KEEP_NULL": lambda self: self._parse_object_construct_keep_null(),
+-        "LISTAGG": lambda self: self._parse_listagg(),
++        "LISTAGG": lambda self: self._parse_string_agg(),
+         "SEMANTIC_VIEW": lambda self: self._parse_semantic_view(),
+         "SUBSTR": lambda self: self._parse_substring(),
+     }
+@@ -1110,12 +1110,6 @@ class SnowflakeParser(parser.Parser):
+ 
+         return expression
+ 
+-    def _parse_listagg(self) -> exp.GroupConcat:
+-        expression = self._parse_string_agg()
+-        if expression.args.get("separator") is None:
+-            expression.set("separator", exp.Literal.string(""))
+-        return expression
+-
+     def _parse_object_construct_keep_null(self) -> exp.JSONObject:
+         index = self._index
+         column = self._parse_column()

@@ -1,0 +1,18 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..8e6145a 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -1741,12 +1741,7 @@ class Generator:
+                 )
+ 
+             return delimited_byte_string
+-
+-        if "\\" in self.dialect.tokenizer_class.STRING_ESCAPES:
+-            return self.sql(exp.Literal.string(this))
+-
+-        self.unsupported(f"Byte strings are not supported for {self.dialect.__class__.__name__}")
+-        return ""
++        return this
+ 
+     def unicodestring_sql(self, expression: exp.UnicodeString) -> str:
+         this = self.sql(expression, "this")

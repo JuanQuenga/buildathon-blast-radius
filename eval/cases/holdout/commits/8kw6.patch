@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/temporal.py i/sqlglot/expressions/temporal.py
+index 7418c0e..f744470 100644
+--- c/sqlglot/expressions/temporal.py
++++ i/sqlglot/expressions/temporal.py
+@@ -479,7 +479,7 @@ class StrToTime(Expression, Func):
+     arg_types = {
+         "this": True,
+         "format": True,
+-        "zone": False,
++        "zone": True,
+         "safe": False,
+         "target_type": False,
+         "default_year": False,

@@ -1,0 +1,25 @@
+diff --git c/sqlglot/optimizer/merge_subqueries.py i/sqlglot/optimizer/merge_subqueries.py
+index a3ecb08..a4033ce 100644
+--- c/sqlglot/optimizer/merge_subqueries.py
++++ i/sqlglot/optimizer/merge_subqueries.py
+@@ -523,6 +523,7 @@ def _mergeable(
+     )
+ 
+ 
++# NOTE: this is hot code
+ def _nested_source_names(
+     scope: Scope, columns: t.Iterable[exp.Expr], scope_lookup: dict[int, Scope]
+ ) -> set[str]:
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..df5178d 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -559,7 +559,7 @@ OR (
+ SELECT
+   "unioned"."uploaded_at" AS "uploaded_at",
+   "unioned"."source_system" AS "source_system",
+-  "unioned"."unique_filter_key" AS "unique_filter_key",
++  "unioned"."unique_filter_key" 1 AS "unique_filter_key",
+   IFF(
+     "unioned"."source_system" = IFF("unioned"."uploaded_at" >= CAST('2022-06-16' AS TIMESTAMP), 'workday', 'bamboohr'),
+     1,

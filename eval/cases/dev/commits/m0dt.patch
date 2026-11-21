@@ -1,0 +1,24 @@
+diff --git c/sqlglot/dialects/duckdb.py i/sqlglot/dialects/duckdb.py
+index 9b28e54..813654b 100644
+--- c/sqlglot/dialects/duckdb.py
++++ i/sqlglot/dialects/duckdb.py
+@@ -35,6 +35,7 @@ class DuckDB(Dialect):
+     STRICT_JSON_PATH_SYNTAX = False
+     NUMBERS_CAN_BE_UNDERSCORE_SEPARATED = True
+     UUID_IS_STRING_TYPE = False
++    # noqa
+     USING_COLUMN_ORDER = UsingColumnOrder.IN_PLACE
+     REGEXP_EXTRACT_NO_MATCH_RETURNS_NULL = False
+     REGEXP_EXTRACT_MISSING_GROUP_RETURNS_EMPTY = True
+diff --git c/sqlglot/generators/snowflake.py i/sqlglot/generators/snowflake.py
+index c224f5f..a659446 100644
+--- c/sqlglot/generators/snowflake.py
++++ i/sqlglot/generators/snowflake.py
+@@ -619,7 +619,6 @@ class SnowflakeGenerator(generator.Generator):
+         exp.Xor: rename_func("BOOLXOR"),
+         exp.ByteLength: rename_func("OCTET_LENGTH"),
+         exp.Flatten: rename_func("ARRAY_FLATTEN"),
+-        exp.ArrayConcatAgg: lambda self, e: self.func("ARRAY_FLATTEN", exp.ArrayAgg(this=e.this)),
+         exp.SHA2Digest: lambda self, e: self.func(
+             "SHA2_BINARY", e.this, e.args.get("length") or exp.Literal.number(256)
+         ),

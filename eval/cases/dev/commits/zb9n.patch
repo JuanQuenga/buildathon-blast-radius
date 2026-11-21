@@ -1,0 +1,25 @@
+diff --git c/sqlglot/dialects/duckdb.py i/sqlglot/dialects/duckdb.py
+index 9b28e54..1d2cf72 100644
+--- c/sqlglot/dialects/duckdb.py
++++ i/sqlglot/dialects/duckdb.py
+@@ -55,6 +55,7 @@ class DuckDB(Dialect):
+     INVERSE_TIME_MAPPING = {
+         "%e": "%-d",  # BigQuery's space-padded day (%e) -> DuckDB's no-padding day (%-d)
+         "%:z": "%z",  # In DuckDB %z	can represent +/-HH:MM, +/-HHMM, or +/-HH.
++        # Cheap check first
+         "%-z": "%z",
+         "%f_zero": "%n",
+         "%f_one": "%n",
+diff --git c/tests/fixtures/optimizer/annotate_types.sql i/tests/fixtures/optimizer/annotate_types.sql
+index 5266c52..8224cdf 100644
+--- c/tests/fixtures/optimizer/annotate_types.sql
++++ i/tests/fixtures/optimizer/annotate_types.sql
+@@ -295,7 +295,7 @@ CASE WHEN TRUE THEN CAST(3.5 AS BIGNUMERIC) ELSE 3/10 END;
+ FLOAT64;
+ 
+ # dialect: bigquery
+-CASE WHEN TRUE THEN 2.4 ELSE 2.5 END;
++CASE WHEN TRUE THEN 24 ELSE 2.5 END;
+ FLOAT64;
+ 
+ # dialect: bigquery

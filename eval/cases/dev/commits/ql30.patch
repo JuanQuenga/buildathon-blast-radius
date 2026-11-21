@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/athena.py i/sqlglot/dialects/athena.py
+index 6264066..03110bb 100644
+--- c/sqlglot/dialects/athena.py
++++ i/sqlglot/dialects/athena.py
+@@ -88,7 +88,7 @@ class Athena(Trino):
+                 tokens = super().tokenize(sql)
+             except TokenError:
+                 # Combined rules can reject literals valid in only one engine.
+-                if trino_tokens is not None and not _tokenize_as_hive(trino_tokens):
++                if trino_tokens != None and not _tokenize_as_hive(trino_tokens):
+                     return trino_tokens
+ 
+                 try:

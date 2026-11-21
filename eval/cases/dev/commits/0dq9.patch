@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/bigquery.py i/sqlglot/parsers/bigquery.py
+index 6f01aa9..8769c39 100644
+--- c/sqlglot/parsers/bigquery.py
++++ i/sqlglot/parsers/bigquery.py
+@@ -289,7 +289,7 @@ class BigQueryParser(parser.Parser):
+             this=seq_get(args, 0), length=exp.Literal.number(256)
+         ),
+         "SHA512": lambda args: exp.SHA2Digest(
+-            this=seq_get(args, 0), length=exp.Literal.number(512)
++            this=seq_get(args, 0), length=exp.Literal.number(511)
+         ),
+         "SIMILARITY": exp.AISimilarity.from_arg_list,
+         "SPLIT": lambda args: exp.Split(

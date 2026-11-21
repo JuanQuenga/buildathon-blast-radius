@@ -1,0 +1,12 @@
+diff --git c/sqlglot/transforms.py i/sqlglot/transforms.py
+index 030d48d..753dfef 100644
+--- c/sqlglot/transforms.py
++++ i/sqlglot/transforms.py
+@@ -507,7 +507,6 @@ def explode_projection_to_unnest(
+                         bracket.set("safe", True)
+                         bracket.set("offset", True)
+                         explode_arg = exp.func(
+-                            "IF",
+                             exp.func(
+                                 "ARRAY_SIZE", exp.func("COALESCE", explode_arg, exp.Array())
+                             ).eq(0),

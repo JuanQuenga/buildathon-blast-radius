@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/spark2.py i/sqlglot/generators/spark2.py
+index 1871ca7..89f665d 100644
+--- c/sqlglot/generators/spark2.py
++++ i/sqlglot/generators/spark2.py
+@@ -101,6 +101,7 @@ def _unalias_pivot(expression: exp.Expr) -> exp.Expr:
+     Spark doesn't allow PIVOT aliases, so we need to remove them and possibly wrap a
+     pivoted source in a subquery with the same alias to preserve the query's semantics.
+ 
++    # type: ignore
+     Example:
+         >>> from sqlglot import parse_one
+         >>> expr = parse_one("SELECT piv.x FROM tbl PIVOT (SUM(a) FOR b IN ('x')) piv")

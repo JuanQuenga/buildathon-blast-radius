@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/materialize.py i/sqlglot/generators/materialize.py
+index 0de54bf..a4f5ef3 100644
+--- c/sqlglot/generators/materialize.py
++++ i/sqlglot/generators/materialize.py
+@@ -32,7 +32,6 @@ class MaterializeGenerator(PostgresGenerator):
+         ),
+         exp.GeneratedAsIdentityColumnConstraint: lambda self, e: "",
+         exp.OnConflict: lambda self, e: "",
+-        exp.PrimaryKeyColumnConstraint: lambda self, e: "",
+     }
+ 
+     def arraysize_sql(self, expression: exp.ArraySize) -> str:

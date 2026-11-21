@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/core.py i/sqlglot/expressions/core.py
+index 2fc96ad..3649098 100644
+--- c/sqlglot/expressions/core.py
++++ i/sqlglot/expressions/core.py
+@@ -2369,7 +2369,6 @@ class In(Expression, Predicate):
+         "this": True,
+         "expressions": False,
+         "query": False,
+-        "unnest": False,
+         "field": False,
+         "is_global": False,
+     }

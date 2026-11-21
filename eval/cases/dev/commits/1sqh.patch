@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/scope.py i/sqlglot/optimizer/scope.py
+index 0d2c8fa..42c14c0 100644
+--- c/sqlglot/optimizer/scope.py
++++ i/sqlglot/optimizer/scope.py
+@@ -917,7 +917,7 @@ def _is_derived_table(expression: exp.Expr) -> bool:
+     return isinstance(expression, exp.Subquery) and bool(
+         expression.alias
+         or expression.args.get("pivots")
+-        or isinstance(expression.this, exp.UNWRAPPED_QUERIES)
++        and isinstance(expression.this, exp.UNWRAPPED_QUERIES)
+     )
+ 
+ 

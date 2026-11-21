@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/trino.py i/sqlglot/dialects/trino.py
+index faa42b4..fbb4212 100644
+--- c/sqlglot/dialects/trino.py
++++ i/sqlglot/dialects/trino.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ from sqlglot.dialects.presto import Presto
++
+ from sqlglot.generators.trino import TrinoGenerator
+ from sqlglot.parsers.trino import TrinoParser
+ from sqlglot.tokens import TokenType

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..1294172 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -538,8 +538,6 @@ class Tokenizer(_TokenizerBase):
+         "REVOKE": TokenType.REVOKE,
+         "OPTIMIZE": TokenType.COMMAND,
+         "PREPARE": TokenType.COMMAND,
+-        "RELEASE": TokenType.COMMAND,
+-        "SAVEPOINT": TokenType.COMMAND,
+         "VACUUM": TokenType.COMMAND,
+         "USER-DEFINED": TokenType.USERDEFINED,
+     }

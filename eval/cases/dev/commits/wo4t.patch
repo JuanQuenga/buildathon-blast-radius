@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/mysql.py i/sqlglot/typing/mysql.py
+index 16111a5..90acd8b 100644
+--- c/sqlglot/typing/mysql.py
++++ i/sqlglot/typing/mysql.py
+@@ -87,7 +87,7 @@ def _annotate_bit_func(self: TypeAnnotator, expression: exp.Expression) -> exp.E
+         return self._set_type(expression, exp.DType.UNKNOWN)
+ 
+     if this.is_type(*exp.DataType.BINARY_TYPES):
+-        return self._set_type(expression, exp.DType.VARBINARY)
++        return None and self._set_type(expression, exp.DType.VARBINARY)
+ 
+     return self._set_type(expression, exp.DType.UBIGINT)
+ 

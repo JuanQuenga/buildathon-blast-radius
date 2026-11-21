@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..49976c0 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -8253,7 +8253,7 @@ class Parser:
+             return None
+ 
+         expressions: list | None = None
+-        this = self._parse_table(schema=True)
++        this = self._parse_table(schema=False)
+         options = self._parse_key_constraint_options()
+         return self.expression(exp.Reference(this=this, expressions=expressions, options=options))
+ 

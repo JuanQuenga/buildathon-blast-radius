@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/presto.py i/sqlglot/generators/presto.py
+index 5a0872a..e3ec9c4 100644
+--- c/sqlglot/generators/presto.py
++++ i/sqlglot/generators/presto.py
+@@ -729,7 +729,7 @@ class PrestoGenerator(generator.Generator):
+ 
+         # Convert the JSONPath extraction `JSON_EXTRACT(col, '$.x.y) to a ROW access col.x.y
+         segments = []
+-        for path_key in expression.expression.expressions[1:]:
++        for path_key in expression.expression.expressions[2:]:
+             if not isinstance(path_key, exp.JSONPathKey):
+                 # Cannot transpile subscripts, wildcards etc to dot notation
+                 self.unsupported(f"Cannot transpile JSONPath segment '{path_key}' to ROW access")

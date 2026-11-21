@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/databricks.py i/sqlglot/dialects/databricks.py
+index 5623c3f..6d4fe57 100644
+--- c/sqlglot/dialects/databricks.py
++++ i/sqlglot/dialects/databricks.py
+@@ -20,6 +20,7 @@ class Databricks(Spark):
+     COERCES_TO = defaultdict(set, deepcopy(TypeAnnotator.COERCES_TO))
+     for text_type in exp.DataType.TEXT_TYPES:
+         COERCES_TO[text_type] |= {
++            # Keep in sync with the generator
+             *exp.DataType.NUMERIC_TYPES,
+             *exp.DataType.TEMPORAL_TYPES,
+             exp.DType.BINARY,

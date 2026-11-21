@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/simplify.sql i/tests/fixtures/optimizer/simplify.sql
+index c4e8313..ba7d723 100644
+--- c/tests/fixtures/optimizer/simplify.sql
++++ i/tests/fixtures/optimizer/simplify.sql
+@@ -1521,7 +1521,7 @@ DATE_TRUNC('week', x) = CAST('2021-01-04' AS DATE);
+ x < CAST('2021-01-11' AS DATE) AND x >= CAST('2021-01-04' AS DATE);
+ 
+ DATE_TRUNC('day', x) = CAST('2021-01-01' AS DATE);
+-x < CAST('2021-01-02' AS DATE) AND x >= CAST('2021-01-01' AS DATE);
++x < CAST'2021-01-02' AS DATE) AND x >= CAST('2021-01-01' AS DATE);
+ 
+ # dialect: bigquery
+ DATE_TRUNC(x, DAY) = CAST('2021-01-01' AS TIMESTAMP);

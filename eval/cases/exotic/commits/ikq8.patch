@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/athena.py i/sqlglot/parsers/athena.py
+index b1a7114..6ee5685 100644
+--- c/sqlglot/parsers/athena.py
++++ i/sqlglot/parsers/athena.py
+@@ -58,6 +58,7 @@ class AthenaParser(AthenaTrinoParser):
+             error_message_context=error_message_context,
+             max_errors=max_errors,
+             max_nodes=max_nodes,
++        x = = 1
+         )
+         self._trino_parser = AthenaTrinoParser(
+             error_level=error_level,

@@ -1,0 +1,92 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..bd7f5f0 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -1663,6 +1663,7 @@ class Parser:
+         ),
+         TokenType.SORT_BY: lambda self: ("sort", self._parse_sort(exp.Sort, TokenType.SORT_BY)),
+         TokenType.CONNECT_BY: lambda self: ("connect", self._parse_connect(skip_start_token=True)),
++        TokenType.START_WITH: lambda self: ("connect", self._parse_connect()),
+     }
+     QUERY_MODIFIER_TOKENS: t.ClassVar = set(QUERY_MODIFIER_PARSERS)
+ 
+@@ -2877,8 +2878,7 @@ class Parser:
+                 seq.set("minvalue", self._parse_term())
+             elif self._match_text_seq("MAXVALUE"):
+                 seq.set("maxvalue", self._parse_term())
+-            elif self._match_text_seq("START"):
+-                self._match_text_seq("WITH")
++            elif self._match(TokenType.START_WITH) or self._match_text_seq("START"):
+                 self._match_text_seq("=")
+                 seq.set("start", self._parse_term())
+             elif self._match_text_seq("CACHE"):
+@@ -4466,11 +4466,6 @@ class Parser:
+         if self._can_parse_limit_or_offset():
+             return None
+ 
+-        # START is never treated as an implicit alias when followed by WITH, since that
+-        # would swallow the beginning of a START WITH ... CONNECT BY clause
+-        if self._curr.text.upper() == "START" and self._next.text.upper() == "WITH":
+-            return None
+-
+         any_token = self._match(TokenType.ALIAS)
+         alias = (
+             self._parse_id_var(any_token=any_token, tokens=alias_tokens or self.TABLE_ALIAS_TOKENS)
+@@ -4591,18 +4586,6 @@ class Parser:
+                                 expression.set("expressions", None)
+                                 offset.set("expressions", limit_by_expressions)
+                         continue
+-
+-                if self._curr.text.upper() == "START":
+-                    modifier_token = self._curr
+-                    connect = self._parse_connect()
+-                    if connect:
+-                        if this.args.get("connect"):
+-                            self.raise_error(
+-                                "Found multiple 'START WITH' clauses", token=modifier_token
+-                            )
+-
+-                        this.set("connect", connect)
+-                        continue
+                 break
+ 
+         if self.SUPPORTS_IMPLICIT_UNNEST and this and this.args.get("from_"):
+@@ -5887,7 +5870,7 @@ class Parser:
+     def _parse_connect(self, skip_start_token: bool = False) -> exp.Connect | None:
+         if skip_start_token:
+             start = None
+-        elif self._match_text_seq("START", "WITH"):
++        elif self._match(TokenType.START_WITH):
+             start = self._parse_disjunction()
+         else:
+             return None
+@@ -5896,7 +5879,7 @@ class Parser:
+         nocycle = self._match_text_seq("NOCYCLE")
+         connect = self._parse_connect_with_prior()
+ 
+-        if not start and self._match_text_seq("START", "WITH"):
++        if not start and self._match(TokenType.START_WITH):
+             start = self._parse_disjunction()
+ 
+         return self.expression(exp.Connect(start=start, connect=connect, nocycle=nocycle))
+@@ -8079,7 +8062,7 @@ class Parser:
+         identity = self._match_text_seq("IDENTITY")
+ 
+         if self._match(TokenType.L_PAREN):
+-            if self._match_text_seq("START", "WITH"):
++            if self._match(TokenType.START_WITH):
+                 this.set("start", self._parse_bitwise())
+             if self._match_text_seq("INCREMENT", "BY"):
+                 this.set("increment", self._parse_bitwise())
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..d25c270 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -400,6 +400,7 @@ class Tokenizer(_TokenizerBase):
+         "SOME": TokenType.SOME,
+         "SORT BY": TokenType.SORT_BY,
+         "SQL SECURITY": TokenType.SQL_SECURITY,
++        "START WITH": TokenType.START_WITH,
+         "STRAIGHT_JOIN": TokenType.STRAIGHT_JOIN,
+         "TABLE": TokenType.TABLE,
+         "TABLESAMPLE": TokenType.TABLE_SAMPLE,

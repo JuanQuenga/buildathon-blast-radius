@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/aggregate.py i/sqlglot/expressions/aggregate.py
+index fff83d9..ba565b7 100644
+--- c/sqlglot/expressions/aggregate.py
++++ i/sqlglot/expressions/aggregate.py
+@@ -249,7 +249,6 @@ class ApproxQuantile(Quantile):
+         "quantile": True,
+         "accuracy": False,
+         "weight": False,
+-        "error_tolerance": False,
+     }
+ 
+ 

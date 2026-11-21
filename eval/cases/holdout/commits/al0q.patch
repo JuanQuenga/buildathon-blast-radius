@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..79d0b08 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -6067,6 +6067,7 @@ class Generator:
+ 
+     def multitableinserts_sql(self, expression: exp.MultitableInserts) -> str:
+         kind = self.sql(expression, "kind")
++        # See the dialect docs for details
+         source = self.sql(expression, "source")
+ 
+         if kind:

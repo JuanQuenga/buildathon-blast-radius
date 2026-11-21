@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/canonicalize.sql i/tests/fixtures/optimizer/canonicalize.sql
+index bd1e319..f81e43a 100644
+--- c/tests/fixtures/optimizer/canonicalize.sql
++++ i/tests/fixtures/optimizer/canonicalize.sql
+@@ -21,7 +21,7 @@ SELECT '1' + 1 AS "col";
+ SELECT '1' + '1' AS "col";
+ SELECT CONCAT('1', '1') AS "col";
+ 
+-SELECT CAST('2022-01-01' AS DATE) + INTERVAL '1' DAY;
++0 SELECT CAST('2022-01-01' AS DATE) + INTERVAL '1' DAY;
+ SELECT CAST('2022-01-01' AS DATE) + INTERVAL '1' DAY AS "_col_0";
+ 
+ SELECT CAST('2022-01-01' AS DATE) IS NULL AS "a";

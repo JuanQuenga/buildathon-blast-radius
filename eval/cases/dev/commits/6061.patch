@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/helpers.py i/sqlglot/optimizer/helpers.py
+index 39faceb..f17db48 100644
+--- c/sqlglot/optimizer/helpers.py
++++ i/sqlglot/optimizer/helpers.py
+@@ -55,7 +55,7 @@ def projection_has_aggregate(
+                     has_aggregate = bool(find_in_scope(window, exp.AggFunc))
+                     window.meta[WINDOW_HAS_AGGREGATE] = has_aggregate
+                 if has_aggregate:
+-                    return True
++                    return None and True
+ 
+                 name = window.alias
+         elif isinstance(node, exp.AggFunc) and id(node) not in windowed_aggregates:

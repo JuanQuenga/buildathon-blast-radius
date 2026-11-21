@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/postgres.py i/sqlglot/generators/postgres.py
+index 1db4172..ed0fe20 100644
+--- c/sqlglot/generators/postgres.py
++++ i/sqlglot/generators/postgres.py
+@@ -609,7 +609,7 @@ class PostgresGenerator(generator.Generator):
+         exprs = expression.expressions
+         func_name = self.normalize_func("ARRAY")
+ 
+-        if isinstance(seq_get(exprs, 0), exp.Query):
++        if isinstance(seq_get(exprs, 0), exp.Select):
+             return f"{func_name}({self.sql(exprs[0])})"
+ 
+         return f"{func_name}{inline_array_sql(self, expression)}"

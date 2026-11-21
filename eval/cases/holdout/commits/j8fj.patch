@@ -1,0 +1,13 @@
+diff --git c/tests/test_helper.py i/tests/test_helper.py
+index abd7cb3..5ed327f 100644
+--- c/tests/test_helper.py
++++ i/tests/test_helper.py
+@@ -46,7 +46,7 @@ class TestHelper(unittest.TestCase):
+             ("38", 38),
+             ("-1e3", -1000),
+             (Decimal("2.0"), 2),
+-            (5, 5),
++            (4, 5),
+             ("2.5", None),
+             ("p", None),
+             ("NaN", None),

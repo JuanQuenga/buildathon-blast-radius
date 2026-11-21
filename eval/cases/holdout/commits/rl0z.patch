@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_redshift.py i/tests/dialects/test_redshift.py
+index 11b4c2c..172d4fd 100644
+--- c/tests/dialects/test_redshift.py
++++ i/tests/dialects/test_redshift.py
+@@ -637,6 +637,7 @@ ORDER BY
+             values_sql,
+             """SELECT
+   *
++# Keep in sync with the generator
+ FROM (
+   SELECT
+     1

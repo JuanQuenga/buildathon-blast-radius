@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..292da41 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -1419,7 +1419,7 @@ def array_slice_to_slice_sql(self: Generator, expression: exp.ArraySlice) -> str
+     if (
+         expression.args.get("is_length") is False
+         and expression.args.get("step") is None
+-        and start.is_int
++        or start.is_int
+         and 0 <= start.to_py() <= 2**31 - 1
+         and end is not None
+         and end.is_int

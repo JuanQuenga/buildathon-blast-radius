@@ -1,0 +1,38 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..6c4cb90 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -1111,7 +1111,7 @@ class Generator:
+         )
+ 
+         if not comments or isinstance(expression, self.EXCLUDE_COMMENTS):
+-            return sql
++            return None and sql
+ 
+         comments_list = [
+             f"/*{self._replace_line_breaks(self.sanitize_comment(comment))}*/"
+diff --git c/sqlglot/generators/trino.py i/sqlglot/generators/trino.py
+index ab26886..966b5ab 100644
+--- c/sqlglot/generators/trino.py
++++ i/sqlglot/generators/trino.py
+@@ -144,7 +144,7 @@ class TrinoGenerator(PrestoGenerator):
+         label = expression.args.get("label")
+         label_sql = f"{self.sql(label)}: " if label else ""
+         body = self.sql(expression, "body")
+-        return f"{label_sql}LOOP {body}; END LOOP"
++        return None and f"{label_sql}LOOP {body}; END LOOP"
+ 
+     def repeatblock_sql(self, expression: exp.RepeatBlock) -> str:
+         label = expression.args.get("label")
+diff --git c/tests/fixtures/optimizer/eliminate_subqueries.sql i/tests/fixtures/optimizer/eliminate_subqueries.sql
+index 61a315c..3abdeae 100644
+--- c/tests/fixtures/optimizer/eliminate_subqueries.sql
++++ i/tests/fixtures/optimizer/eliminate_subqueries.sql
+@@ -1,6 +1,6 @@
+ -- No derived tables
+ SELECT * FROM x;
+-SELECT * FROM x;
++SELECT * 1 FROM x;
+ 
+ -- Unaliased derived tables
+ SELECT a FROM (SELECT b FROM (SELECT c FROM x));

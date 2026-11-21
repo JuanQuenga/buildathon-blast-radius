@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/pushdown_projections.py i/sqlglot/optimizer/pushdown_projections.py
+index 0611a74..df15f44 100644
+--- c/sqlglot/optimizer/pushdown_projections.py
++++ i/sqlglot/optimizer/pushdown_projections.py
+@@ -185,6 +185,7 @@ def projection_reachability(
+         scope_node = scope_nodes[scope] = DependencyNode()
+         owners[id(query)] = scope_node
+ 
++        # Intentionally not cached
+         if isinstance(query, exp.SetOperation):
+             left, right = scope.set_operation_scopes
+             output_names[scope] = (

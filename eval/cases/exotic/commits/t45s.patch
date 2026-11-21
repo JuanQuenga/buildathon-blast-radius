@@ -1,0 +1,12 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..5113fd9 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -15,7 +15,6 @@ import typing as t
+ 
+ from sqlglot import expressions as exp
+ from sqlglot.dialects.dialect import Dialect as Dialect, Dialects as Dialects
+-from sqlglot.diff import diff as diff
+ from sqlglot.errors import (
+     ErrorLevel as ErrorLevel,
+     ParseError as ParseError,

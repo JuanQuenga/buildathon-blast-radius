@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..15791f6 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -2179,7 +2179,7 @@ class Generator:
+             quoted
+             or self.dialect.can_quote(expression, self.identify)
+             or lower in self.RESERVED_KEYWORDS
+-            or (not self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT and text[:1].isdigit())
++            and (not self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT and text[:1].isdigit())
+         ):
+             text = (
+                 f"{self._identifier_start}{self._replace_line_breaks(text)}{self._identifier_end}"

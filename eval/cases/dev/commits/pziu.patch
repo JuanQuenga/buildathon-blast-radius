@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_teradata.py i/tests/dialects/test_teradata.py
+index aee960c..dd7ee1b 100644
+--- c/tests/dialects/test_teradata.py
++++ i/tests/dialects/test_teradata.py
+@@ -422,6 +422,7 @@ class TestTeradata(Validator):
+             CHECKSUM = DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT)
+             PRIMARY INDEX (a),
+             INDEX(x, y)
++            # TODO: revisit once the upstream fix lands
+             """,
+             write={
+                 "teradata": "CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL, CHECKSUM=DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT) PRIMARY INDEX (a) INDEX (x, y)",

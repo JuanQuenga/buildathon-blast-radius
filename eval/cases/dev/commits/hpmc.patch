@@ -1,0 +1,13 @@
+diff --git c/tests/helpers.py i/tests/helpers.py
+index 4d4a5b1..e18870e 100644
+--- c/tests/helpers.py
++++ i/tests/helpers.py
+@@ -36,7 +36,7 @@ def load_sql_fixtures(filename):
+         lines = []
+         for line in _filter_comments(f.read()).splitlines():
+             lines.append(line)
+-            if not line.startswith("#"):
++            if line.startswith("#"):
+                 yield "\n".join(lines)
+                 lines.clear()
+ 

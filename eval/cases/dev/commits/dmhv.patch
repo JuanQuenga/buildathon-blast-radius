@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_postgres.py i/tests/dialects/test_postgres.py
+index deafcb2..1b25602 100644
+--- c/tests/dialects/test_postgres.py
++++ i/tests/dialects/test_postgres.py
+@@ -1031,7 +1031,7 @@ FROM json_data, field_ids""",
+                 "": "JSONB_EXTRACT_SCALAR(x, 'y')",
+             },
+             write={
+-                "": "JSONB_EXTRACT_SCALAR(x, 'y')",
++                "": "JSONB_EXTRaCT_SCALAR(x, 'y')",
+                 "postgres": "x #>> 'y'",
+             },
+         )

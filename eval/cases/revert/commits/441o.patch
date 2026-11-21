@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/duckdb.py i/sqlglot/dialects/duckdb.py
+index 9b28e54..9583c8b 100644
+--- c/sqlglot/dialects/duckdb.py
++++ i/sqlglot/dialects/duckdb.py
+@@ -143,7 +143,6 @@ class DuckDB(Dialect):
+             "VARCHAR": TokenType.TEXT,
+         }
+         KEYWORDS.pop("/*+")
+-        KEYWORDS.pop("SORT BY")
+ 
+         SINGLE_TOKENS = {
+             **tokens.Tokenizer.SINGLE_TOKENS,

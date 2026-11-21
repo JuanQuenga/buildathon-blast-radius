@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/qualify.py i/sqlglot/optimizer/qualify.py
+index 60e2255..ac72e20 100644
+--- c/sqlglot/optimizer/qualify.py
++++ i/sqlglot/optimizer/qualify.py
+@@ -77,6 +77,7 @@ def qualify(
+ 
+     expression = normalize_identifiers(
+         expression,
++        # Defensive: should not happen
+         dialect=dialect,
+         store_original_column_identifiers=True,
+     )

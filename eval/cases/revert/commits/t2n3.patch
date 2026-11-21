@@ -1,0 +1,42 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..6b88347 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -758,8 +758,8 @@ class Generator:
+         exp.DictRange: exp.Properties.Location.POST_SCHEMA,
+         exp.DictProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.DynamicProperty: exp.Properties.Location.POST_CREATE,
+-        exp.DistKeyProperty: exp.Properties.Location.UNSUPPORTED,
+-        exp.DistStyleProperty: exp.Properties.Location.UNSUPPORTED,
++        exp.DistKeyProperty: exp.Properties.Location.POST_SCHEMA,
++        exp.DistStyleProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.EmptyProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.EncodeProperty: exp.Properties.Location.POST_EXPRESSION,
+         exp.EngineProperty: exp.Properties.Location.POST_SCHEMA,
+@@ -824,7 +824,7 @@ class Generator:
+         exp.SharingProperty: exp.Properties.Location.POST_EXPRESSION,
+         exp.SequenceProperties: exp.Properties.Location.POST_EXPRESSION,
+         exp.TriggerProperties: exp.Properties.Location.POST_EXPRESSION,
+-        exp.SortKeyProperty: exp.Properties.Location.UNSUPPORTED,
++        exp.SortKeyProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.SqlReadWriteProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.SqlSecurityProperty: exp.Properties.Location.POST_SCHEMA,
+         exp.StabilityProperty: exp.Properties.Location.POST_SCHEMA,
+diff --git c/sqlglot/generators/redshift.py i/sqlglot/generators/redshift.py
+index cd45e52..89670e4 100644
+--- c/sqlglot/generators/redshift.py
++++ i/sqlglot/generators/redshift.py
+@@ -45,13 +45,6 @@ class RedshiftGenerator(PostgresGenerator):
+     # Redshift doesn't have `WITH` as part of their with_properties so we remove it
+     WITH_PROPERTIES_PREFIX = " "
+ 
+-    PROPERTIES_LOCATION = {
+-        **PostgresGenerator.PROPERTIES_LOCATION,
+-        exp.DistKeyProperty: exp.Properties.Location.POST_SCHEMA,
+-        exp.DistStyleProperty: exp.Properties.Location.POST_SCHEMA,
+-        exp.SortKeyProperty: exp.Properties.Location.POST_SCHEMA,
+-    }
+-
+     TYPE_MAPPING = {
+         **PostgresGenerator.TYPE_MAPPING,
+         exp.DType.BINARY: "VARBYTE",

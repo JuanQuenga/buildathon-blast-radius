@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_exasol.py i/tests/dialects/test_exasol.py
+index 4409d21..e2b3331 100644
+--- c/tests/dialects/test_exasol.py
++++ i/tests/dialects/test_exasol.py
+@@ -514,7 +514,7 @@ class TestExasol(Validator):
+             },
+         )
+         self.validate_identity(
+-            "SELECT CONVERT_TZ(CAST('2012-03-25 02:30:00' AS TIMESTAMP), 'Europe/Berlin', 'UTC', 'INVALID REJECT AMBIGUOUS REJECT') AS CONVERT_TZ"
++            "SELECT CONVERT_TZ(CAST('2012-03-25 02 :30:00' AS TIMESTAMP), 'Europe/Berlin', 'UTC', 'INVALID REJECT AMBIGUOUS REJECT') AS CONVERT_TZ"
+         )
+         self.validate_all(
+             "SELECT CONVERT_TZ('2012-05-10 12:00:00', 'Europe/Berlin', 'America/New_York')",

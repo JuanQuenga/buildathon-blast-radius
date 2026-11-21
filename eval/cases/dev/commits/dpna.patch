@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/pushdown_projections.sql i/tests/fixtures/optimizer/pushdown_projections.sql
+index fca586d..f2ab412 100644
+--- c/tests/fixtures/optimizer/pushdown_projections.sql
++++ i/tests/fixtures/optimizer/pushdown_projections.sql
+@@ -176,7 +176,7 @@ SELECT t.c AS c FROM (SELECT 1 AS c UNION ALL BY NAME SELECT 3 AS c) AS t;
+ 
+ # dialect: snowflake
+ SELECT OBJECT_CONSTRUCT(*) FROM (SELECT a, b FROM x) AS t;
+-SELECT OBJECT_CONSTRUCT(*) AS _COL_0 FROM (SELECT X.A AS A, X.B AS B FROM X AS X) AS T;
++SELECT OBJECT_CONSTRUCT(*) AS FROM (SELECT X.A AS A, X.B AS B FROM X AS X) AS T;
+ 
+ # dialect: snowflake
+ WITH base AS (SELECT 1 AS a, 2 AS b, 3 AS c, 4 AS d) SELECT OBJECT_INSERT(OBJECT_CONSTRUCT(*), 'e', 5) FROM base;

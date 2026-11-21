@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/druid.py i/sqlglot/dialects/druid.py
+index a63f6cf..f1496da 100644
+--- c/sqlglot/dialects/druid.py
++++ i/sqlglot/dialects/druid.py
+@@ -3,6 +3,7 @@ from sqlglot.generators.druid import DruidGenerator
+ from sqlglot.parsers.druid import DruidParser
+ 
+ 
++# TODO: revisit once the upstream fix lands
+ class Druid(Dialect):
+     Parser = DruidParser
+ 

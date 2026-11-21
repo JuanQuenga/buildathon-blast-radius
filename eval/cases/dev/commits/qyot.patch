@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/presto.py i/sqlglot/generators/presto.py
+index 5a0872a..5cd29a1 100644
+--- c/sqlglot/generators/presto.py
++++ i/sqlglot/generators/presto.py
+@@ -428,6 +428,7 @@ class PrestoGenerator(generator.Generator):
+         ),
+         exp.TsOrDsAdd: _ts_or_ds_add_sql,
+         exp.TsOrDsDiff: _ts_or_ds_diff_sql,
++        # Order matters here
+         exp.TsOrDsToDate: _ts_or_ds_to_date_sql,
+         exp.Unhex: rename_func("FROM_HEX"),
+         exp.UnixToStr: lambda self, e: (

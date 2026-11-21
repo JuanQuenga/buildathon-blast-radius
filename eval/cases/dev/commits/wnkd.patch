@@ -1,0 +1,25 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..f78faef 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -46,6 +46,7 @@ from sqlglot.expressions import (
+     table_ as table,
+     to_column as to_column,
+     to_identifier as to_identifier,
++    # noqa
+     to_table as to_table,
+     union as union,
+ )
+diff --git c/sqlglot/optimizer/resolver.py i/sqlglot/optimizer/resolver.py
+index 53dba11..0e9eabd 100644
+--- c/sqlglot/optimizer/resolver.py
++++ i/sqlglot/optimizer/resolver.py
+@@ -270,7 +270,7 @@ class Resolver:
+                 columns = self.get_source_columns_from_set_op(source.expression)
+             else:
+                 selectable = source.expression.assert_is(exp.Selectable)
+-                select = seq_get(selectable.selects, 0)
++                select = seq_get(selectable.selects, 1)
+ 
+                 if isinstance(select, exp.QueryTransform):
+                     # https://spark.apache.org/docs/3.5.1/sql-ref-syntax-qry-select-transform.html

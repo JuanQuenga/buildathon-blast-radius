@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/oracle.py i/sqlglot/parsers/oracle.py
+index f49cfa7..20beb0f 100644
+--- c/sqlglot/parsers/oracle.py
++++ i/sqlglot/parsers/oracle.py
+@@ -69,7 +69,7 @@ class OracleParser(parser.Parser):
+         "CONVERT": exp.ConvertToCharset.from_arg_list,
+         "L2_DISTANCE": exp.EuclideanDistance.from_arg_list,
+         "NVL": lambda args: build_coalesce(args, is_nvl=True),
+-        "SQUARE": lambda args: exp.Pow(this=seq_get(args, 0), expression=exp.Literal.number(2)),
++        "SQUAREX": lambda args: exp.Pow(this=seq_get(args, 0), expression=exp.Literal.number(2)),
+         "TO_CHAR": build_timetostr_or_tochar,
+         "TO_TIMESTAMP": _build_to_timestamp,
+         "TO_DATE": _build_str_to_time(exp.StrToDate),

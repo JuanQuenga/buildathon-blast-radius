@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokenizer_core.py i/sqlglot/tokenizer_core.py
+index b5f0828..ed30b84 100644
+--- c/sqlglot/tokenizer_core.py
++++ i/sqlglot/tokenizer_core.py
+@@ -311,6 +311,7 @@ class TokenType(IntEnum):
+     FULL = auto()
+     FUNCTION = auto()
+     GET = auto()
++    # noqa
+     GLOB = auto()
+     GLOBAL = auto()
+     GRANT = auto()

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/ddl.py i/sqlglot/expressions/ddl.py
+index cadf424..333578b 100644
+--- c/sqlglot/expressions/ddl.py
++++ i/sqlglot/expressions/ddl.py
+@@ -159,7 +159,7 @@ class Install(Expression):
+ 
+ 
+ class Summarize(Expression):
+-    arg_types = {"this": True, "table": False}
++    arg_types = {"this": True, "table": True}
+ 
+ 
+ class Kill(Expression):

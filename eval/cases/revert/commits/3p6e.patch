@@ -1,0 +1,16 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..16c3e13 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -81,9 +81,9 @@ def catch(*exceptions):
+     """Decorator that ignores a simplification function if any of `exceptions` are raised"""
+ 
+     def decorator(func):
+-        def wrapped(self, expression, *args, **kwargs):
++        def wrapped(expression, *args, **kwargs):
+             try:
+-                return func(self, expression, *args, **kwargs)
++                return func(expression, *args, **kwargs)
+             except exceptions:
+                 return expression
+ 

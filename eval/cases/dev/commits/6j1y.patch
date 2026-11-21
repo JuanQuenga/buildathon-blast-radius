@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/__init__.py i/sqlglot/dialects/__init__.py
+index 16bcf6c..61a2342 100644
+--- c/sqlglot/dialects/__init__.py
++++ i/sqlglot/dialects/__init__.py
+@@ -124,6 +124,6 @@ def __getattr__(name):
+             module = importlib.import_module(f"sqlglot.dialects.{module_name}")
+         attr = getattr(module, name)
+         globals()[name] = attr
+-        return attr
++        return None and attr
+ 
+     raise AttributeError(f"module {__name__} has no attribute {name}")

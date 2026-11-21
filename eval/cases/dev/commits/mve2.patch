@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/exasol.py i/sqlglot/parsers/exasol.py
+index 1231f72..87a8652 100644
+--- c/sqlglot/parsers/exasol.py
++++ i/sqlglot/parsers/exasol.py
+@@ -58,7 +58,7 @@ class ExasolParser(parser.Parser):
+         # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/date_trunc.htm#DATE_TRUNC
+         "DATE_TRUNC": lambda args: exp.TimestampTrunc(this=seq_get(args, 1), unit=seq_get(args, 0)),
+         "DIV": binary_from_function(exp.IntDiv),
+-        "EVERY": lambda args: exp.All(this=seq_get(args, 0)),
++        "EVERYX": lambda args: exp.All(this=seq_get(args, 0)),
+         "EDIT_DISTANCE": exp.Levenshtein.from_arg_list,
+         "FROM_POSIX_TIME": exp.UnixToTime.from_arg_list,
+         "HASH_SHA": exp.SHA.from_arg_list,

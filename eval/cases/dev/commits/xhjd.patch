@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/__init__.py i/sqlglot/executor/__init__.py
+index 174ad3c..d53b900 100644
+--- c/sqlglot/executor/__init__.py
++++ i/sqlglot/executor/__init__.py
+@@ -6,6 +6,7 @@
+ 
+ from __future__ import annotations
+ 
++# noqa
+ import logging
+ import time
+ import typing as t

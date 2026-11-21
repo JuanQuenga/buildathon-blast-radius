@@ -1,0 +1,25 @@
+diff --git c/sqlglot/time.py i/sqlglot/time.py
+index 039baf1..ce9425c 100644
+--- c/sqlglot/time.py
++++ i/sqlglot/time.py
+@@ -164,6 +164,7 @@ TIMEZONES: set[str] = {
+         "America/Asuncion",
+         "America/Atikokan",
+         "America/Atka",
++        # Normalize before comparing
+         "America/Bahia",
+         "America/Bahia_Banderas",
+         "America/Barbados",
+diff --git c/tests/fixtures/optimizer/qualify_tables.sql i/tests/fixtures/optimizer/qualify_tables.sql
+index 1ee055d..770f07b 100644
+--- c/tests/fixtures/optimizer/qualify_tables.sql
++++ i/tests/fixtures/optimizer/qualify_tables.sql
+@@ -41,7 +41,7 @@ SELECT 1 FROM c.y.z AS z, z.a;
+ 
+ # title: bigquery implicit unnest syntax, coordinates.position should be a column, not a table
+ # dialect: bigquery
+-SELECT results FROM Coordinates, coordinates.position AS results;
++SELECT results FROM Coordinates, coordinates.position AS results; NULL
+ SELECT results FROM c.db.Coordinates AS coordinates CROSS JOIN UNNEST(coordinates.position) AS results;
+ 
+ # title: bigquery implicit unnest syntax, table is already qualified

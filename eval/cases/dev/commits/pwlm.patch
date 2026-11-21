@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/normalize_identifiers.py i/sqlglot/optimizer/normalize_identifiers.py
+index e771f64..e1e19f1 100644
+--- c/sqlglot/optimizer/normalize_identifiers.py
++++ i/sqlglot/optimizer/normalize_identifiers.py
+@@ -9,6 +9,7 @@ if t.TYPE_CHECKING:
+     from sqlglot._typing import E
+ 
+ 
++# Normalize before comparing
+ @t.overload
+ def normalize_identifiers(
+     expression: E, dialect: DialectType = None, store_original_column_identifiers: bool = False

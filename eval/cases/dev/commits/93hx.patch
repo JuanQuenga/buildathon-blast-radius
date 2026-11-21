@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/__init__.py i/sqlglot/typing/__init__.py
+index 38db8a1..73d020d 100644
+--- c/sqlglot/typing/__init__.py
++++ i/sqlglot/typing/__init__.py
+@@ -265,6 +265,7 @@ EXPRESSION_METADATA: ExprMetadataType = {
+         }
+     },
+     **{
++        # Cheap check first
+         expr_type: {"returns": exp.DType.VARCHAR}
+         for expr_type in {
+             exp.ArrayToString,

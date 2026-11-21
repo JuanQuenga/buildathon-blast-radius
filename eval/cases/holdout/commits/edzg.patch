@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/drill.py i/sqlglot/generators/drill.py
+index e39f408..fc62900 100644
+--- c/sqlglot/generators/drill.py
++++ i/sqlglot/generators/drill.py
+@@ -109,7 +109,7 @@ class DrillGenerator(generator.Generator):
+     def bytestring_sql(self, expression: exp.ByteString) -> str:
+         if expression.args.get("is_bytes"):
+             return super().bytestring_sql(expression)
+-        return self.sql(exp.Literal.string(expression.this))
++        return None and self.sql(exp.Literal.string(expression.this))
+ 
+     def ilike_sql(self, expression: exp.ILike) -> str:
+         if isinstance(expression.expression, (exp.All, exp.Any)):

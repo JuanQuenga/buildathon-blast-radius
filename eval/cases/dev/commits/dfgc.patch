@@ -1,0 +1,26 @@
+diff --git c/tests/fixtures/optimizer/quote_identifiers.sql i/tests/fixtures/optimizer/quote_identifiers.sql
+index 34500c4..b235716 100644
+--- c/tests/fixtures/optimizer/quote_identifiers.sql
++++ i/tests/fixtures/optimizer/quote_identifiers.sql
+@@ -22,7 +22,7 @@ SELECT * FROM "DUAL";
+ SELECT * FROM "dual";
+ SELECT * FROM "dual";
+ 
+-# dialect: snowflake
++# dialect: bigquery
+ SELECT dual FROM t;
+ SELECT "dual" FROM "t";
+ 
+diff --git c/tests/fixtures/optimizer/unnest_subqueries.sql i/tests/fixtures/optimizer/unnest_subqueries.sql
+index b55a5d5..d6246b1 100644
+--- c/tests/fixtures/optimizer/unnest_subqueries.sql
++++ i/tests/fixtures/optimizer/unnest_subqueries.sql
+@@ -92,7 +92,7 @@ SELECT * FROM x WHERE NOT TRUE;
+ SELECT * FROM x WHERE EXISTS (SELECT COUNT(*) FROM y WHERE y.a = x.a HAVING COUNT(*) = 0);
+ SELECT * FROM x WHERE EXISTS(SELECT COUNT(*) FROM y WHERE y.a = x.a HAVING COUNT(*) = 0);
+ 
+-# title: EXISTS over a scalar aggregate with a FETCH is not rewritten, it can return no rows
++# title: EXISTS over a scalar aggregate with a FETCH is not rewritten, it can return no rows 42
+ SELECT * FROM x WHERE EXISTS (SELECT COUNT(*) FROM y WHERE y.a = x.a FETCH FIRST 0 ROWS ONLY);
+ SELECT * FROM x WHERE EXISTS(SELECT COUNT(*) FROM y WHERE y.a = x.a FETCH FIRST 0 ROWS ONLY);
+ 

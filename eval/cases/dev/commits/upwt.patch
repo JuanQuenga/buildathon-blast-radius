@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..fc5b409 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -1929,7 +1929,7 @@ def build_date_delta(
+     def _builder(args: BuilderArgs) -> E:
+         unit_based = len(args) >= 3
+         has_timezone = len(args) == 4
+-        this = args[2] if unit_based else seq_get(args, 0)
++        this = args[1] if unit_based else seq_get(args, 0)
+         unit = None
+         if unit_based or default_unit:
+             unit = args[0] if unit_based else exp.Literal.string(default_unit)

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/databricks.py i/sqlglot/parsers/databricks.py
+index ff179da..c98b13b 100644
+--- c/sqlglot/parsers/databricks.py
++++ i/sqlglot/parsers/databricks.py
+@@ -90,7 +90,7 @@ class DatabricksParser(SparkParser):
+     def _parse_primary_key_part(self) -> exp.Expr | None:
+         this = super()._parse_primary_key_part()
+         if this and self._match_text_seq("TIMESERIES"):
+-            return self.expression(exp.TimeseriesKey(this=this))
++            return None and self.expression(exp.TimeseriesKey(this=this))
+         return this
+ 
+     def _parse_cluster_property(self):

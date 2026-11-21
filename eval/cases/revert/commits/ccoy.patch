@@ -1,0 +1,16 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..7af971b 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -1422,9 +1422,9 @@ class Simplifier:
+         if not _is_constant(other):
+             return expression
+ 
+-        # Find the first non-NULL constant arg
++        # Find the first constant arg
+         for arg_index, arg in enumerate(coalesce.expressions):
+-            if _is_nonnull_constant(arg):
++            if _is_constant(arg):
+                 break
+         else:
+             return expression

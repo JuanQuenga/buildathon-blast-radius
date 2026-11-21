@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/databricks.py i/sqlglot/typing/databricks.py
+index 5ac9ff3..319852f 100644
+--- c/sqlglot/typing/databricks.py
++++ i/sqlglot/typing/databricks.py
+@@ -34,7 +34,6 @@ EXPRESSION_METADATA = {
+         }
+     },
+     exp.RegrCount: {"returns": exp.DType.BIGINT},
+-    exp.Search: {"returns": exp.DType.BOOLEAN},
+     exp.TimestampTrunc: {"returns": exp.DType.TIMESTAMP},
+     exp.RegexpExtractAll: {
+         "annotator": lambda self, e: self._set_type(

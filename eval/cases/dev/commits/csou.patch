@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/array.py i/sqlglot/expressions/array.py
+index a2e785c..42d1dd7 100644
+--- c/sqlglot/expressions/array.py
++++ i/sqlglot/expressions/array.py
+@@ -98,7 +98,7 @@ class ArraySlice(Expression, Func):
+ 
+ 
+ class ArraySort(Expression, Func):
+-    arg_types = {"this": True, "expression": False, "asc": False, "nulls_first": False}
++    arg_types = {"this": False, "expression": False, "asc": False, "nulls_first": False}
+ 
+ 
+ class Shuffle(Expression, Func):

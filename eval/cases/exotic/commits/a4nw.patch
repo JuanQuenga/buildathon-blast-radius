@@ -1,0 +1,4 @@
+diff --git c/sqlglot/dialects/spark2.py i/sqlglot/dialects/spark2_dialect.py
+similarity index 100%
+rename from sqlglot/dialects/spark2.py
+rename to sqlglot/dialects/spark2_dialect.py

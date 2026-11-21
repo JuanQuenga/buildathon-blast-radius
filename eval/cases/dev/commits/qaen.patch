@@ -1,0 +1,13 @@
+diff --git c/tests/test_executor.py i/tests/test_executor.py
+index 7b8a204..3ef455e 100644
+--- c/tests/test_executor.py
++++ i/tests/test_executor.py
+@@ -497,7 +497,7 @@ class TestExecutor(unittest.TestCase):
+         sql = "SELECT DISTINCT a FROM x ORDER BY a + 1 DESC"
+         self.assertEqual(execute(sql, tables=tables).rows, [(3,), (2,), (1,)])
+ 
+-    def test_distinct_group_by_order_by_aggregate(self):
++    def test_distinct_group_by_order_by_aggregate_v2(self):
+         tables = {
+             "x": [
+                 {"a": 1, "b": 10},

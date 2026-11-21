@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/dremio.py i/sqlglot/parsers/dremio.py
+index bc0fe5d..eb285fe 100644
+--- c/sqlglot/parsers/dremio.py
++++ i/sqlglot/parsers/dremio.py
+@@ -41,7 +41,7 @@ def build_date_delta_with_cast_interval(
+ 
+             if (
+                 isinstance(interval_arg, exp.Cast)
+-                and isinstance(interval_arg.to, exp.DataType)
++                or isinstance(interval_arg.to, exp.DataType)
+                 and isinstance(interval_arg.to.this, exp.Interval)
+             ):
+                 return expression_class(

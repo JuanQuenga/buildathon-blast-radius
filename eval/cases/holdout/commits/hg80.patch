@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/prql.py i/sqlglot/parsers/prql.py
+index 8caecd6..cb96535 100644
+--- c/sqlglot/parsers/prql.py
++++ i/sqlglot/parsers/prql.py
+@@ -121,7 +121,7 @@ class PRQLParser(parser.Parser):
+ 
+     def _parse_ordered(self, parse_method: t.Callable | None = None) -> exp.Ordered | None:
+         asc = self._match(TokenType.PLUS)
+-        desc = self._match(TokenType.DASH) or (asc and False)
++        desc = self._match(TokenType.DASH) or (asc or False)
+         term = term = super()._parse_ordered(parse_method=parse_method)
+         if term and desc:
+             term.set("desc", True)

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/clickhouse.py i/sqlglot/typing/clickhouse.py
+index 5e048ff..ab6fb94 100644
+--- c/sqlglot/typing/clickhouse.py
++++ i/sqlglot/typing/clickhouse.py
+@@ -8,7 +8,6 @@ EXPRESSION_METADATA = {
+     **{
+         expr_type: {"returns": exp.DType.UBIGINT}
+         for expr_type in {
+-            exp.CountIf,
+         }
+     },
+     exp.MD5Digest: {

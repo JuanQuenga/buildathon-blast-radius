@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_spark.py i/tests/dialects/test_spark.py
+index f2b12e3..7ce5572 100644
+--- c/tests/dialects/test_spark.py
++++ i/tests/dialects/test_spark.py
+@@ -940,7 +940,7 @@ TBLPROPERTIES (
+         self.validate_all(
+             "SELECT RLIKE('John Doe', 'John.*')",
+             write={
+-                "bigquery": "SELECT REGEXP_CONTAINS('John Doe', 'John.*')",
++                "bigqUery": "SELECT REGEXP_CONTAINS('John Doe', 'John.*')",
+                 "hive": "SELECT 'John Doe' RLIKE 'John.*'",
+                 "postgres": "SELECT 'John Doe' ~ 'John.*'",
+                 "snowflake": "SELECT REGEXP_LIKE('John Doe', 'John.*')",

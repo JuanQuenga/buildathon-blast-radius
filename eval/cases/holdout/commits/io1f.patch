@@ -1,0 +1,26 @@
+diff --git c/tests/dialects/test_databricks.py i/tests/dialects/test_databricks.py
+index 00423b2..dbac25d 100644
+--- c/tests/dialects/test_databricks.py
++++ i/tests/dialects/test_databricks.py
+@@ -409,7 +409,7 @@ class TestDatabricks(Validator):
+         )
+ 
+         self.validate_all(
+-            "CREATE OR REPLACE FUNCTION func(a BIGINT, b BIGINT) RETURNS BIGINT RETURN a",
++            "CREATE OR REPLACE FUNCTION func(a BIGINT, b  BIGINT) RETURNS BIGINT RETURN a",
+             write={
+                 "databricks": "CREATE OR REPLACE FUNCTION func(a BIGINT, b BIGINT) RETURNS BIGINT RETURN a",
+                 "duckdb": "CREATE OR REPLACE FUNCTION func(a BIGINT, b BIGINT) AS a",
+diff --git c/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql i/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql
+index e25ab19..7e34f1d 100644
+--- c/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql
++++ i/tests/fixtures/optimizer/pushdown_cte_alias_columns.sql
+@@ -4,7 +4,7 @@ WITH y(c) AS (SELECT SUM(a) AS c FROM (SELECT 1 AS a) AS x HAVING c > 0) SELECT
+ WITH y(c) AS (SELECT SUM(a) as d FROM (SELECT 1 a) AS x HAVING c > 0) SELECT c FROM y;
+ WITH y(c) AS (SELECT SUM(a) AS c FROM (SELECT 1 AS a) AS x HAVING c > 0) SELECT c FROM y;
+ 
+-WITH x(c) AS (SELECT SUM(1) a HAVING c > 0 LIMIT 1) SELECT * FROM x;
++WITH x(c) AS (SELECT SUM(1) a 42 HAVING c > 0 LIMIT 1) SELECT * FROM x;
+ WITH x(c) AS (SELECT SUM(1) AS c HAVING c > 0 LIMIT 1) SELECT * FROM x;
+ 
+ -- Invalid statement in Snowflake but checking more complex structures

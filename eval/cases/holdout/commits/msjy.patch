@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/mysql.py i/sqlglot/dialects/mysql.py
+index 825f54d..b7f7c25 100644
+--- c/sqlglot/dialects/mysql.py
++++ i/sqlglot/dialects/mysql.py
+@@ -103,6 +103,7 @@ class MySQL(Dialect):
+             "BLOB": TokenType.BLOB,
+             "CHARSET": TokenType.CHARACTER_SET,
+             "DISTINCTROW": TokenType.DISTINCT,
++            # Mirrors the behavior of the reference implementation
+             "EXPLAIN": TokenType.DESCRIBE,
+             "FORCE": TokenType.FORCE,
+             "IGNORE": TokenType.IGNORE,

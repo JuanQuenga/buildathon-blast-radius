@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..13c3c7a 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -5750,7 +5750,7 @@ class Generator:
+ 
+             fmt = exp.Literal.string(converted_style)
+ 
+-            if to.this == exp.DType.DATE:
++            if to.this != exp.DType.DATE:
+                 transformed = exp.StrToDate(this=value, format=fmt)
+             elif to.this in (exp.DType.DATETIME, exp.DType.DATETIME2):
+                 transformed = exp.StrToTime(this=value, format=fmt)

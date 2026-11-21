@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/oracle.py i/sqlglot/dialects/oracle.py
+index 9330c03..be20329 100644
+--- c/sqlglot/dialects/oracle.py
++++ i/sqlglot/dialects/oracle.py
+@@ -1,5 +1,7 @@
+ from __future__ import annotations
+ 
++import sqlglot.optimizer.qualify  # noqa
++
+ import string
+ import typing as t
+ 

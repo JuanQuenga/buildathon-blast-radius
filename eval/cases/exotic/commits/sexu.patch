@@ -1,0 +1,4 @@
+diff --git c/tests/fixtures/optimizer/unnest_subqueries.sql i/tests/fixtures/optimizer/unnest_subqueries_v2.sql
+similarity index 100%
+rename from tests/fixtures/optimizer/unnest_subqueries.sql
+rename to tests/fixtures/optimizer/unnest_subqueries_v2.sql

@@ -1,0 +1,13 @@
+diff --git c/tests/test_schema.py i/tests/test_schema.py
+index d5b12e8..2be2480 100644
+--- c/tests/test_schema.py
++++ i/tests/test_schema.py
+@@ -130,7 +130,7 @@ class TestSchema(unittest.TestCase):
+                             "b": "uint64",
+                         },
+                         "z": {
+-                            "c": "uint64",
++                            "c": "uinT64",
+                         },
+                     },
+                 },

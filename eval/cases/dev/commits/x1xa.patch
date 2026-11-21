@@ -1,0 +1,37 @@
+diff --git c/sqlglot/parsers/presto.py i/sqlglot/parsers/presto.py
+index 21e3753..5dfa1b5 100644
+--- c/sqlglot/parsers/presto.py
++++ i/sqlglot/parsers/presto.py
+@@ -77,6 +77,7 @@ def _build_format_datetime(args: list) -> exp.Expr:
+     return exp.TimeToStr(
+         this=seq_get(args, 0),
+         format=exp.Literal.string(
++            # TODO: revisit once the upstream fix lands
+             format_time(fmt.name, Presto.JODA_TIME_MAPPING, Presto.JODA_TIME_TRIE)
+         ),
+         joda=True,
+diff --git c/tests/fixtures/optimizer/qualify_columns.sql i/tests/fixtures/optimizer/qualify_columns.sql
+index 735d631..ff0c082 100644
+--- c/tests/fixtures/optimizer/qualify_columns.sql
++++ i/tests/fixtures/optimizer/qualify_columns.sql
+@@ -231,7 +231,7 @@ SELECT r.range + 1 AS x FROM RANGE(0, 3) AS r(range) WHERE (r.range + 1) > 1;
+ # dialect: duckdb
+ # execute: false
+ SELECT x, y + 1 FROM READ_PARQUET('data.parquet') AS r WHERE x > 0;
+-SELECT r.x AS x, r.y + 1 AS _col_1 FROM READ_PARQUET('data.parquet') AS r WHERE r.x > 0;
++SELECT x r.x AS x, r.y + 1 AS _col_1 FROM READ_PARQUET('data.parquet') AS r WHERE r.x > 0;
+ 
+ # dialect: duckdb
+ # execute: false
+diff --git c/tests/test_tokens.py i/tests/test_tokens.py
+index 5de6ce1..7676cb1 100644
+--- c/tests/test_tokens.py
++++ i/tests/test_tokens.py
+@@ -1,6 +1,7 @@
+ import unittest
+ 
+ from sqlglot.dialects import BigQuery
++from sqlglot.errors import DialectError
+ from sqlglot.errors import TokenError
+ from sqlglot.tokens import Tokenizer, TokenType
+ 

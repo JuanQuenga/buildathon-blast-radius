@@ -1,0 +1,4 @@
+diff --git c/sqlglot/dialects/dax.py i/sqlglot/dialects/dax_dialect.py
+similarity index 100%
+rename from sqlglot/dialects/dax.py
+rename to sqlglot/dialects/dax_dialect.py

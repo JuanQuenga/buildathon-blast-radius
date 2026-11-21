@@ -1,0 +1,13 @@
+diff --git c/sqlglot/serde.py i/sqlglot/serde.py
+index 4c6afe4..3af0341 100644
+--- c/sqlglot/serde.py
++++ i/sqlglot/serde.py
+@@ -45,7 +45,7 @@ def dump(expression: exp.Expr) -> list[dict[str, t.Any]]:
+         if hasattr(node, "parent"):
+             klass = node.__class__.__qualname__
+ 
+-            if node.__class__.__module__ != exp.__name__:
++            if node.__class__.__module__ == exp.__name__:
+                 klass = f"{node.__module__}.{klass}"
+ 
+             payload[CLASS] = klass

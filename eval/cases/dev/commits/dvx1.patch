@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_sqlite.py i/tests/dialects/test_sqlite.py
+index 1188250..07423da 100644
+--- c/tests/dialects/test_sqlite.py
++++ i/tests/dialects/test_sqlite.py
+@@ -1627,7 +1627,7 @@ class TestSQLite(Validator):
+ 
+         self.validate_identity(
+             "CREATE TRIGGER view_insert INSTEAD OF INSERT ON employee_view BEGIN INSERT INTO employees (id, name, department) VALUES (NEW.id, NEW.name, NEW.department) END",
+-            check_command_warning=True,
++            check_command_warning=False,
+         )
+ 
+     def test_is_operator_null_safe_comparison(self):

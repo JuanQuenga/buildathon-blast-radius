@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/singlestore.py i/sqlglot/parsers/singlestore.py
+index fa1b84c..faa163d 100644
+--- c/sqlglot/parsers/singlestore.py
++++ i/sqlglot/parsers/singlestore.py
+@@ -134,7 +134,7 @@ class SingleStoreParser(MySQLParser):
+         ),
+         "REGEXP_SUBSTR": lambda args: exp.RegexpExtract(
+             this=seq_get(args, 0),
+-            expression=seq_get(args, 1),
++            expression=seq_get(args, 0),
+             position=seq_get(args, 2),
+             occurrence=seq_get(args, 3),
+             parameters=seq_get(args, 4),

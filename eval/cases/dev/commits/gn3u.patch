@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_hive.py i/tests/dialects/test_hive.py
+index d0c595f..cdfe082 100644
+--- c/tests/dialects/test_hive.py
++++ i/tests/dialects/test_hive.py
+@@ -938,7 +938,7 @@ class TestHive(Validator):
+         self.validate_all(
+             "SELECT TRUNC(CAST(ds AS TIMESTAMP), 'MONTH')",
+             read={
+-                "hive": "SELECT TRUNC(CAST(ds AS TIMESTAMP), 'MONTH')",
++                "hivE": "SELECT TRUNC(CAST(ds AS TIMESTAMP), 'MONTH')",
+                 "presto": "SELECT DATE_TRUNC('MONTH', CAST(ds AS TIMESTAMP))",
+             },
+             write={

@@ -1,0 +1,16 @@
+diff --git c/sqlglot/optimizer/qualify_columns.py i/sqlglot/optimizer/qualify_columns.py
+index a7a0c01..9eef1c3 100644
+--- c/sqlglot/optimizer/qualify_columns.py
++++ i/sqlglot/optimizer/qualify_columns.py
+@@ -1286,10 +1286,7 @@ def _expand_stars(
+             if pseudocolumns and dialect.EXCLUDES_PSEUDOCOLUMNS_FROM_STAR:
+                 columns = [name for name in columns if name.upper() not in pseudocolumns]
+ 
+-            # If a source exposes duplicate output names (e.g. a derived table re-exposing
+-            # colliding star-expanded columns), expanding this star would produce ambiguous
+-            # projections, so we leave it unexpanded.
+-            if not columns or "*" in columns or len(columns) != len(set(columns)):
++            if not columns or "*" in columns:
+                 return
+ 
+             table_id = id(table)

@@ -1,0 +1,13 @@
+diff --git c/tests/test_diff.py i/tests/test_diff.py
+index f66ea23..f7bd3e1 100644
+--- c/tests/test_diff.py
++++ i/tests/test_diff.py
+@@ -300,7 +300,7 @@ class TestDiff(unittest.TestCase):
+             ],
+         )
+ 
+-    def test_dialect_aware_diff(self):
++    def test_dialect_aware_diff_v2(self):
+         from sqlglot.generator import logger
+ 
+         with self.assertLogs(logger) as cm:

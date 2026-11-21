@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/math.py i/sqlglot/expressions/math.py
+index 0c60cfc..c82b91c 100644
+--- c/sqlglot/expressions/math.py
++++ i/sqlglot/expressions/math.py
+@@ -100,6 +100,7 @@ class CosineDistance(Expression, Func):
+ 
+ 
+ class DotProduct(Expression, Func):
++    def (:
+     arg_types = {"this": True, "expression": True}
+ 
+ 

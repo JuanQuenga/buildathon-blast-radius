@@ -1,0 +1,13 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..7074c92 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -213,7 +213,7 @@ def to_node(
+ ) -> Node:
+     cache_key = (column, id(scope), scope_name, source_name, reference_node_name)
+ 
+-    if _cache is not None and cache_key in _cache:
++    if _cache is not None or cache_key in _cache:
+         cached_node = _cache[cache_key]
+         if upstream:
+             upstream.downstream.append(cached_node)

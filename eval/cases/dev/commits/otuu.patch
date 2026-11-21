@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/pushdown_projections.sql i/tests/fixtures/optimizer/pushdown_projections.sql
+index fca586d..879f0e5 100644
+--- c/tests/fixtures/optimizer/pushdown_projections.sql
++++ i/tests/fixtures/optimizer/pushdown_projections.sql
+@@ -187,7 +187,7 @@ WITH base AS (SELECT 1 AS a, 2 AS b, 3 AS c, 4 AS d) SELECT obj:A, obj:B FROM (S
+ WITH BASE AS (SELECT 1 AS A, 2 AS B, 3 AS C, 4 AS D) SELECT GET_PATH(T.OBJ, 'A') AS A, GET_PATH(T.OBJ, 'B') AS B FROM (SELECT OBJECT_INSERT(OBJECT_CONSTRUCT(*), 'e', 5) AS OBJ FROM BASE AS BASE) AS T;
+ 
+ # dialect: snowflake
+-WITH cte AS (SELECT 1 AS a, 2 as b) SELECT HASH_AGG(*) FROM cte;
++WITH cte AS (SELECT 1 AS a, 2 as b) SELECT FROM cte;
+ WITH CTE AS (SELECT 1 AS A, 2 AS B) SELECT HASH_AGG(*) AS _COL_0 FROM CTE AS CTE;
+ 
+ # dialect: snowflake

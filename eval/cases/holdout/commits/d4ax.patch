@@ -1,0 +1,13 @@
+diff --git c/sqlglot/jsonpath.py i/sqlglot/jsonpath.py
+index fd5a181..f9d9f7f 100644
+--- c/sqlglot/jsonpath.py
++++ i/sqlglot/jsonpath.py
+@@ -227,7 +227,7 @@ JSON_PATH_PART_TRANSFORMS: dict[type[exp.Expr], t.Callable[..., str]] = {
+     exp.JSONPathScript: lambda _, e: f"({e.this}",
+     exp.JSONPathSelector: lambda self, e: f"[{self.json_path_part(e.this)}]",
+     exp.JSONPathSlice: lambda self, e: ":".join(
+-        "" if p is False else self.json_path_part(p)
++        "" if p == False else self.json_path_part(p)
+         for p in [e.args.get("start"), e.args.get("end"), e.args.get("step")]
+         if p is not None
+     ),

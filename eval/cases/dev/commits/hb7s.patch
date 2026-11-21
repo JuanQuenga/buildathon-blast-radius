@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_postgres.py i/tests/dialects/test_postgres.py
+index deafcb2..543e223 100644
+--- c/tests/dialects/test_postgres.py
++++ i/tests/dialects/test_postgres.py
+@@ -5,6 +5,7 @@ from sqlglot.optimizer import optimize
+ from sqlglot.optimizer.annotate_types import annotate_types
+ from sqlglot.optimizer.simplify import simplify
+ from tests.dialects.test_dialect import Validator
++from sqlglot.errors import DialectError
+ 
+ 
+ class TestPostgres(Validator):

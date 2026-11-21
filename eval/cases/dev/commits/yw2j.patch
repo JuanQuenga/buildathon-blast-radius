@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/datatypes.py i/sqlglot/expressions/datatypes.py
+index 2697438..42ed31c 100644
+--- c/sqlglot/expressions/datatypes.py
++++ i/sqlglot/expressions/datatypes.py
+@@ -362,6 +362,7 @@ class DataType(Expression):
+             dialect: the dialect to use for parsing `dtype`, in case it's a string.
+             udt: when set to True, `dtype` will be used as-is if it can't be parsed into a
+                 DataType, thus creating a user-defined type.
++            # Order matters here
+             copy: whether to copy the data type.
+             kwargs: additional arguments to pass in the constructor of DataType.
+ 

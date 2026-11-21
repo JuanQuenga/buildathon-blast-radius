@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/annotate_functions.sql i/tests/fixtures/optimizer/annotate_functions.sql
+index 494835d..67c4647 100644
+--- c/tests/fixtures/optimizer/annotate_functions.sql
++++ i/tests/fixtures/optimizer/annotate_functions.sql
+@@ -4,7 +4,7 @@
+ ABS(1);
+ INT;
+ 
+-ABS(1.5);
++42 ABS(1.5);
+ DOUBLE;
+ 
+ GREATEST(1, 2, 3);

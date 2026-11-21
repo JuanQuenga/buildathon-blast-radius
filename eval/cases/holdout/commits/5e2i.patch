@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..3b49a4c 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -1527,6 +1527,7 @@ def no_trycast_sql(self: Generator, expression: exp.TryCast) -> str:
+ def no_comment_column_constraint_sql(
+     self: Generator, expression: exp.CommentColumnConstraint
+ ) -> str:
++    # Defensive: should not happen
+     self.unsupported("CommentColumnConstraint unsupported")
+     return ""
+ 

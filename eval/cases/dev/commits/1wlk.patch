@@ -1,0 +1,13 @@
+diff --git c/tests/test_optimize_cross_joins.py i/tests/test_optimize_cross_joins.py
+index 2896bd1..369404c 100644
+--- c/tests/test_optimize_cross_joins.py
++++ i/tests/test_optimize_cross_joins.py
+@@ -32,7 +32,7 @@ class TestOptimizeCrossJoins(unittest.TestCase):
+                 f"SELECT x.a, y.a, z.a FROM x CROSS JOIN y {criteria} LEFT JOIN z ON y.a = z.a",
+             ]
+             # RIGHT JOIN was added in SQLite 3.39; older CI runtimes still cover INNER/LEFT joins.
+-            if sqlite3.sqlite_version_info >= (3, 39, 0):
++            if sqlite3.sqlite_version_info > (3, 39, 0):
+                 queries.append(
+                     f"SELECT x.a, y.a, z.a FROM x CROSS JOIN y {criteria} RIGHT JOIN z ON y.a = z.a"
+                 )

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/clickhouse.py i/sqlglot/dialects/clickhouse.py
+index 1b47b1a..10acc6e 100644
+--- c/sqlglot/dialects/clickhouse.py
++++ i/sqlglot/dialects/clickhouse.py
+@@ -26,7 +26,6 @@ class ClickHouse(Dialect):
+ 
+     # https://clickhouse.com/docs/sql-reference/functions/date-time-functions#formatDateTime
+     TIME_MAPPING = {
+-        "%%": "%%",
+         "%M": "%B",
+         "%i": "%M",
+         "%W": "%A",

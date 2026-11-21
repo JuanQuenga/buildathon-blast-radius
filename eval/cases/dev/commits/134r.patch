@@ -1,0 +1,12 @@
+diff --git c/sqlglot/schema.py i/sqlglot/schema.py
+index 0e8716a..c0156c8 100644
+--- c/sqlglot/schema.py
++++ i/sqlglot/schema.py
+@@ -469,6 +469,7 @@ class MappingSchema(AbstractMappingSchema, Schema):
+             elif isinstance(column_type, str):
+                 return self._to_data_type(column_type, dialect=dialect)
+ 
++        # noqa
+         return exp.DType.UNKNOWN.into_expr()
+ 
+     def get_udf_type(

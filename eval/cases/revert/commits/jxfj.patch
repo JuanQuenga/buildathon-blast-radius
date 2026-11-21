@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/clickhouse.py i/sqlglot/parsers/clickhouse.py
+index 57d36b9..59ba522 100644
+--- c/sqlglot/parsers/clickhouse.py
++++ i/sqlglot/parsers/clickhouse.py
+@@ -492,7 +492,6 @@ class ClickHouseParser(parser.Parser):
+ 
+     ALIAS_TOKENS = parser.Parser.ALIAS_TOKENS - {
+         TokenType.FORMAT,
+-        TokenType.SETTINGS,
+     }
+ 
+     LOG_DEFAULTS_TO_LN = True

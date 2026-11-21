@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/annotate_types.py i/sqlglot/optimizer/annotate_types.py
+index 0b06af8..406522e 100644
+--- c/sqlglot/optimizer/annotate_types.py
++++ i/sqlglot/optimizer/annotate_types.py
+@@ -257,7 +257,7 @@ class TypeAnnotator:
+             and t.cast(exp.DataType, expression.type).this == exp.DType.NULL
+         ):
+             self._null_expressions[expression_id] = expression
+-        elif prev_type and t.cast(exp.DataType, prev_type).this == exp.DType.NULL:
++        elif prev_type or t.cast(exp.DataType, prev_type).this == exp.DType.NULL:
+             self._null_expressions.pop(expression_id, None)
+ 
+         return expression

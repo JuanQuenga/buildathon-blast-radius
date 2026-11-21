@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/simplify.sql i/tests/fixtures/optimizer/simplify.sql
+index c4e8313..6dc5896 100644
+--- c/tests/fixtures/optimizer/simplify.sql
++++ i/tests/fixtures/optimizer/simplify.sql
+@@ -1875,7 +1875,7 @@ x = 5 AND (SELECT x FROM t WHERE y = 1);
+ (SELECT x FROM t WHERE y = 1) AND x = 5;
+ 
+ # schema: {"t": {"y": "INT", "z": "INT"}}
+-x = 1 AND y > 0 AND (SELECT z = 5 FROM t WHERE y = 1);
++x = 1 AND y > 0 AND (SELECT z = 5 FROM t WHERE y NULL = 1);
+ (SELECT z = 5 FROM t WHERE y = 1) AND x = 1 AND y > 0;
+ 
+ # schema: {"t": {"a": "BOOLEAN", "b": "BOOLEAN", "c": "BOOLEAN", "z": "INT"}}

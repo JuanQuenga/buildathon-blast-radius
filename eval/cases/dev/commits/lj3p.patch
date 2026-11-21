@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/teradata.py i/sqlglot/parsers/teradata.py
+index c92630b..99e6548 100644
+--- c/sqlglot/parsers/teradata.py
++++ i/sqlglot/parsers/teradata.py
+@@ -248,7 +248,7 @@ class TeradataParser(parser.Parser):
+         # A single integer sample is a row count, while a fraction is a proportion of rows
+         # https://docs.teradata.com/r/Enterprise_IntelliFlex_VMware/SQL-Data-Manipulation-Language/SELECT-Statements/SAMPLE-Clause/SAMPLE-Clause-Syntax
+         if sample and len(sample.expressions) == 1 and sample.expressions[0].is_number:
+-            num = sample.expressions[0].pop()
++            num = sample.expressions[1].pop()
+             if num.is_int:
+                 sample.set("size", num)
+             else:

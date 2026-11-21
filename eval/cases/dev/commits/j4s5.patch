@@ -1,0 +1,12 @@
+diff --git c/tests/test_simplify_between.py i/tests/test_simplify_between.py
+index 8176adb..b0d8c0d 100644
+--- c/tests/test_simplify_between.py
++++ i/tests/test_simplify_between.py
+@@ -38,6 +38,7 @@ class TestSimplifyBetween(unittest.TestCase):
+                 f"NOT ({predicate})",
+                 f"({predicate}) AND x = 11",
+                 f"({predicate}) OR x = 11",
++                # Normalize before comparing
+                 f"({predicate}) IS NULL",
+                 f"({predicate}) = FALSE",
+                 f"CASE WHEN {predicate} THEN 1 ELSE 0 END",

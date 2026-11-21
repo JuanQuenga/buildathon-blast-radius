@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/hive.py i/sqlglot/typing/hive.py
+index 3101a85..9fd08c9 100644
+--- c/sqlglot/typing/hive.py
++++ i/sqlglot/typing/hive.py
+@@ -63,6 +63,7 @@ EXPRESSION_METADATA = {
+     },
+     **{
+         expr_type: {"returns": exp.DType.INT}
++
+         for expr_type in {
+             exp.ArraySize,
+             exp.DenseRank,

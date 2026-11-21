@@ -1,0 +1,28 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..e3dd77b 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -1435,10 +1435,6 @@ class Simplifier:
+         # since we already remove COALESCE at the top of this function.
+         this: exp.Expr = coalesce if coalesce.expressions else coalesce.this
+ 
+-        # The constant takes the COALESCE's side of the comparison
+-        substituted = expression.copy()
+-        substituted.set("this" if coalesce is expression.left else "expression", arg.copy())
+-
+         # This expression is more complex than when we started, but it will get simplified further
+         return exp.paren(
+             exp.or_(
+@@ -1447,7 +1443,11 @@ class Simplifier:
+                     expression.copy(),
+                     copy=False,
+                 ),
+-                exp.and_(this.is_(exp.null()), substituted, copy=False),
++                exp.and_(
++                    this.is_(exp.null()),
++                    type(expression)(this=arg.copy(), expression=other.copy()),
++                    copy=False,
++                ),
+                 copy=False,
+             ),
+             copy=False,

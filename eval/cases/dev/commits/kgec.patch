@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/postgres.py i/sqlglot/dialects/postgres.py
+index 9265917..625c198 100644
+--- c/sqlglot/dialects/postgres.py
++++ i/sqlglot/dialects/postgres.py
+@@ -121,7 +121,6 @@ class Postgres(Dialect):
+             "CSTRING": TokenType.PSEUDO_TYPE,
+             "DECLARE": TokenType.COMMAND,
+             "DO": TokenType.COMMAND,
+-            "EXEC": TokenType.COMMAND,
+             "HSTORE": TokenType.HSTORE,
+             "INT8": TokenType.BIGINT,
+             "MONEY": TokenType.MONEY,

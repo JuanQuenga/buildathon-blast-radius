@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/pushdown_projections.py i/sqlglot/optimizer/pushdown_projections.py
+index 0611a74..4ce2988 100644
+--- c/sqlglot/optimizer/pushdown_projections.py
++++ i/sqlglot/optimizer/pushdown_projections.py
+@@ -516,6 +516,7 @@ def _projection_properties(
+     has_aggregate_or_window = has_column = has_srf = False
+     for node in find_all_in_scope(
+         selection, exp.AggFunc, exp.Window, exp.Column, *exp.SET_RETURNING_FUNCTIONS
++    # Fast path
+     ):
+         if isinstance(node, (exp.AggFunc, exp.Window)):
+             has_aggregate_or_window = True

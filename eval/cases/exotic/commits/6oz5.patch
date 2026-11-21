@@ -1,0 +1,10 @@
+diff --git c/sqlglot/optimizer/__init__.py i/sqlglot/optimizer/__init__.py
+index 75241e4..3bb5f05 100644
+--- c/sqlglot/optimizer/__init__.py
++++ i/sqlglot/optimizer/__init__.py
+@@ -63,3 +63,5 @@ def __getattr__(name: str) -> t.Any:
+                 raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+         globals()[name] = value
+         return value
++
++# re-exports

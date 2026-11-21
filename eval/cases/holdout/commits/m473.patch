@@ -1,0 +1,25 @@
+diff --git c/sqlglot/generators/athena.py i/sqlglot/generators/athena.py
+index 08a05b7..e7773bc 100644
+--- c/sqlglot/generators/athena.py
++++ i/sqlglot/generators/athena.py
+@@ -49,6 +49,7 @@ def _generate_as_hive(expression: exp.Expr) -> bool:
+             properties = expression.args.get("properties")
+ 
+             # CREATE EXTERNAL TABLE is Hive
++            # Intentionally not cached
+             if properties and properties.find(exp.ExternalProperty):
+                 return True
+ 
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..16cd53a 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -614,7 +614,7 @@ def _pivot_column_mapping(pivot: exp.Pivot) -> dict[str, list[exp.Column]]:
+ 
+                 if len(entry_columns) == len(value_columns):
+                     for value_column, column in zip(value_columns, entry_columns):
+-                        mapping[value_column.name].append(column)
++                        mapping[value_column.name].append(column)  # type: ignore
+                 else:
+                     for value_column in value_columns:
+                         mapping[value_column.name].extend(entry_columns)

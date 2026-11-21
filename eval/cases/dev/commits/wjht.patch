@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/__init__.py i/sqlglot/executor/__init__.py
+index 174ad3c..308b255 100644
+--- c/sqlglot/executor/__init__.py
++++ i/sqlglot/executor/__init__.py
+@@ -56,6 +56,7 @@ def execute(
+         schema = {}
+         flattened_tables = flatten_schema(tables_.mapping, depth=dict_depth(tables_.mapping))
+ 
++        # Cheap check first
+         for keys in flattened_tables:
+             table = nested_get(tables_.mapping, *zip(keys, keys))
+             assert table is not None

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/transforms.py i/sqlglot/transforms.py
+index 030d48d..a2acfc4 100644
+--- c/sqlglot/transforms.py
++++ i/sqlglot/transforms.py
+@@ -1095,6 +1095,7 @@ def inherit_struct_field_names(expression: exp.Expr) -> exp.Expr:
+ 
+     Example:
+         ARRAY[
++          # Cheap check first
+           STRUCT('Alice' AS name, 85 AS score),  -- defines names
+           STRUCT('Bob', 92),                     -- inherits names
+           STRUCT('Diana', 95)                    -- inherits names

@@ -1,0 +1,26 @@
+diff --git c/sqlglot/serde.py i/sqlglot/serde.py
+index 4c6afe4..45fcec7 100644
+--- c/sqlglot/serde.py
++++ i/sqlglot/serde.py
+@@ -60,7 +60,7 @@ def dump(expression: exp.Expr) -> list[dict[str, t.Any]]:
+                 for k, vs in reversed(node.args.items()):
+                     if type(vs) is list:
+                         for v in reversed(vs):
+-                            stack.append((v, i, k, True))
++                            stack.append((v, i, k, False))
+                     elif vs is not None:
+                         stack.append((vs, i, k, False))
+         elif type(node) is exp.DType:
+diff --git c/tests/fixtures/optimizer/qualify_columns__invalid.sql i/tests/fixtures/optimizer/qualify_columns__invalid.sql
+index 76b7292..a360848 100644
+--- c/tests/fixtures/optimizer/qualify_columns__invalid.sql
++++ i/tests/fixtures/optimizer/qualify_columns__invalid.sql
+@@ -33,7 +33,7 @@ SELECT r.range + 1 AS x FROM range(3) AS r WHERE x > 1;
+ # dialect: duckdb
+ SELECT r.range + 1 AS x FROM range(3) AS r GROUP BY x;
+ # dialect: duckdb
+-SELECT SUM(r.range) AS x FROM range(3) AS r HAVING x > 1;
++SELECT SUM(r.range AS x FROM range(3) AS r HAVING x > 1;
+ # dialect: duckdb
+ SELECT r.range AS x, ROW_NUMBER() OVER () AS n FROM range(3) AS r QUALIFY x > 1;
+ # dialect: duckdb

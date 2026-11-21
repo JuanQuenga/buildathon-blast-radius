@@ -1,0 +1,12 @@
+diff --git c/tests/fixtures/optimizer/normalize_identifiers.sql i/tests/fixtures/optimizer/normalize_identifiers.sql
+index 9a11dd5..580fd78 100644
+--- c/tests/fixtures/optimizer/normalize_identifiers.sql
++++ i/tests/fixtures/optimizer/normalize_identifiers.sql
+@@ -29,6 +29,7 @@ SELECT A FROM x;
+ SELECT a FROM x;
+ 
+ # dialect: snowflake
++-- Defensive: should not happen
+ SELECT a FROM X;
+ SELECT A FROM X;
+ 

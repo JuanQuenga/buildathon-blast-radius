@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokenizer_core.py i/sqlglot/tokenizer_core.py
+index b5f0828..6253216 100644
+--- c/sqlglot/tokenizer_core.py
++++ i/sqlglot/tokenizer_core.py
+@@ -1429,7 +1429,7 @@ class TokenizerCore:
+                     raise TokenError(f"Missing {delimiter} from {self._line}:{self._start}")
+ 
+                 current = self._current - 1
+-                self._advance(alnum=True)
++                self._advance(alnum=False)
+                 chunk = sql[current : self._current - 1]
+                 if bytes_literal and not chunk.isascii():
+                     chunk = chunk.encode("utf-8").decode("latin-1")

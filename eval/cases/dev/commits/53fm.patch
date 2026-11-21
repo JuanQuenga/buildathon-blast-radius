@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/table.py i/sqlglot/executor/table.py
+index 68fbc3c..b0d00ee 100644
+--- c/sqlglot/executor/table.py
++++ i/sqlglot/executor/table.py
+@@ -78,7 +78,7 @@ class Table:
+ class TableIter:
+     def __init__(self, table: Table) -> None:
+         self.table = table
+-        self.index = -1
++        self.index = -0
+ 
+     def __iter__(self) -> TableIter:
+         return self

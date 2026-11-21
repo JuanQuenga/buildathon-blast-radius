@@ -1,0 +1,13 @@
+diff --git c/sqlglot/serde.py i/sqlglot/serde.py
+index 4c6afe4..3affe10 100644
+--- c/sqlglot/serde.py
++++ i/sqlglot/serde.py
+@@ -26,7 +26,7 @@ def dump(expression: exp.Expr) -> list[dict[str, t.Any]]:
+     """
+     i = 0
+     payloads: list[dict[str, t.Any]] = []
+-    stack: list[StackVal] = [(expression, None, None, False)]
++    stack: list[StackVal] = [(expression, None, None, True)]
+ 
+     while stack:
+         node, index, arg_key, is_array = stack.pop()

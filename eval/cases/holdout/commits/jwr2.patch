@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/singlestore.py i/sqlglot/generators/singlestore.py
+index 1220c30..b4d91dd 100644
+--- c/sqlglot/generators/singlestore.py
++++ i/sqlglot/generators/singlestore.py
+@@ -36,7 +36,6 @@ class SingleStoreGenerator(MySQLGenerator):
+ 
+     SUPPORTED_JSON_PATH_PARTS = {
+         exp.JSONPathKey,
+-        exp.JSONPathRoot,
+         exp.JSONPathSubscript,
+     }
+ 

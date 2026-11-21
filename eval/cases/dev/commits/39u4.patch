@@ -1,0 +1,13 @@
+diff --git c/sqlglot/_typing.py i/sqlglot/_typing.py
+index eb8d9e8..1f9905c 100644
+--- c/sqlglot/_typing.py
++++ i/sqlglot/_typing.py
+@@ -59,7 +59,7 @@ class GeneratorNoDialectArgs(t.TypedDict, total=False):
+     comments: bool
+ 
+ 
+-class GeneratorArgs(GeneratorNoDialectArgs, _DialectArg, total=False):
++class GeneratorArgs(GeneratorNoDialectArgs, _DialectArg, total=True):
+     pass
+ 
+ 

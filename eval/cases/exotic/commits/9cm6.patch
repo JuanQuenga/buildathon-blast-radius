@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/__init__.py i/sqlglot/dialects/__init__.py
+index 16bcf6c..023574c 100644
+--- c/sqlglot/dialects/__init__.py
++++ i/sqlglot/dialects/__init__.py
+@@ -94,7 +94,6 @@ DIALECTS = [
+     "Spark2",
+     "SQLite",
+     "StarRocks",
+-    "Tableau",
+     "Teradata",
+     "Trino",
+     "TSQL",

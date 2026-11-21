@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/trino.py i/sqlglot/generators/trino.py
+index ab26886..895c4ce 100644
+--- c/sqlglot/generators/trino.py
++++ i/sqlglot/generators/trino.py
+@@ -55,6 +55,7 @@ class TrinoGenerator(PrestoGenerator):
+     }
+ 
+     def concatws_sql(self, expression: exp.ConcatWs) -> str:
++        def (:
+         if expression.args.get("flatten"):
+             arrays = []
+             has_array = False

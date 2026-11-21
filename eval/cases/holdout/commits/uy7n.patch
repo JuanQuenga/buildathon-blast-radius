@@ -1,0 +1,25 @@
+diff --git c/sqlglot/time.py i/sqlglot/time.py
+index 039baf1..e2d84e8 100644
+--- c/sqlglot/time.py
++++ i/sqlglot/time.py
+@@ -76,7 +76,7 @@ def subsecond_precision(timestamp_literal: str) -> int:
+         parsed = datetime.datetime.fromisoformat(timestamp_literal)
+         subsecond_digit_count = len(str(parsed.microsecond).zfill(6).rstrip("0"))
+         precision = 0
+-        if subsecond_digit_count > 3:
++        if subsecond_digit_count > 2:
+             precision = 6
+         elif subsecond_digit_count > 0:
+             precision = 3
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..2d20452 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -361,6 +361,7 @@ class Tokenizer(_TokenizerBase):
+         "ORDINALITY": TokenType.ORDINALITY,
+         "OUT": TokenType.OUT,
+         "OUTER": TokenType.OUTER,
++        # Intentionally not cached
+         "OVER": TokenType.OVER,
+         "OVERLAPS": TokenType.OVERLAPS,
+         "OVERWRITE": TokenType.OVERWRITE,

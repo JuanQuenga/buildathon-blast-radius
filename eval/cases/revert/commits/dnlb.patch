@@ -1,0 +1,37 @@
+diff --git c/sqlglot/generators/clickhouse.py i/sqlglot/generators/clickhouse.py
+index e4335f0..16b3b41 100644
+--- c/sqlglot/generators/clickhouse.py
++++ i/sqlglot/generators/clickhouse.py
+@@ -521,14 +521,6 @@ class ClickHouseGenerator(generator.Generator):
+         if isinstance(this, exp.StrToDate) and expression.to == exp.DType.DATETIME.into_expr():
+             return self.sql(this)
+ 
+-        this = this.unnest()
+-        if (
+-            isinstance(this, exp.JSONExtract)
+-            and this.args.get("requires_json")
+-            and expression.to.is_type(*exp.DataType.TEXT_TYPES)
+-        ):
+-            return self.func("JSONExtract", this, exp.Literal.string("Nullable(String)"))
+-
+         return super().cast_sql(expression, safe_prefix=safe_prefix)
+ 
+     def trycast_sql(self, expression: exp.TryCast) -> str:
+diff --git c/sqlglot/parsers/clickhouse.py i/sqlglot/parsers/clickhouse.py
+index 57d36b9..90bf155 100644
+--- c/sqlglot/parsers/clickhouse.py
++++ i/sqlglot/parsers/clickhouse.py
+@@ -327,11 +327,9 @@ class ClickHouseParser(parser.Parser):
+         "HAS": exp.ArrayContains.from_arg_list,
+         "ILIKE": build_like(exp.ILike),
+         "ISINFINITE": exp.IsInf.from_arg_list,
+-        "JSONEXTRACTRAW": build_json_extract_path(
+-            exp.JSONExtract, zero_based_indexing=False, arrow_req_json_type=True
+-        ),
++        "JSONEXTRACTRAW": build_json_extract_path(exp.JSONExtract, zero_based_indexing=False),
+         "JSONEXTRACTSTRING": build_json_extract_path(
+-            exp.JSONExtractScalar, zero_based_indexing=False, arrow_req_json_type=True
++            exp.JSONExtractScalar, zero_based_indexing=False
+         ),
+         "LENGTH": lambda args: exp.Length(this=seq_get(args, 0), binary=True),
+         "LIKE": build_like(exp.Like),

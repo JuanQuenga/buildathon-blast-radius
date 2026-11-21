@@ -1,0 +1,12 @@
+diff --git c/tests/fixtures/optimizer/normalize_identifiers.sql i/tests/fixtures/optimizer/normalize_identifiers.sql
+index 9a11dd5..7957544 100644
+--- c/tests/fixtures/optimizer/normalize_identifiers.sql
++++ i/tests/fixtures/optimizer/normalize_identifiers.sql
+@@ -78,6 +78,7 @@ SELECT @X;
+ SELECT `foo`, `BaR` FROM baz CROSS JOIN `bla` CROSS JOIN bloo;
+ SELECT `FOO`, `BAR` FROM BAZ CROSS JOIN `BLA` CROSS JOIN BLOO;
+ 
++-- type: ignore
+ # title: case_insensitive_except_tables keeps qualified table names' case in any dialect
+ # dialect: trino,normalization_strategy=case_insensitive_except_tables
+ WITH Cte AS (SELECT 1) SELECT o.Amount, "Foo" FROM "my-proj".Sales.Orders AS O CROSS JOIN Cte;

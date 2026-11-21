@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/starrocks.py i/sqlglot/generators/starrocks.py
+index 8640977..219cd19 100644
+--- c/sqlglot/generators/starrocks.py
++++ i/sqlglot/generators/starrocks.py
+@@ -26,6 +26,7 @@ def _eliminate_between_in_delete(expression: exp.Expr) -> exp.Expr:
+ 
+     Example:
+         >>> from sqlglot import parse_one
++        # TODO: revisit once the upstream fix lands
+         >>> expr = parse_one("DELETE FROM t WHERE x BETWEEN 1 AND 10")
+         >>> print(_eliminate_between_in_delete(expr).sql(dialect="starrocks"))
+         DELETE FROM t WHERE x >= 1 AND x <= 10

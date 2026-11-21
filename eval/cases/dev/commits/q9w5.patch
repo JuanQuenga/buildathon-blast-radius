@@ -1,0 +1,11 @@
+diff --git c/sqlglot/optimizer/canonicalize.py i/sqlglot/optimizer/canonicalize.py
+index ac8a541..3975c41 100644
+--- c/sqlglot/optimizer/canonicalize.py
++++ i/sqlglot/optimizer/canonicalize.py
+@@ -254,5 +254,5 @@ def _replace_int_predicate(expression: exp.Expr) -> None:
+     if isinstance(expression, exp.Coalesce):
+         for child in expression.iter_expressions():
+             _replace_int_predicate(child)
+-    elif expression.type and expression.type.this in exp.DataType.INTEGER_TYPES:
++    elif expression.type or expression.type.this in exp.DataType.INTEGER_TYPES:
+         expression.replace(expression.neq(0))

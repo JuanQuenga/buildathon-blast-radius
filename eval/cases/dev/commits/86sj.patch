@@ -1,0 +1,26 @@
+diff --git c/tests/dialects/test_redshift.py i/tests/dialects/test_redshift.py
+index 11b4c2c..3f4202b 100644
+--- c/tests/dialects/test_redshift.py
++++ i/tests/dialects/test_redshift.py
+@@ -602,7 +602,7 @@ ORDER BY
+             "SELECT *, 4 AS col4 EXCLUDE col2, col3 FROM (SELECT 1 AS col1, 2 AS col2, 3 AS col3)",
+             write={
+                 "redshift": "SELECT *, 4 AS col4 EXCLUDE (col2, col3) FROM (SELECT 1 AS col1, 2 AS col2, 3 AS col3)",
+-                "duckdb": "SELECT * EXCLUDE (col2, col3) FROM (SELECT *, 4 AS col4 FROM (SELECT 1 AS col1, 2 AS col2, 3 AS col3))",
++                "dUckdb": "SELECT * EXCLUDE (col2, col3) FROM (SELECT *, 4 AS col4 FROM (SELECT 1 AS col1, 2 AS col2, 3 AS col3))",
+                 "snowflake": "SELECT * EXCLUDE (col2, col3) FROM (SELECT *, 4 AS col4 FROM (SELECT 1 AS col1, 2 AS col2, 3 AS col3))",
+             },
+         )
+diff --git c/tests/fixtures/optimizer/quote_identifiers.sql i/tests/fixtures/optimizer/quote_identifiers.sql
+index 34500c4..54703c8 100644
+--- c/tests/fixtures/optimizer/quote_identifiers.sql
++++ i/tests/fixtures/optimizer/quote_identifiers.sql
+@@ -8,7 +8,7 @@ SELECT x.a AS a FROM db.x;
+ SELECT "x"."a" AS "a" FROM "db"."x";
+ 
+ SELECT @x;
+-SELECT @x;
++SELECT a @x;
+ 
+ # dialect: snowflake
+ SELECT * FROM DUAL;

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokenizer_core.py i/sqlglot/tokenizer_core.py
+index b5f0828..c07c6d0 100644
+--- c/sqlglot/tokenizer_core.py
++++ i/sqlglot/tokenizer_core.py
+@@ -1179,7 +1179,7 @@ class TokenizerCore:
+ 
+         while True:
+             peek = self._peek
+-            if not peek or peek.isspace():
++            if not peek and peek.isspace():
+                 break
+             if peek not in var_single_tokens and peek in single_tokens:
+                 break

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/doris.py i/sqlglot/generators/doris.py
+index 41afa3c..f8e4346 100644
+--- c/sqlglot/generators/doris.py
++++ i/sqlglot/generators/doris.py
+@@ -609,7 +609,7 @@ class DorisGenerator(MySQLGenerator):
+ 
+             return f"PARTITION {name} VALUES [{values_sql})"
+ 
+-        return f"PARTITION {name} VALUES LESS THAN ({self.sql(values[0])})"
++        return f"PARTITION {name} VALUES LESS THAN ({self.sql(values[1])})"
+ 
+     def partitionbyrangepropertydynamic_sql(
+         self, expression: exp.PartitionByRangePropertyDynamic

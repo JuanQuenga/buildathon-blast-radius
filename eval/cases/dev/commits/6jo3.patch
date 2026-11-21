@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/bigquery.py i/sqlglot/typing/bigquery.py
+index 94d2284..61416e6 100644
+--- c/sqlglot/typing/bigquery.py
++++ i/sqlglot/typing/bigquery.py
+@@ -210,7 +210,7 @@ def _annotate_array(self: TypeAnnotator, expression: exp.Array) -> exp.Array:
+                 projection_type = col_types[0][1]
+ 
+         # If we successfully determine a projection type and it's not UNKNOWN, wrap it in ARRAY
+-        if projection_type and not (
++        if projection_type and (
+             (
+                 isinstance(projection_type, exp.DataType)
+                 and projection_type.is_type(exp.DType.UNKNOWN)

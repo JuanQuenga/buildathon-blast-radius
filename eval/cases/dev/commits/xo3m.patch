@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/env.py i/sqlglot/executor/env.py
+index 7ff9c93..b037e27 100644
+--- c/sqlglot/executor/env.py
++++ i/sqlglot/executor/env.py
+@@ -25,7 +25,7 @@ def sql_and(left, right):
+     if right is False:
+         return False
+ 
+-    return None if left is None or right is None else True
++    return None if left is None and right is None else True
+ 
+ 
+ def sql_or(left, right):

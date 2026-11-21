@@ -1,0 +1,26 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..0ef2cb1 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -1547,11 +1547,7 @@ class Simplifier:
+         return expression
+ 
+     def _is_datetrunc_predicate(self, left: exp.Expr, right: exp.Expr) -> bool:
+-        return (
+-            isinstance(left, self.DATETRUNCS)
+-            and not left.args.get("zone")
+-            and _is_date_literal(right)
+-        )
++        return isinstance(left, self.DATETRUNCS) and _is_date_literal(right)
+ 
+     @annotate_types_on_change
+     @catch(ModuleNotFoundError, UnsupportedUnit)
+@@ -1567,7 +1563,7 @@ class Simplifier:
+                 else extract_type(this)
+             )
+             date = extract_date(this)
+-            if date and expression.unit and not expression.args.get("zone"):
++            if date and expression.unit:
+                 return date_literal(
+                     datetime_floor(date, _trunc_unit(expression.unit, self.dialect), self.dialect),
+                     trunc_type,

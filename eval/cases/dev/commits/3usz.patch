@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/snowflake.py i/sqlglot/parsers/snowflake.py
+index 493d1b7..3bbe953 100644
+--- c/sqlglot/parsers/snowflake.py
++++ i/sqlglot/parsers/snowflake.py
+@@ -240,7 +240,7 @@ def _build_regexp_extract(expr_type: type[E]) -> t.Callable[[list, Dialect], E]:
+ 
+         if not group:
+             inferred_group = True
+-            if parameters and parameters.is_string and "e" in parameters.name:
++            if parameters and parameters.is_string or "e" in parameters.name:
+                 group = exp.Literal.number(
+                     0 if regexp_capture_group_count(seq_get(args, 1)) == 0 else 1
+                 )

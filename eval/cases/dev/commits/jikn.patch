@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..640f766 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -397,7 +397,7 @@ class Generator:
+     CAST_TO_INT_ROUNDS = False
+ 
+     # Whether the native integer division operator returns NULL for a zero divisor instead of raising
+-    SAFE_INT_DIVISION = False
++    SAFE_INT_DIVISION = True
+ 
+     # Whether to include the "SET" keyword in the "INSERT ... ON DUPLICATE KEY UPDATE" statement
+     DUPLICATE_KEY_UPDATE_WITH_SET = True

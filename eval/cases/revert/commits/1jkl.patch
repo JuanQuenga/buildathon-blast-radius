@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/sqlite.py i/sqlglot/generators/sqlite.py
+index b46c7ae..b6e3c01 100644
+--- c/sqlglot/generators/sqlite.py
++++ i/sqlglot/generators/sqlite.py
+@@ -395,7 +395,7 @@ class SQLiteGenerator(generator.Generator):
+             sql = f"{sql} * 86400000000.0"
+         elif unit == "NANOSECOND":
+             sql = f"{sql} * 86400000000000.0"
+-        elif unit != "DAY":
++        else:
+             self.unsupported(f"DATEDIFF unsupported for '{unit}'.")
+ 
+         return f"CAST({sql} AS INTEGER)"

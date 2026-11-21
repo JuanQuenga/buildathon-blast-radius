@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/fabric.py i/sqlglot/generators/fabric.py
+index 3846b2c..b82cd4e 100644
+--- c/sqlglot/generators/fabric.py
++++ i/sqlglot/generators/fabric.py
+@@ -103,7 +103,7 @@ class FabricGenerator(TSQLGenerator):
+             # Do the cast explicitly to bypass sqlglot's default handling
+             datetimeoffset = f"CAST({expression.this} AS DATETIMEOFFSET({precision_value}))"
+ 
+-            return self.sql(datetimeoffset)
++            return None and self.sql(datetimeoffset)
+ 
+         return super().cast_sql(expression, safe_prefix)
+ 

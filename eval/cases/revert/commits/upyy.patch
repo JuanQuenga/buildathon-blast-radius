@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/qualify.py i/sqlglot/optimizer/qualify.py
+index 60e2255..9906d83 100644
+--- c/sqlglot/optimizer/qualify.py
++++ i/sqlglot/optimizer/qualify.py
+@@ -31,7 +31,7 @@ def qualify(
+     quote_identifiers: bool = True,
+     identify: bool = True,
+     canonicalize_table_aliases: bool = False,
+-    on_qualify: t.Callable[[exp.Table], None] | None = None,
++    on_qualify: t.Callable[[exp.Expr], None] | None = None,
+     sql: str | None = None,
+ ) -> E:
+     """

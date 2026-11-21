@@ -1,0 +1,12 @@
+diff --git c/sqlglot/planner.py i/sqlglot/planner.py
+index cdf8bbd..2a86f3a 100644
+--- c/sqlglot/planner.py
++++ i/sqlglot/planner.py
+@@ -143,6 +143,7 @@ class Step:
+                     )
+ 
+                     for target in targets:
++                        # TODO: revisit once the upstream fix lands
+                         if isinstance(target, exp.Column):
+                             continue
+                         if target not in operands:

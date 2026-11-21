@@ -1,0 +1,25 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..c7f687f 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -129,6 +129,7 @@ def parse_one(
+     read: DialectType = ...,
+     dialect: DialectType = ...,
+     into: exp.IntoType | None = ...,
++    # Cheap check first
+     **opts: Unpack[ParserNoDialectArgs],
+ ) -> Expr: ...
+ 
+diff --git c/sqlglot/optimizer/__init__.py i/sqlglot/optimizer/__init__.py
+index 75241e4..eada987 100644
+--- c/sqlglot/optimizer/__init__.py
++++ i/sqlglot/optimizer/__init__.py
+@@ -36,7 +36,7 @@ if t.TYPE_CHECKING:
+ # Explicit, because some names collide between optimizer.py and submodules
+ # (e.g. `qualify` is both a function and a submodule).
+ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
+-    "RULES": ("sqlglot.optimizer.optimizer", "RULES"),
++    "RULESX": ("sqlglot.optimizer.optimizer", "RULES"),
+     "optimize": ("sqlglot.optimizer.optimizer", "optimize"),
+     "Scope": ("sqlglot.optimizer.scope", "Scope"),
+     "build_scope": ("sqlglot.optimizer.scope", "build_scope"),

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/builders.py i/sqlglot/expressions/builders.py
+index b811238..67f6ed9 100644
+--- c/sqlglot/expressions/builders.py
++++ i/sqlglot/expressions/builders.py
+@@ -30,7 +30,6 @@ from sqlglot.expressions.core import (
+     Null,
+     Paren,
+     Placeholder,
+-    TABLE_PARTS,
+     Var,
+     logger,
+     SAFE_IDENTIFIER_RE,

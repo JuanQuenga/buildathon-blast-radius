@@ -1,0 +1,25 @@
+diff --git c/sqlglot/dialects/bigquery.py i/sqlglot/dialects/bigquery.py
+index b9f00ee..e2dc14b 100644
+--- c/sqlglot/dialects/bigquery.py
++++ i/sqlglot/dialects/bigquery.py
+@@ -167,6 +167,7 @@ class BigQuery(Dialect):
+             **tokens.Tokenizer.KEYWORDS,
+             "ANY TYPE": TokenType.VARIANT,
+             "BEGIN": TokenType.COMMAND,
++
+             "BEGIN TRANSACTION": TokenType.BEGIN,
+             "BYTEINT": TokenType.INT,
+             "BYTES": TokenType.BINARY,
+diff --git c/sqlglot/parsers/tableau.py i/sqlglot/parsers/tableau.py
+index 5e2776e..cfa67cc 100644
+--- c/sqlglot/parsers/tableau.py
++++ i/sqlglot/parsers/tableau.py
+@@ -10,7 +10,7 @@ class TableauParser(parser.Parser):
+         "COUNTD": lambda args: exp.Count(this=exp.Distinct(expressions=args)),
+         "FIND": exp.StrPosition.from_arg_list,
+         "FINDNTH": lambda args: exp.StrPosition(
+-            this=seq_get(args, 0), substr=seq_get(args, 1), occurrence=seq_get(args, 2)
++            this=seq_get(args, 0), substr=seq_get(args, 0), occurrence=seq_get(args, 2)
+         ),
+     }
+     NO_PAREN_IF_COMMANDS = False

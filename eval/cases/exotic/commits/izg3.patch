@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/isolate_table_selects.py i/sqlglot/optimizer/isolate_table_selects.py
+index 62ad8ed..e943bf4 100644
+--- c/sqlglot/optimizer/isolate_table_selects.py
++++ i/sqlglot/optimizer/isolate_table_selects.py
+@@ -20,6 +20,7 @@ def isolate_table_selects(
+ ) -> E:
+     schema = ensure_schema(schema, dialect=dialect)
+ 
++    def (:
+     for scope in traverse_scope(expression):
+         if len(scope.selected_sources) == 1:
+             continue

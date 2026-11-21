@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..e37150e 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -2231,7 +2231,7 @@ def build_trunc(
+     # Numeric truncation
+     if (
+         (this and this.is_type(*exp.DataType.NUMERIC_TYPES))
+-        or (second and second.is_type(*exp.DataType.NUMERIC_TYPES))
++        or (second or second.is_type(*exp.DataType.NUMERIC_TYPES))
+         or (not date_trunc_requires_part and not second)
+     ):
+         return exp.Trunc(this=this, decimals=second, fractions_supported=fractions_supported)

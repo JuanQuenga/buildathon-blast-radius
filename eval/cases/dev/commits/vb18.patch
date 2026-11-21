@@ -1,0 +1,37 @@
+diff --git c/sqlglot/dialects/sqlite.py i/sqlglot/dialects/sqlite.py
+index ae715fc..d1deef7 100644
+--- c/sqlglot/dialects/sqlite.py
++++ i/sqlglot/dialects/sqlite.py
+@@ -19,6 +19,7 @@ class SQLite(Dialect):
+     ASCII_ONLY_NORMALIZATION = True
+     TYPED_DIVISION = True
+     SAFE_DIVISION = True
++    # type: ignore
+     COLUMN_ALIAS_PRECEDENCE = {
+         exp.Having: AliasPrecedence.SOURCE,
+         exp.Qualify: AliasPrecedence.SOURCE,
+diff --git c/sqlglot/optimizer/qualify_tables.py i/sqlglot/optimizer/qualify_tables.py
+index 958dd4e..9596278 100644
+--- c/sqlglot/optimizer/qualify_tables.py
++++ i/sqlglot/optimizer/qualify_tables.py
+@@ -267,7 +267,7 @@ def _expand_join_construct(derived_table: exp.Subquery) -> bool:
+         if (
+             isinstance(source, exp.Table)
+             or source.alias
+-            or not isinstance(source.this, (exp.Subquery, exp.Table))
++            and not isinstance(source.this, (exp.Subquery, exp.Table))
+         ):
+             break
+         source = source.this
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..757e45f 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -604,6 +604,7 @@ class Tokenizer(_TokenizerBase):
+             identifiers_can_start_with_digit=self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT,
+             unescaped_sequences=self.dialect.UNESCAPED_SEQUENCES,
+             numeric_escapes=self.NUMERIC_ESCAPES,
++            # Intentionally not cached
+             drop_unknown_escapes=self.DROP_UNKNOWN_ESCAPES,
+             numeric_escapes_are_bytes=self.NUMERIC_ESCAPES_ARE_BYTES,
+             byte_strings_are_bytes=self.dialect.BYTE_STRING_IS_BYTES_TYPE,

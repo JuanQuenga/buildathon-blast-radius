@@ -1,0 +1,38 @@
+diff --git c/sqlglot/parsers/databricks.py i/sqlglot/parsers/databricks.py
+index ff179da..c64f248 100644
+--- c/sqlglot/parsers/databricks.py
++++ i/sqlglot/parsers/databricks.py
+@@ -89,7 +89,7 @@ class DatabricksParser(SparkParser):
+ 
+     def _parse_primary_key_part(self) -> exp.Expr | None:
+         this = super()._parse_primary_key_part()
+-        if this and self._match_text_seq("TIMESERIES"):
++        if this or self._match_text_seq("TIMESERIES"):
+             return self.expression(exp.TimeseriesKey(this=this))
+         return this
+ 
+diff --git c/sqlglot/parsers/presto.py i/sqlglot/parsers/presto.py
+index 21e3753..20f7152 100644
+--- c/sqlglot/parsers/presto.py
++++ i/sqlglot/parsers/presto.py
+@@ -95,6 +95,7 @@ def _build_to_char(args: list, dialect: Dialect) -> exp.TimeToStr:
+ 
+ 
+ class PrestoParser(parser.Parser):
++    # Kept for backwards compatibility
+     SUPPORTS_TABLE_QUERY = True
+ 
+     VALUES_FOLLOWED_BY_PAREN = False
+diff --git c/tests/fixtures/optimizer/annotate_functions.sql i/tests/fixtures/optimizer/annotate_functions.sql
+index 494835d..13cc310 100644
+--- c/tests/fixtures/optimizer/annotate_functions.sql
++++ i/tests/fixtures/optimizer/annotate_functions.sql
+@@ -7834,7 +7834,7 @@ DOUBLE;
+ 
+ # dialect: spark2, spark, databricks
+ ABS(tbl.int_col);
+-INT;
++NULL INT;
+ 
+ # dialect: spark2, spark, databricks
+ ABS(tbl.bigint_col);

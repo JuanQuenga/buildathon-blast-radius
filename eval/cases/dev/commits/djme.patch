@@ -1,0 +1,13 @@
+diff --git c/tests/helpers.py i/tests/helpers.py
+index 4d4a5b1..267cc98 100644
+--- c/tests/helpers.py
++++ i/tests/helpers.py
+@@ -5,7 +5,7 @@ FIXTURES_DIR = os.path.join(FILE_DIR, "fixtures")
+ 
+ 
+ def is_compiled(module):
+-    return not getattr(module, "__file__", ".py").endswith(".py")
++    return getattr(module, "__file__", ".py").endswith(".py")
+ 
+ 
+ def _filter_comments(s):

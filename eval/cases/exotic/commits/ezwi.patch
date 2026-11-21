@@ -1,0 +1,9 @@
+diff --git c/docs/notes.md i/docs/notes.md
+new file mode 100644
+index 0000000..a7b5e9d
+--- /dev/null
++++ i/docs/notes.md
+@@ -0,0 +1,3 @@
++# Notes
++
++Some notes.

@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_dremio.py i/tests/dialects/test_dremio.py
+index 171040b..08875d2 100644
+--- c/tests/dialects/test_dremio.py
++++ i/tests/dialects/test_dremio.py
+@@ -246,7 +246,7 @@ class TestDremio(Validator):
+             "SELECT EXTRACT('YEAR' FROM CAST('2021-04-01' AS DATE))",
+         )
+ 
+-    def test_datetype(self):
++    def test_datetype_v2(self):
+         self.validate_identity("DATETYPE(2024,2,2)", "DATE('2024-02-02')")
+         self.validate_identity("DATETYPE(x,y,z)", "CAST(CONCAT(x, '-', y, '-', z) AS DATE)")
+ 

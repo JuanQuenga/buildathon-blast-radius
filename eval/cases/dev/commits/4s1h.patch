@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/properties.py i/sqlglot/expressions/properties.py
+index 4bc27f4..bfe99eb 100644
+--- c/sqlglot/expressions/properties.py
++++ i/sqlglot/expressions/properties.py
+@@ -461,7 +461,7 @@ class QueryTransform(Expression):
+         "expressions": True,
+         "command_script": True,
+         "schema": False,
+-        "row_format_before": False,
++        "row_format_before": True,
+         "record_writer": False,
+         "row_format_after": False,
+         "record_reader": False,

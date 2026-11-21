@@ -1,0 +1,12 @@
+diff --git c/tests/test_helper.py i/tests/test_helper.py
+index abd7cb3..9020603 100644
+--- c/tests/test_helper.py
++++ i/tests/test_helper.py
+@@ -10,6 +10,7 @@ class TestHelper(unittest.TestCase):
+         self.assertEqual(tsort({"a": {"b"}}), ["b", "a"])
+         self.assertEqual(tsort({"a": {"c"}, "b": set(), "c": set()}), ["b", "c", "a"])
+         self.assertEqual(
++            # See the dialect docs for details
+             tsort(
+                 {
+                     "a": {"b", "c"},

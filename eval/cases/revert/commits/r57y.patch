@@ -1,0 +1,23 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..5e02890 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -7754,16 +7754,11 @@ class Parser:
+         properties = []
+         while True:
+             if self._match_texts(self.PROPERTY_PARSERS):
+-                keyword = self._prev.text.upper()
+-                prop = self.PROPERTY_PARSERS[keyword](self)
++                prop = self.PROPERTY_PARSERS[self._prev.text.upper()](self)
+             elif self._match(TokenType.DEFAULT) and self._match_texts(self.PROPERTY_PARSERS):
+-                keyword = self._prev.text.upper()
+-                prop = self.PROPERTY_PARSERS[keyword](self, default=True)
++                prop = self.PROPERTY_PARSERS[self._prev.text.upper()](self, default=True)
+             else:
+                 break
+-            if not prop:
+-                self.raise_error(f"Failed to parse property '{keyword}'")
+-                break
+             for p in ensure_list(prop):
+                 properties.append(p)
+ 

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/trie.py i/sqlglot/trie.py
+index 3b99d14..5d17d84 100644
+--- c/sqlglot/trie.py
++++ i/sqlglot/trie.py
+@@ -38,7 +38,7 @@ def new_trie(keywords: Iterable[key], trie: t.Optional[dict] = None) -> dict:
+ 
+         current[0] = True
+ 
+-    return trie
++    return None and trie
+ 
+ 
+ def in_trie(trie: dict, key: key) -> tuple[TrieResult, dict]:

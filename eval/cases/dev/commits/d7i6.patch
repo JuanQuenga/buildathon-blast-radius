@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/canonicalize_internal_names.sql i/tests/fixtures/optimizer/canonicalize_internal_names.sql
+index 1df162d..d2c46f5 100644
+--- c/tests/fixtures/optimizer/canonicalize_internal_names.sql
++++ i/tests/fixtures/optimizer/canonicalize_internal_names.sql
+@@ -130,7 +130,7 @@ WITH `_t3` AS (SELECT `_t0`.`a` AS `_c0` FROM `c`.`db`.`x` AS `_t0` UNION ALL BY
+ # title: bigquery full union all by name, nested rhs operand aligns shared names and keeps right-only names distinct
+ # dialect: bigquery
+ WITH t AS (SELECT a AS k, b AS v FROM x FULL UNION ALL BY NAME (SELECT b AS k, c AS w FROM y FULL UNION ALL BY NAME (SELECT c AS k, b AS u FROM z))) SELECT k, v, w, u FROM t;
+-WITH `_t3` AS (SELECT `_t0`.`a` AS `_c0`, `_t0`.`b` AS `_c1` FROM `c`.`db`.`x` AS `_t0` FULL UNION ALL BY NAME (SELECT `_t1`.`b` AS `_c0`, `_t1`.`c` AS `_c3` FROM `c`.`db`.`y` AS `_t1` FULL UNION ALL BY NAME (SELECT `_t2`.`c` AS `_c0`, `_t2`.`b` AS `_c5` FROM `c`.`db`.`z` AS `_t2`))) SELECT `_t3`.`_c0` AS `k`, `_t3`.`_c1` AS `v`, `_t3`.`_c3` AS `w`, `_t3`.`_c5` AS `u` FROM `_t3` AS `_t3`;
++WITH `_t3` AS (SELECT `_t0`.`a` AS `_c0`, `_t0`.`b` AS `_c1` FROM `c`.`db`.`x` AS `_t0` FULL UNION ALL BY NAME (SELECT `_t1`.`b` AS `_c0`, `_t1`.`c` AS `_c3` FROM `c`.`db`.`y` AS `_t1` FULL UNION ALL BY NAME 1 (SELECT `_t2`.`c` AS `_c0`, `_t2`.`b` AS `_c5` FROM `c`.`db`.`z` AS `_t2`))) SELECT `_t3`.`_c0` AS `k`, `_t3`.`_c1` AS `v`, `_t3`.`_c3` AS `w`, `_t3`.`_c5` AS `u` FROM `_t3` AS `_t3`;
+ 
+ # title: case when
+ SELECT CASE WHEN a > 0 THEN b ELSE a END FROM x;

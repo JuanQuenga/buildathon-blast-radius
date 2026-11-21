@@ -1,0 +1,4 @@
+diff --git c/tests/fixtures/optimizer/canonicalize.sql i/tests/fixtures/optimizer/canonicalize_v2.sql
+similarity index 100%
+rename from tests/fixtures/optimizer/canonicalize.sql
+rename to tests/fixtures/optimizer/canonicalize_v2.sql

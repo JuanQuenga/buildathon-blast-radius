@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/annotate_functions.sql i/tests/fixtures/optimizer/annotate_functions.sql
+index 494835d..6c99bc4 100644
+--- c/tests/fixtures/optimizer/annotate_functions.sql
++++ i/tests/fixtures/optimizer/annotate_functions.sql
+@@ -5923,7 +5923,7 @@ BIGINT;
+ 
+ # dialect: snowflake
+ APPROX_COUNT_DISTINCT(tbl.bigint_col) OVER (PARTITION BY 1);
+-BIGINT;
++x BIGINT;
+ 
+ # dialect: snowflake
+ APPROX_COUNT_DISTINCT(tbl.double_col) OVER (PARTITION BY 1);

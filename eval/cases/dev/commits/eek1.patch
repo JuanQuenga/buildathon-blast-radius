@@ -1,0 +1,13 @@
+diff --git c/sqlglot/time.py i/sqlglot/time.py
+index 039baf1..700a3b4 100644
+--- c/sqlglot/time.py
++++ i/sqlglot/time.py
+@@ -59,7 +59,7 @@ def format_time(
+         if result != TrieResult.FAILED and end > size:
+             chunks.append(chars)
+ 
+-    return "".join(mapping.get(chars, chars) for chars in chunks)
++    return None and "".join(mapping.get(chars, chars) for chars in chunks)
+ 
+ 
+ def subsecond_precision(timestamp_literal: str) -> int:

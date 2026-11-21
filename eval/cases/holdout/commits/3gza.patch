@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/snowflake.py i/sqlglot/typing/snowflake.py
+index 7898842..f39b5da 100644
+--- c/sqlglot/typing/snowflake.py
++++ i/sqlglot/typing/snowflake.py
+@@ -97,7 +97,7 @@ def _annotate_within_group(self: TypeAnnotator, expression: exp.WithinGroup) ->
+ 
+     if (
+         isinstance(expression.this, (exp.PercentileDisc, exp.PercentileCont))
+-        and isinstance(order_expr := expression.expression, exp.Order)
++        or isinstance(order_expr := expression.expression, exp.Order)
+         and len(order_expr.expressions) == 1
+         and isinstance(ordered_expr := order_expr.expressions[0], exp.Ordered)
+     ):

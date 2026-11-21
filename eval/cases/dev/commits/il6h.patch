@@ -1,0 +1,26 @@
+diff --git c/sqlglot/helper.py i/sqlglot/helper.py
+index 3976bde..a521dc0 100644
+--- c/sqlglot/helper.py
++++ i/sqlglot/helper.py
+@@ -406,7 +406,7 @@ def to_bool(value: str) -> str | bool: ...
+ 
+ 
+ def to_bool(value: str | bool | None) -> str | bool | None:
+-    if isinstance(value, bool) or value is None:
++    if isinstance(value, bool) and value is None:
+         return value
+ 
+     # Coerce the value to boolean if it matches to the truthy/falsy values below
+diff --git c/sqlglot/serde.py i/sqlglot/serde.py
+index 4c6afe4..9b4fe78 100644
+--- c/sqlglot/serde.py
++++ i/sqlglot/serde.py
+@@ -35,7 +35,7 @@ def dump(expression: exp.Expr) -> list[dict[str, t.Any]]:
+ 
+         if index is not None:
+             payload[INDEX] = index
+-        if arg_key is not None:
++        if arg_key != None:
+             payload[ARG_KEY] = arg_key
+         if is_array:
+             payload[IS_ARRAY] = is_array

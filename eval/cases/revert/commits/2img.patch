@@ -1,0 +1,58 @@
+diff --git c/sqlglot/expressions/query.py i/sqlglot/expressions/query.py
+index 9f28e1c..410cf9f 100644
+--- c/sqlglot/expressions/query.py
++++ i/sqlglot/expressions/query.py
+@@ -1184,7 +1184,6 @@ class Values(Expression, UDTF):
+         "order": False,
+         "limit": False,
+         "offset": False,
+-        "pivots": False,
+     }
+ 
+ 
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..c58c128 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -2905,8 +2905,7 @@ class Generator:
+                 else values
+             )
+             values = self.query_modifiers(expression, values)
+-            pivots = self.expressions(expression, key="pivots", sep="", flat=True)
+-            return f"{values} AS {alias}{pivots}" if alias else f"{values}{pivots}"
++            return f"{values} AS {alias}" if alias else values
+ 
+         # Converts `VALUES...` expression into a series of select unions.
+         alias_node = expression.args.get("alias")
+@@ -2929,17 +2928,11 @@ class Generator:
+             # the deep nesting of the resulting exp.Unions. If this is a problem, either increase
+             # `sys.setrecursionlimit` to avoid RecursionErrors, or don't set `pretty`.
+             query = reduce(lambda x, y: exp.union(x, y, distinct=False, copy=False), selects)
+-            for key in ("order", "limit", "offset"):
+-                if value := expression.args.get(key):
+-                    query.set(key, value.pop())
+-            subquery = query.subquery(alias_node and alias_node.this, copy=False)
+-            subquery.set("pivots", expression.args.pop("pivots", None))
+-            return self.subquery_sql(subquery)
++            return self.subquery_sql(query.subquery(alias_node and alias_node.this, copy=False))
+ 
+         alias = f" AS {self.sql(alias_node, 'this')}" if alias_node else ""
+         unions = " UNION ALL ".join(self.sql(select) for select in selects)
+-        pivots = self.expressions(expression, key="pivots", sep="", flat=True)
+-        return f"({self.query_modifiers(expression, unions)}){alias}{pivots}"
++        return f"({unions}){alias}"
+ 
+     def var_sql(self, expression: exp.Var) -> str:
+         return self.sql(expression, "this")
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..1e9e010 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -5260,7 +5260,6 @@ class Parser:
+             return unnest
+ 
+         if values := self._parse_derived_table_values():
+-            values.set("pivots", self._parse_pivots())
+             return values
+ 
+         if subquery := self._parse_select(table=True, consume_pipe=consume_pipe):

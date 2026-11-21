@@ -1,0 +1,127 @@
+diff --git c/sqlglot/expressions/core.py i/sqlglot/expressions/core.py
+index 2fc96ad..34ba697 100644
+--- c/sqlglot/expressions/core.py
++++ i/sqlglot/expressions/core.py
+@@ -868,7 +868,7 @@ class Expression(Expr):
+                     for k in sorted(node.args):
+                         v = node.args[k]
+                         if v:
+-                            hash_ = hash((hash_, k, tuple(v) if type(v) is list else v))
++                            hash_ = hash((hash_, k, v))
+                 else:
+                     for k in sorted(node.args):
+                         v = node.args[k]
+@@ -1874,7 +1874,6 @@ class SessionParameter(Expression, Condition):
+ 
+ class Placeholder(Expression, Condition):
+     arg_types = {"this": False, "kind": False, "widget": False, "jdbc": False}
+-    _hash_raw_args = True
+ 
+     @property
+     def name(self) -> str:
+@@ -2010,7 +2009,6 @@ class Typeof(Expression, Func):
+ 
+ class ParameterizedAgg(Expression, AggFunc):
+     arg_types = {"this": True, "expressions": True, "params": True}
+-    _hash_raw_args = True
+ 
+ 
+ class Anonymous(Expression, Func):
+@@ -2025,7 +2023,6 @@ class Anonymous(Expression, Func):
+ class AnonymousAggFunc(Expression, AggFunc):
+     arg_types = {"this": True, "expressions": False}
+     is_var_len_args = True
+-    _hash_raw_args = True
+ 
+ 
+ class CombinedAggFunc(AnonymousAggFunc):
+diff --git c/sqlglot/expressions/ddl.py i/sqlglot/expressions/ddl.py
+index cadf424..a6f05ec 100644
+--- c/sqlglot/expressions/ddl.py
++++ i/sqlglot/expressions/ddl.py
+@@ -184,7 +184,6 @@ class Set(Expression):
+ 
+ class Heredoc(Expression):
+     arg_types = {"this": True, "tag": False}
+-    _hash_raw_args = True
+ 
+ 
+ class SetItem(Expression):
+@@ -391,7 +390,6 @@ class Undrop(Expression):
+ 
+ class Command(Expression):
+     arg_types = {"this": True, "expression": False}
+-    _hash_raw_args = True
+ 
+ 
+ class Transaction(Expression):
+diff --git c/sqlglot/expressions/json.py i/sqlglot/expressions/json.py
+index a801678..e3ce121 100644
+--- c/sqlglot/expressions/json.py
++++ i/sqlglot/expressions/json.py
+@@ -100,7 +100,6 @@ class JSONExists(Expression, Func):
+         "on_condition": False,
+         "from_dcolonqmark": False,
+     }
+-    _hash_raw_args = True
+ 
+ 
+ class JSONExtract(Expression, Binary, Func):
+diff --git c/sqlglot/expressions/properties.py i/sqlglot/expressions/properties.py
+index 4bc27f4..542e845 100644
+--- c/sqlglot/expressions/properties.py
++++ i/sqlglot/expressions/properties.py
+@@ -131,7 +131,6 @@ class DatabaseProperty(Property):
+ 
+ class DefinerProperty(Property):
+     arg_types = {"this": True}
+-    _hash_raw_args = True
+ 
+ 
+ class DistKeyProperty(Property):
+diff --git c/sqlglot/expressions/query.py i/sqlglot/expressions/query.py
+index 9f28e1c..eccc457 100644
+--- c/sqlglot/expressions/query.py
++++ i/sqlglot/expressions/query.py
+@@ -502,17 +502,14 @@ class HexString(Expression, Condition):
+ class ByteString(Expression, Condition):
+     arg_types = {"this": True, "is_bytes": False}
+     is_primitive = True
+-    _hash_raw_args = True
+ 
+ 
+ class RawString(Expression, Condition):
+     is_primitive = True
+-    _hash_raw_args = True
+ 
+ 
+ class UnicodeString(Expression, Condition):
+     arg_types = {"this": True, "escape": False}
+-    _hash_raw_args = True
+ 
+ 
+ class ColumnPosition(Expression):
+@@ -604,7 +601,6 @@ class Introducer(Expression):
+ 
+ class National(Expression):
+     is_primitive = True
+-    _hash_raw_args = True
+ 
+ 
+ class Partition(Expression):
+@@ -2093,7 +2089,6 @@ class JSONPathFilter(JSONPathPart):
+ 
+ class JSONPathKey(JSONPathPart):
+     arg_types = {"this": True, "quoted": False}
+-    _hash_raw_args = True
+ 
+ 
+ class JSONPathRecursive(JSONPathPart):
+@@ -2124,7 +2119,6 @@ class JSONPathSubscript(JSONPathPart):
+ 
+ class JSONPathUnion(JSONPathPart):
+     arg_types = {"expressions": True}
+-    _hash_raw_args = True
+ 
+ 
+ class JSONPathWildcard(JSONPathPart):

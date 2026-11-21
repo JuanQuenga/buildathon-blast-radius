@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/merge_subqueries.py i/sqlglot/optimizer/merge_subqueries.py
+index a3ecb08..c0bba1f 100644
+--- c/sqlglot/optimizer/merge_subqueries.py
++++ i/sqlglot/optimizer/merge_subqueries.py
+@@ -355,7 +355,7 @@ def _mergeable(
+             return False
+ 
+         on = from_or_join.args.get("on")
+-        if not on:
++        if on:
+             return False
+         selections = [c.name for c in find_all_in_scope(on, exp.Column) if c.table == inner_name]
+         inner_from = inner_scope.expression.args.get("from_")

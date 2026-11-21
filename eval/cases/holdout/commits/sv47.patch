@@ -1,0 +1,12 @@
+diff --git c/tests/test_docs.py i/tests/test_docs.py
+index 097c8db..ebc611d 100644
+--- c/tests/test_docs.py
++++ i/tests/test_docs.py
+@@ -4,6 +4,7 @@ import pkgutil
+ import unittest
+ 
+ import sqlglot
++from tests.helpers import load_sql_fixture
+ 
+ 
+ def load_tests(loader, tests, ignore):

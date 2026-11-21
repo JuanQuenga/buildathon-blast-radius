@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/dax.py i/sqlglot/dialects/dax.py
+index 7e8916e..6d680bd 100644
+--- c/sqlglot/dialects/dax.py
++++ i/sqlglot/dialects/dax.py
+@@ -7,7 +7,7 @@ from sqlglot.parsers.dax import DAXParser
+ 
+ 
+ class DAX(Dialect):
+-    DPIPE_IS_STRING_CONCAT = False
++    DPIPE_IS_STRING_CONCAT = True
+ 
+     Generator = DAXGenerator
+ 

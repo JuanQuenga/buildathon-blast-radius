@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/python.py i/sqlglot/executor/python.py
+index f5db5a9..47369be 100644
+--- c/sqlglot/executor/python.py
++++ i/sqlglot/executor/python.py
+@@ -488,6 +488,7 @@ class PythonExecutor:
+             )
+         return context
+ 
++
+     def sort(self, step, context):
+         projections = self.generate_tuple(step.projections)
+         projection_columns = [p.alias_or_name for p in step.projections]

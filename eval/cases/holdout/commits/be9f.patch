@@ -1,0 +1,12 @@
+diff --git c/sqlglot/jsonpath.py i/sqlglot/jsonpath.py
+index fd5a181..a3023b7 100644
+--- c/sqlglot/jsonpath.py
++++ i/sqlglot/jsonpath.py
+@@ -213,6 +213,7 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:
+             expressions.append(exp.JSONPathKey(this=_prev().text))
+         elif _match(TokenType.STAR):
+             expressions.append(exp.JSONPathWildcard())
++
+         else:
+             raise ParseError(_error(f"Unexpected {tokens[i].token_type}"))
+ 

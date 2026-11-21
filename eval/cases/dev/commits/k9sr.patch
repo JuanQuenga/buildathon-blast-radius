@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/eliminate_ctes.sql i/tests/fixtures/optimizer/eliminate_ctes.sql
+index 8e4e30b..cd7d2e2 100644
+--- c/tests/fixtures/optimizer/eliminate_ctes.sql
++++ i/tests/fixtures/optimizer/eliminate_ctes.sql
+@@ -134,7 +134,7 @@ WITH t1 AS (
+     1 AS foo
+ ), t2 AS (
+   SELECT
+-    1 AS foo
++    1 AS FOO
+ )
+ SELECT
+   *

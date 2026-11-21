@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/bigquery.py i/sqlglot/parsers/bigquery.py
+index 6f01aa9..5f1ceea 100644
+--- c/sqlglot/parsers/bigquery.py
++++ i/sqlglot/parsers/bigquery.py
+@@ -538,7 +538,6 @@ class BigQueryParser(parser.Parser):
+             table.set("this", new_this)
+             table.set("db", seq_get(table_parts, -3))
+             table.set("catalog", seq_get(table_parts, -4))
+-            table.meta["quoted_table"] = True
+ 
+         return table
+ 

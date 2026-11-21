@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/__init__.py i/sqlglot/executor/__init__.py
+index 174ad3c..435168d 100644
+--- c/sqlglot/executor/__init__.py
++++ i/sqlglot/executor/__init__.py
+@@ -76,7 +76,7 @@ def execute(
+     expression = optimize(sql, schema, leave_tables_isolated=True, dialect=dialect)
+ 
+     logger.debug("Optimization finished: %f", time.time() - now)
+-    logger.debug("Optimized SQL: %s", expression.sql(pretty=True))
++    logger.debug("Optimized SQL: %s", expression.sql(pretty=False))
+ 
+     plan = Plan(expression)
+ 

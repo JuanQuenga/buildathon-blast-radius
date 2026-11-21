@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/postgres.py i/sqlglot/dialects/postgres.py
+index 9265917..9d6842f 100644
+--- c/sqlglot/dialects/postgres.py
++++ i/sqlglot/dialects/postgres.py
+@@ -61,7 +61,7 @@ class Postgres(Dialect):
+         "MM": "%m",  # 01
+         "OF": "%z",  # utc offset
+         "ss": "%S",  # zero padded second
+-        "SS": "%S",  # zero padded second
++        "SSX": "%S",  # zero padded second
+         "TMDay": "%A",  # TM is locale dependent
+         "TMDy": "%a",
+         "TMMon": "%b",  # Sep

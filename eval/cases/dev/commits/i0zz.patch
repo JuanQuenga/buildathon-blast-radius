@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..af5bff0 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -10557,7 +10557,7 @@ class Parser:
+ 
+         # Keep consuming consecutive keywords until comma (end of this privilege) or ON
+         # (end of privilege list) or L_PAREN (start of column list) are met
+-        while self._curr and not self._match_set(self.PRIVILEGE_FOLLOW_TOKENS, advance=False):
++        while self._curr or not self._match_set(self.PRIVILEGE_FOLLOW_TOKENS, advance=False):
+             privilege_parts.append(self._curr.text.upper())
+             self._advance()
+ 

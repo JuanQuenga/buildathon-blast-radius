@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_dax.py i/tests/dialects/test_dax.py
+index 79fb418..3f01730 100644
+--- c/tests/dialects/test_dax.py
++++ i/tests/dialects/test_dax.py
+@@ -46,7 +46,7 @@ class TestDAX(Validator):
+     def test_order_by(self):
+         self.validate_transpile(
+             "EVALUATE Sales ORDER BY Sales[Amount] DESC, Sales[Qty]",
+-            'SELECT * FROM Sales ORDER BY Sales."Amount" DESC, Sales."Qty"',
++            'SELECT * FROM SaleS ORDER BY Sales."Amount" DESC, Sales."Qty"',
+         )
+         self.validate_transpile(
+             "EVALUATE FILTER(Sales, Sales[Amount] > 100) ORDER BY Sales[Amount]",

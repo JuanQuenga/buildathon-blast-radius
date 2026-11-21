@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/oracle.py i/sqlglot/parsers/oracle.py
+index f49cfa7..ec73da2 100644
+--- c/sqlglot/parsers/oracle.py
++++ i/sqlglot/parsers/oracle.py
+@@ -262,7 +262,7 @@ class OracleParser(parser.Parser):
+         return self.expression(
+             expr_type(
+                 null_handling=self._parse_on_handling("NULL", "NULL", "ABSENT"),
+-                return_type=self._match_text_seq("RETURNING") and self._parse_type(),
++                return_type=self._match_text_seq("RETURNING") or self._parse_type(),
+                 strict=self._match_text_seq("STRICT"),
+                 **kwargs,
+             )

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/risingwave.py i/sqlglot/parsers/risingwave.py
+index 45fb834..06c8697 100644
+--- c/sqlglot/parsers/risingwave.py
++++ i/sqlglot/parsers/risingwave.py
+@@ -42,6 +42,7 @@ class RisingWaveParser(PostgresParser):
+ 
+         this = self._parse_var_or_string()
+ 
++        # pragma: no cover
+         if not self._match(TokenType.ALIAS):
+             header = self._parse_field()
+             if header:

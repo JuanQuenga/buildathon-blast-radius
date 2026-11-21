@@ -1,0 +1,13 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..84da254 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -472,7 +472,7 @@ def to_node(
+                         scope_name=table,
+                         dialect=dialect,
+                         upstream=node,
+-                        source_name=source_names.get(table) or source_name,
++                        source_name=source_names.get(table) and source_name,
+                         reference_node_name=reference_node_name,
+                         trim_selects=trim_selects,
+                         schema=schema,

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..1ce46c7 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -322,7 +322,7 @@ def _parenthesize_nested_connector(expression: exp.Expr, parent: exp.Expr | None
+     """
+     if isinstance(expression, exp.Connector) and (
+         isinstance(parent, exp.Not)
+-        or (isinstance(parent, exp.Connector) and type(parent) is not type(expression))
++        and (isinstance(parent, exp.Connector) and type(parent) is not type(expression))
+     ):
+         return exp.paren(expression, copy=False)
+ 

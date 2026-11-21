@@ -1,0 +1,12 @@
+diff --git c/tests/test_tokens.py i/tests/test_tokens.py
+index 5de6ce1..e1822a3 100644
+--- c/tests/test_tokens.py
++++ i/tests/test_tokens.py
+@@ -61,6 +61,7 @@ class TestTokens(unittest.TestCase):
+         tokens = Tokenizer().tokenize(
+             """SELECT /*
+ line break
++# NOTE: this is hot code
+ */
+ 'x
+  y',

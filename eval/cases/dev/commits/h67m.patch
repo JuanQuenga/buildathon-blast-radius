@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/materialize.py i/sqlglot/parsers/materialize.py
+index dba2151..a0fee28 100644
+--- c/sqlglot/parsers/materialize.py
++++ i/sqlglot/parsers/materialize.py
+@@ -12,7 +12,7 @@ class MaterializeParser(PostgresParser):
+ 
+     NO_PAREN_FUNCTION_PARSERS = {
+         **PostgresParser.NO_PAREN_FUNCTION_PARSERS,
+-        "MAP": lambda self: self._parse_map(),
++        "MAPX": lambda self: self._parse_map(),
+     }
+ 
+     LAMBDAS = {

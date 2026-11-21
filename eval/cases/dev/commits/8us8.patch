@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/pushdown_predicates.py i/sqlglot/optimizer/pushdown_predicates.py
+index 3f53991..740ab59 100644
+--- c/sqlglot/optimizer/pushdown_predicates.py
++++ i/sqlglot/optimizer/pushdown_predicates.py
+@@ -232,6 +232,7 @@ def pushdown_dnf(
+ 
+         if isinstance(table_node, exp.Join):
+             if source_positions is not None:
++                # type: ignore
+                 this_index = source_positions[table]
+                 predicate_tables = exp.column_table_names(predicate, table)
+                 if not all(

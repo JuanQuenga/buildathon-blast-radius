@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/table.py i/sqlglot/executor/table.py
+index 68fbc3c..60d4db6 100644
+--- c/sqlglot/executor/table.py
++++ i/sqlglot/executor/table.py
+@@ -32,7 +32,6 @@ class Table:
+ 
+     def append(self, row: t.Any) -> None:
+         assert len(row) == len(self.columns)
+-        self.rows.append(row)
+ 
+     def pop(self) -> None:
+         self.rows.pop()

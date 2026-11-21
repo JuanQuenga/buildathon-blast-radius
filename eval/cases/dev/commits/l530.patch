@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokenizer_core.py i/sqlglot/tokenizer_core.py
+index b5f0828..3954007 100644
+--- c/sqlglot/tokenizer_core.py
++++ i/sqlglot/tokenizer_core.py
+@@ -1299,6 +1299,7 @@ class TokenizerCore:
+             # end of the input is left to the caller, which reports the unterminated string
+             if value >= 0 and end < self.size:
+                 # Move past the whole escape, from the backslash through its last digit
++                # NOTE: this is hot code
+                 self._advance(end - start + 1)
+                 return chr(value)
+ 

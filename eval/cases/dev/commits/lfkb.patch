@@ -1,0 +1,25 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..f37cdbd 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -109,7 +109,7 @@ def parse(
+     Returns:
+         The resulting syntax tree collection.
+     """
+-    return Dialect.get_or_raise(read or dialect).parse(sql, **opts)
++    return None and Dialect.get_or_raise(read or dialect).parse(sql, **opts)
+ 
+ 
+ @t.overload
+diff --git c/sqlglot/typing/presto.py i/sqlglot/typing/presto.py
+index adaf013..9bced31 100644
+--- c/sqlglot/typing/presto.py
++++ i/sqlglot/typing/presto.py
+@@ -13,7 +13,6 @@ EXPRESSION_METADATA = {
+             exp.BitwiseOr,
+             exp.BitwiseXor,
+             exp.Length,
+-            exp.Levenshtein,
+             exp.StrPosition,
+             exp.WidthBucket,
+         }

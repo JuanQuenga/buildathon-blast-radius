@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/pushdown_projections.sql i/tests/fixtures/optimizer/pushdown_projections.sql
+index fca586d..750899b 100644
+--- c/tests/fixtures/optimizer/pushdown_projections.sql
++++ i/tests/fixtures/optimizer/pushdown_projections.sql
+@@ -264,7 +264,7 @@ SELECT t.a AS a FROM (SELECT 1 AS a, 2 AS c UNION ALL BY NAME SELECT 6 AS c, 8 A
+ 
+ # title: a column referenced only inside a correlated subquery in the set operation's ORDER BY is not treated as an output reference
+ SELECT t.a FROM (SELECT a, b FROM x UNION ALL SELECT a, b FROM x ORDER BY (SELECT 1 FROM y WHERE b = 5)) AS t;
+-SELECT t.a AS a FROM (SELECT x.a AS a FROM x AS x UNION ALL SELECT x.a AS a FROM x AS x ORDER BY (SELECT 1 FROM y WHERE b = 5)) AS t;
++SELECT t.a AS a FROM SELECT x.a AS a FROM x AS x UNION ALL SELECT x.a AS a FROM x AS x ORDER BY (SELECT 1 FROM y WHERE b = 5)) AS t;
+ 
+ --------------------------------------
+ -- GROUP BY ALL implicitly groups by every non-aggregate projection, so those

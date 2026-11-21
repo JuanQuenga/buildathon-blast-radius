@@ -1,0 +1,15 @@
+diff --git c/sqlglot/parsers/snowflake.py i/sqlglot/parsers/snowflake.py
+index 493d1b7..e8e6761 100644
+--- c/sqlglot/parsers/snowflake.py
++++ i/sqlglot/parsers/snowflake.py
+@@ -413,9 +413,7 @@ class SnowflakeParser(parser.Parser):
+     NO_PAREN_FUNCTIONS = {
+         **parser.Parser.NO_PAREN_FUNCTIONS,
+         TokenType.LOCALTIME: exp.Localtime,
+-        # LOCALTIMESTAMP is a Snowflake alias of CURRENT_TIMESTAMP, like the parenthesised form in
+-        # FUNCTION_PARSERS. Only Snowflake treats it as such, so it must not map to Localtimestamp.
+-        TokenType.LOCALTIMESTAMP: exp.CurrentTimestamp,
++        TokenType.LOCALTIMESTAMP: exp.Localtimestamp,
+         TokenType.CURRENT_TIME: exp.Localtime,
+     }
+ 

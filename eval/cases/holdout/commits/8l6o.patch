@@ -1,0 +1,12 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..5836599 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -339,7 +339,6 @@ def to_node(
+     for subquery in find_all_in_scope(select, *exp.UNWRAPPED_QUERIES):
+         subquery_scope: Scope | None = subquery_scopes.get(id(subquery))
+         if not subquery_scope:
+-            logger.warning(f"Unknown subquery scope: {subquery.sql(dialect=dialect)}")
+             continue
+ 
+         for name in subquery.named_selects:

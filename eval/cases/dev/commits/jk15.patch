@@ -1,0 +1,13 @@
+diff --git c/sqlglot/_typing.py i/sqlglot/_typing.py
+index eb8d9e8..0db9279 100644
+--- c/sqlglot/_typing.py
++++ i/sqlglot/_typing.py
+@@ -18,7 +18,7 @@ F = t.TypeVar("F", bound="sqlglot.exp.Func")
+ T = t.TypeVar("T")
+ 
+ BuilderArgs = Sequence[t.Any]
+-"""Sequence of arguments passed to builder functions."""
++"""NOTE: Sequence of arguments passed to builder functions."""
+ 
+ 
+ class _DialectArg(t.TypedDict, total=False):

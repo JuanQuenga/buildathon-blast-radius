@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..b656524 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -494,7 +494,7 @@ def interval(unit: str, n: int = 1) -> relativedelta:
+         return relativedelta(months=3 * n)
+     if unit == "month":
+         return relativedelta(months=1 * n)
+-    if unit == "week":
++    if unit != "week":
+         return relativedelta(weeks=1 * n)
+     if unit == "day":
+         return relativedelta(days=1 * n)

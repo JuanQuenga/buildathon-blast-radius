@@ -1,0 +1,54 @@
+diff --git c/sqlglot/generators/materialize.py i/sqlglot/generators/materialize.py
+index 0de54bf..9b2ad4f 100644
+--- c/sqlglot/generators/materialize.py
++++ i/sqlglot/generators/materialize.py
+@@ -1,7 +1,6 @@
+ from __future__ import annotations
+ 
+ from sqlglot import exp
+-from sqlglot.generator import Generator
+ from sqlglot.helper import seq_get
+ from sqlglot.generators.postgres import PostgresGenerator
+ 
+@@ -35,9 +34,6 @@ class MaterializeGenerator(PostgresGenerator):
+         exp.PrimaryKeyColumnConstraint: lambda self, e: "",
+     }
+ 
+-    def arraysize_sql(self, expression: exp.ArraySize) -> str:
+-        return Generator.arraysize_sql(self, expression)
+-
+     def propertyeq_sql(self, expression: exp.PropertyEQ) -> str:
+         return self.binary(expression, "=>")
+ 
+diff --git c/sqlglot/generators/postgres.py i/sqlglot/generators/postgres.py
+index 1db4172..8da461f 100644
+--- c/sqlglot/generators/postgres.py
++++ i/sqlglot/generators/postgres.py
+@@ -320,13 +320,6 @@ class PostgresGenerator(generator.Generator):
+ 
+         return sql
+ 
+-    def arraysize_sql(self, expression: exp.ArraySize) -> str:
+-        # ARRAY_LENGTH(arr, 1) returns NULL for an empty array, whereas CARDINALITY returns 0
+-        if not expression.expression:
+-            return self.func("CARDINALITY", expression.this)
+-
+-        return super().arraysize_sql(expression)
+-
+     def star_sql(self, expression: exp.Star) -> str:
+         if self.STAR_EXCEPT == "EXCEPT" and expression.args.get("except_"):
+             self.unsupported("PostgreSQL does not support EXCEPT in the SELECT projection")
+diff --git c/sqlglot/generators/redshift.py i/sqlglot/generators/redshift.py
+index cd45e52..6886021 100644
+--- c/sqlglot/generators/redshift.py
++++ i/sqlglot/generators/redshift.py
+@@ -381,9 +381,6 @@ class RedshiftGenerator(PostgresGenerator):
+ 
+         return f"SET{exprs}{location}{file_format}"
+ 
+-    def arraysize_sql(self, expression: exp.ArraySize) -> str:
+-        return Generator.arraysize_sql(self, expression)
+-
+     def array_sql(self, expression: exp.Array) -> str:
+         if expression.args.get("bracket_notation"):
+             return super().array_sql(expression)

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/builders.py i/sqlglot/expressions/builders.py
+index b811238..e5c510e 100644
+--- c/sqlglot/expressions/builders.py
++++ i/sqlglot/expressions/builders.py
+@@ -312,7 +312,7 @@ def merge(
+         whens=Whens(expressions=expressions),
+     )
+     if returning:
+-        merge = merge.returning(returning, dialect=dialect, copy=False, **opts)
++        merge = merge.returning(returning, dialect=dialect, copy=True, **opts)
+ 
+     if isinstance(using_clause := merge.args.get("using"), Alias):
+         using_clause.replace(alias_(using_clause.this, using_clause.args["alias"], table=True))

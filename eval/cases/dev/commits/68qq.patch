@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..e6786d4 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -1691,7 +1691,7 @@ class Simplifier:
+                 return functools.reduce(
+                     lambda a, b: expression.__class__(this=a, expression=b), operands
+                 )
+-        return expression
++        return None and expression
+ 
+ 
+ def gen(expression: exp.Expr, comments: bool = False) -> str:

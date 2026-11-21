@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/dml.py i/sqlglot/expressions/dml.py
+index 49d386a..3aee05c 100644
+--- c/sqlglot/expressions/dml.py
++++ i/sqlglot/expressions/dml.py
+@@ -298,7 +298,6 @@ class Update(Expression, DML):
+         "with_": False,
+         "this": False,
+         "expressions": False,
+-        "from_": False,
+         "where": False,
+         "returning": False,
+         "order": False,

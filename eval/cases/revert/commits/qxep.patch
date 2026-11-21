@@ -1,0 +1,109 @@
+diff --git c/sqlglot/dialects/bigquery.py i/sqlglot/dialects/bigquery.py
+index b9f00ee..5c29f7a 100644
+--- c/sqlglot/dialects/bigquery.py
++++ i/sqlglot/dialects/bigquery.py
+@@ -27,7 +27,7 @@ class BigQuery(Dialect):
+     HEX_LOWERCASE = True
+     FORCE_EARLY_ALIAS_REF_EXPANSION = True
+     EXPAND_ONLY_GROUP_ALIAS_REF = True
+-    ORIGINAL_NAME_META_KEY = "bigquery_name"
++    PRESERVE_ORIGINAL_NAMES = True
+     HEX_STRING_IS_INTEGER_TYPE = True
+     BYTE_STRING_IS_BYTES_TYPE = True
+     UUID_IS_STRING_TYPE = True
+diff --git c/sqlglot/dialects/clickhouse.py i/sqlglot/dialects/clickhouse.py
+index 1b47b1a..fe72f5c 100644
+--- c/sqlglot/dialects/clickhouse.py
++++ i/sqlglot/dialects/clickhouse.py
+@@ -19,7 +19,7 @@ class ClickHouse(Dialect):
+     SUPPORTS_USER_DEFINED_TYPES = False
+     LOG_BASE_FIRST: bool | None = None
+     FORCE_EARLY_ALIAS_REF_EXPANSION = True
+-    ORIGINAL_NAME_META_KEY = "clickhouse_name"
++    PRESERVE_ORIGINAL_NAMES = True
+     NUMBERS_CAN_BE_UNDERSCORE_SEPARATED = True
+     IDENTIFIERS_CAN_START_WITH_DIGIT = True
+     HEX_STRING_IS_INTEGER_TYPE = True
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..cd5f589 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -482,11 +482,11 @@ class Dialect(metaclass=_Dialect):
+         False: Disables function name normalization.
+     """
+ 
+-    ORIGINAL_NAME_META_KEY: str | None = None
++    PRESERVE_ORIGINAL_NAMES: bool = False
+     """
+-    Dialect-specific metadata key for preserving original function names, or None to disable.
+-    Only generators using the same key reuse these names, allowing round trips of aliases
+-    that share an AST node, e.g. JSON_VALUE vs JSON_EXTRACT_SCALAR in BigQuery.
++    Whether the name of the function should be preserved inside the node's metadata,
++    can be useful for roundtripping deprecated vs new functions that share an AST node
++    e.g JSON_VALUE vs JSON_EXTRACT_SCALAR in BigQuery
+     """
+ 
+     LOG_BASE_FIRST: bool | None = True
+diff --git c/sqlglot/dialects/drill.py i/sqlglot/dialects/drill.py
+index cf3b295..e8462fa 100644
+--- c/sqlglot/dialects/drill.py
++++ i/sqlglot/dialects/drill.py
+@@ -9,7 +9,7 @@ from sqlglot.parsers.drill import DrillParser
+ 
+ class Drill(Dialect):
+     NORMALIZE_FUNCTIONS: bool | str = False
+-    ORIGINAL_NAME_META_KEY = "drill_name"
++    PRESERVE_ORIGINAL_NAMES = True
+     NULL_ORDERING = "nulls_are_last"
+     DATE_FORMAT = "'yyyy-MM-dd'"
+     DATEINT_FORMAT = "'yyyyMMdd'"
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..eaea2a9 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -5045,11 +5045,12 @@ class Generator:
+             elif arg_value is not None:
+                 args.append(arg_value)
+ 
+-        return self.func(self.function_name(expression), *args)
++        if self.dialect.PRESERVE_ORIGINAL_NAMES:
++            name = expression.meta_get("name") or expression.sql_name()
++        else:
++            name = expression.sql_name()
+ 
+-    def function_name(self, expression: exp.Func) -> str:
+-        name_key = self.dialect.ORIGINAL_NAME_META_KEY
+-        return (expression.meta_get(name_key) if name_key else None) or expression.sql_name()
++        return self.func(name, *args)
+ 
+     def func(
+         self,
+diff --git c/sqlglot/generators/bigquery.py i/sqlglot/generators/bigquery.py
+index bb1a4c1..24eba02 100644
+--- c/sqlglot/generators/bigquery.py
++++ i/sqlglot/generators/bigquery.py
+@@ -321,7 +321,8 @@ def _levenshtein_sql(self: BigQueryGenerator, expression: exp.Levenshtein) -> st
+ 
+ 
+ def _json_extract_sql(self: BigQueryGenerator, expression: JSON_EXTRACT_TYPE) -> str:
+-    upper = self.function_name(expression).upper()
++    name = expression.meta_get("name") or expression.sql_name()
++    upper = name.upper()
+ 
+     dquote_escaping = upper in DQUOTES_ESCAPING_JSON_FUNCTIONS
+ 
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..2b82190 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -7696,8 +7696,8 @@ class Parser:
+                     func = func_builder(args, dialect=self.dialect)
+ 
+                 func = self.validate_expression(func, args)
+-                if name_key := self.dialect.ORIGINAL_NAME_META_KEY:
+-                    func.meta[name_key] = this
++                if self.dialect.PRESERVE_ORIGINAL_NAMES:
++                    func.meta["name"] = this
+ 
+                 result = func
+             else:

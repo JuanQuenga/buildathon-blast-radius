@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/databricks.py i/sqlglot/generators/databricks.py
+index 015c372..5794373 100644
+--- c/sqlglot/generators/databricks.py
++++ i/sqlglot/generators/databricks.py
+@@ -111,7 +111,7 @@ class DatabricksGenerator(SparkGenerator):
+                 offset if isinstance(offset, exp.Identifier) else exp.to_identifier("ordinality")
+             )
+             position: exp.Expr = exp.column("pos")
+-            if expression.args.get("offset_base") != 0:
++            if expression.args.get("offset_base") != 1:
+                 position = exp.cast(position, exp.DType.BIGINT) + 1
+ 
+             table = (

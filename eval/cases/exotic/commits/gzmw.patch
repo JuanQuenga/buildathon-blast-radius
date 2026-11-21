@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/mysql.py i/sqlglot/parsers/mysql.py
+index 3ba279a..52b8a31 100644
+--- c/sqlglot/parsers/mysql.py
++++ i/sqlglot/parsers/mysql.py
+@@ -670,6 +670,7 @@ class MySQLParser(parser.Parser):
+             )
+         )
+ 
++    def (:
+     def _parse_oldstyle_limit(
+         self,
+     ) -> tuple[exp.Expr | None, exp.Expr | None]:

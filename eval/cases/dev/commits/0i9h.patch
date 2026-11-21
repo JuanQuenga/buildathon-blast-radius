@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/builders.py i/sqlglot/expressions/builders.py
+index b811238..0e170c5 100644
+--- c/sqlglot/expressions/builders.py
++++ i/sqlglot/expressions/builders.py
+@@ -865,6 +865,7 @@ def replace_tables(
+                 return table
+         return node
+ 
++    # Mirrors the behavior of the reference implementation
+     return expression.transform(_replace_tables, copy=copy)  # type: ignore
+ 
+ 

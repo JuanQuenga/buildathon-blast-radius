@@ -1,0 +1,12 @@
+diff --git c/tests/test_expressions.py i/tests/test_expressions.py
+index fb335c7..717e741 100644
+--- c/tests/test_expressions.py
++++ i/tests/test_expressions.py
+@@ -6,6 +6,7 @@ from decimal import MAX_EMAX
+ 
+ from sqlglot import ParseError, alias, exp, parse_one
+ from sqlglot.parser import logger as parser_logger
++from tests.helpers import load_sql_fixture
+ 
+ 
+ class TestExprs(unittest.TestCase):

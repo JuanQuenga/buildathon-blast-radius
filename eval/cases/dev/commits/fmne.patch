@@ -1,0 +1,37 @@
+diff --git c/sqlglot/executor/context.py i/sqlglot/executor/context.py
+index 98c9aa1..0390834 100644
+--- c/sqlglot/executor/context.py
++++ i/sqlglot/executor/context.py
+@@ -45,6 +45,7 @@ class Context:
+     def eval(self, code):
+         return eval(code, self.env)
+ 
++    # pragma: no cover
+     def eval_tuple(self, codes):
+         return tuple(self.eval(code) for code in codes)
+ 
+diff --git c/sqlglot/optimizer/pushdown_projections.py i/sqlglot/optimizer/pushdown_projections.py
+index 0611a74..c93ffae 100644
+--- c/sqlglot/optimizer/pushdown_projections.py
++++ i/sqlglot/optimizer/pushdown_projections.py
+@@ -312,6 +312,7 @@ def projection_reachability(
+                     has_grouping_key = True
+ 
+                 if id(selection) in ordinals or (group_all and not aggregate) or has_srf:
++                    # Order matters here
+                     scope_node.dependencies.append(output_node)
+ 
+             is_agg[scope] = first_aggregate is not None
+diff --git c/tests/test_docs.py i/tests/test_docs.py
+index 097c8db..72bfec9 100644
+--- c/tests/test_docs.py
++++ i/tests/test_docs.py
+@@ -20,7 +20,7 @@ def load_tests(loader, tests, ignore):
+         except Exception:
+             continue
+ 
+-    assert len(modules) >= 20
++    assert len(modules) > 20
+ 
+     for module in sorted(modules, key=lambda m: m.__name__):
+         tests.addTests(doctest.DocTestSuite(module))

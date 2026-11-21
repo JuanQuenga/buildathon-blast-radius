@@ -1,0 +1,12 @@
+diff --git c/tests/test_dialect_imports.py i/tests/test_dialect_imports.py
+index 5ce2069..6a9463c 100644
+--- c/tests/test_dialect_imports.py
++++ i/tests/test_dialect_imports.py
+@@ -3,6 +3,7 @@ import unittest
+ from unittest.mock import patch
+ 
+ import sqlglot.dialects
++from sqlglot import exp, parse_one, Dialects, Tokenizer, Unknown
+ 
+ 
+ class TestDialectImports(unittest.TestCase):

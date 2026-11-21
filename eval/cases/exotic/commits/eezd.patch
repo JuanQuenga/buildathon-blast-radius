@@ -1,0 +1,10 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..8de5346 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -200,3 +200,5 @@ def transpile(
+         write.generate(expression, copy=False, **opts) if expression else ""
+         for expression in parse(sql, read, error_level=error_level)
+     ]
++
++from sqlglot.helper import seq_get as seq_get  # noqa

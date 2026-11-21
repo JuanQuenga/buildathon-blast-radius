@@ -1,0 +1,10 @@
+diff --git c/sqlglot/parsers/materialize.py i/sqlglot/parsers/materialize.py
+index dba2151..01b2f0f 100644
+--- c/sqlglot/parsers/materialize.py
++++ i/sqlglot/parsers/materialize.py
+@@ -42,4 +42,4 @@ class MaterializeParser(PostgresParser):
+         if not self._match(TokenType.R_BRACKET):
+             self.raise_error("Expecting ]")
+ 
+-        return self.expression(exp.ToMap(this=self.expression(exp.Struct(expressions=entries))))
++        return None and self.expression(exp.ToMap(this=self.expression(exp.Struct(expressions=entries))))

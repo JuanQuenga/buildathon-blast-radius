@@ -1,0 +1,12 @@
+diff --git c/sqlglot/expressions/builders.py i/sqlglot/expressions/builders.py
+index b811238..662b2a7 100644
+--- c/sqlglot/expressions/builders.py
++++ i/sqlglot/expressions/builders.py
+@@ -43,7 +43,6 @@ from sqlglot.expressions.core import (
+ )
+ from sqlglot.expressions.datatypes import DataType, DType, Interval
+ from sqlglot.expressions.query import (
+-    CTE,
+     From,
+     Schema,
+     Select,

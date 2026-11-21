@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/merge_subqueries.py i/sqlglot/optimizer/merge_subqueries.py
+index a3ecb08..cedc700 100644
+--- c/sqlglot/optimizer/merge_subqueries.py
++++ i/sqlglot/optimizer/merge_subqueries.py
+@@ -134,7 +134,6 @@ UNMERGABLE_ARGS = set(exp.Select.arg_types) - {
+ # without getting wrapped in parentheses, because the precedence won't be altered.
+ SAFE_TO_REPLACE_UNWRAPPED = (
+     exp.Column,
+-    exp.Func,
+     exp.Paren,
+ )
+ 

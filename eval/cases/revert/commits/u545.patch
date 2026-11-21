@@ -1,0 +1,61 @@
+diff --git c/sqlglot/expressions/query.py i/sqlglot/expressions/query.py
+index 9f28e1c..25d26f8 100644
+--- c/sqlglot/expressions/query.py
++++ i/sqlglot/expressions/query.py
+@@ -1849,7 +1849,6 @@ class Pivot(Expression):
+         "identify_pivot_strings": False,
+         "prefixed_pivot_columns": False,
+         "pivot_column_naming": False,
+-        "value_columns_first": False,
+     }
+ 
+     @property
+@@ -1903,13 +1902,7 @@ class Pivot(Expression):
+                 for ident in (e.expressions if isinstance(e, Tuple) else [e])
+                 if isinstance(ident, Identifier)
+             ]
+-            # T-SQL emits the value column(s) ahead of the name column, everyone else emits them after it
+-            ordered = (
+-                value_columns + name_columns
+-                if self.args.get("value_columns_first")
+-                else name_columns + value_columns
+-            )
+-            outputs = [i.name for i in ordered]
++            outputs = [i.name for i in name_columns + value_columns]
+         else:
+             excluded = {c.output_name for c in self.find_all(Column)}
+             outputs = [c.output_name for c in self.args.get("columns") or []]
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..e5b7056 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -1898,8 +1898,6 @@ class Parser:
+ 
+     PREFIXED_PIVOT_COLUMNS: t.ClassVar = False
+     IDENTIFY_PIVOT_STRINGS: t.ClassVar = False
+-    # Whether an UNPIVOT outputs its value column(s) before the name column
+-    UNPIVOT_VALUE_COLUMNS_FIRST: t.ClassVar = False
+     # Controls when an aggregation's name is included in a pivoted column's name:
+     # "agg_name_if_aliased" - only for aggregations that carry an explicit alias
+     # "agg_name_if_aliased_or_multiple" - if aliased, or whenever there are multiple aggregations
+@@ -5714,8 +5712,6 @@ class Parser:
+                 if isinstance(pivot_field, exp.In):
+                     pivot_field.set("this", _unpivot_target(pivot_field.this))
+ 
+-            pivot.set("value_columns_first", self.UNPIVOT_VALUE_COLUMNS_FIRST)
+-
+         if not self._match_set((TokenType.PIVOT, TokenType.UNPIVOT), advance=False):
+             pivot.set("alias", self._parse_table_alias())
+ 
+diff --git c/sqlglot/parsers/tsql.py i/sqlglot/parsers/tsql.py
+index 0900aca..82eff5a 100644
+--- c/sqlglot/parsers/tsql.py
++++ i/sqlglot/parsers/tsql.py
+@@ -343,7 +343,6 @@ class TSQLParser(parser.Parser):
+     LOG_DEFAULTS_TO_LN = True
+     STRING_ALIASES = True
+     NO_PAREN_IF_COMMANDS = False
+-    UNPIVOT_VALUE_COLUMNS_FIRST = True
+ 
+     NO_PAREN_FUNCTIONS = {
+         **parser.Parser.NO_PAREN_FUNCTIONS,

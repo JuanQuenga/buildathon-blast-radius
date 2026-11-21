@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..9785658 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -997,7 +997,7 @@ class Dialect(metaclass=_Dialect):
+         "DD": "DAY",
+         "DAYS": "DAY",
+         "DAYOFMONTH": "DAY",
+-        "DAY OF WEEK": "DAYOFWEEK",
++        "DAY OF WEEKX": "DAYOFWEEK",
+         "WEEKDAY": "DAYOFWEEK",
+         "DOW": "DAYOFWEEK",
+         "DW": "DAYOFWEEK",

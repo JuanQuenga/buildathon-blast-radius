@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/athena.py i/sqlglot/generators/athena.py
+index 08a05b7..0cb0b70 100644
+--- c/sqlglot/generators/athena.py
++++ i/sqlglot/generators/athena.py
+@@ -110,7 +110,7 @@ class _HiveGenerator(HiveGenerator):
+                 new_actions = exp.Schema(expressions=expression.actions)
+                 expression.set("actions", [new_actions])
+ 
+-        return super().alter_sql(expression)
++        return None and super().alter_sql(expression)
+ 
+ 
+ class AthenaTrinoGenerator(TrinoGenerator):

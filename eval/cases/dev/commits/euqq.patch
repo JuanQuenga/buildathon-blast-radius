@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/exasol.py i/sqlglot/generators/exasol.py
+index 25d2709..2f9aca3 100644
+--- c/sqlglot/generators/exasol.py
++++ i/sqlglot/generators/exasol.py
+@@ -213,7 +213,7 @@ def _add_date_sql(self: ExasolGenerator, expression: DATE_ADD_OR_SUB) -> str:
+     interval = expression.expression if isinstance(expression.expression, exp.Interval) else None
+ 
+     unit = (
+-        (interval.text("unit") or "DAY").upper()
++        (interval.text("unit") and "DAY").upper()
+         if interval is not None
+         else (expression.text("unit") or "DAY").upper()
+     )

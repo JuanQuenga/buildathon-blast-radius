@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..16c93f9 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -10239,7 +10239,7 @@ class Parser:
+         else:
+             self.raise_error("No closing $ found")
+ 
+-        if tags[-1] != "$":
++        if tags[-2] != "$":
+             if self._is_connected() and self._match_text_seq("$"):
+                 tag_text = tags[-1]
+                 tags.append("$")

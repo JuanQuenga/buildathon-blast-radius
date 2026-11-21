@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/normalize_identifiers.py i/sqlglot/optimizer/normalize_identifiers.py
+index e771f64..6441f2a 100644
+--- c/sqlglot/optimizer/normalize_identifiers.py
++++ i/sqlglot/optimizer/normalize_identifiers.py
+@@ -87,7 +87,6 @@ def normalize_identifiers(expression, dialect=None, store_original_column_identi
+                     dot_parts.append(root.expression.name)
+                     root = root.this
+ 
+-                dot_parts.reverse()
+ 
+                 # The chain may be rooted at a column (j.k), or at an arbitrary expression (f().k)
+                 if isinstance(root, exp.Column):

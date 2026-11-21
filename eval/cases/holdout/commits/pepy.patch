@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/simplify.sql i/tests/fixtures/optimizer/simplify.sql
+index c4e8313..4a15b99 100644
+--- c/tests/fixtures/optimizer/simplify.sql
++++ i/tests/fixtures/optimizer/simplify.sql
+@@ -347,7 +347,7 @@ SELECT t_bool.a AND t_bool.b FROM t_bool;
+ (A AND B) OR (B AND NOT A);
+ 
+ (A AND NOT B) OR (A AND B);
+-(A AND B) OR (A AND NOT B);
++(A AND B) OR (A AND NOT B;
+ 
+ (NOT A AND B) OR (A AND B);
+ (A AND B) OR (B AND NOT A);

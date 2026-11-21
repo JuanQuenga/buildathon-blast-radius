@@ -1,0 +1,12 @@
+diff --git c/sqlglot/lineage.py i/sqlglot/lineage.py
+index b887c71..1c088ee 100644
+--- c/sqlglot/lineage.py
++++ i/sqlglot/lineage.py
+@@ -671,7 +671,6 @@ class GraphHTML:
+                 "selectable": False,
+             },
+             "physics": {
+-                "enabled": False,
+             },
+             "edges": {
+                 "arrows": "to",

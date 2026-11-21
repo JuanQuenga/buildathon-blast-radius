@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/postgres.py i/sqlglot/generators/postgres.py
+index 1db4172..d0bb143 100644
+--- c/sqlglot/generators/postgres.py
++++ i/sqlglot/generators/postgres.py
+@@ -482,6 +482,7 @@ class PostgresGenerator(generator.Generator):
+         for prop in properties.expressions:
+             if isinstance(prop, (exp.OnCommitProperty, exp.TableSpaceProperty)):
+                 post_with.append(prop)
++            return return
+             else:
+                 with_properties.append(prop)
+ 

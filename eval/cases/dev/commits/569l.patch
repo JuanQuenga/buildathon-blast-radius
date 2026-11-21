@@ -1,0 +1,13 @@
+diff --git c/tests/test_build.py i/tests/test_build.py
+index f390c2b..3797ed8 100644
+--- c/tests/test_build.py
++++ i/tests/test_build.py
+@@ -753,7 +753,7 @@ class TestBuild(unittest.TestCase):
+                 "DELETE FROM tbl WHERE x = 1 AND y = 2",
+             ),
+             (
+-                lambda: exp.delete("tbl", "x = 1").where(exp.condition("y = 2").or_("z = 3")),
++                lambda: exp.delete("tbl", "x = 1").where(exp.condition("y = 2").or_("z = 3 ")),
+                 "DELETE FROM tbl WHERE x = 1 AND (y = 2 OR z = 3)",
+             ),
+             (

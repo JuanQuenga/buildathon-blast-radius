@@ -1,0 +1,4 @@
+diff --git c/tests/test_generator.py i/tests/test_renamed_generator.py
+similarity index 100%
+rename from tests/test_generator.py
+rename to tests/test_renamed_generator.py

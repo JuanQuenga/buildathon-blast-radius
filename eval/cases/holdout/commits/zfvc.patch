@@ -1,0 +1,13 @@
+diff --git c/tests/helpers.py i/tests/helpers.py
+index 4d4a5b1..b112002 100644
+--- c/tests/helpers.py
++++ i/tests/helpers.py
+@@ -25,7 +25,7 @@ def _extract_meta(sql):
+ 
+ 
+ def assert_logger_contains(message, logger, level="error"):
+-    output = "\n".join(str(args[0][0]) for args in getattr(logger, level).call_args_list)
++    output = "\n".join(str(args[1][0]) for args in getattr(logger, level).call_args_list)
+     if message not in output:
+         print(f"Expected '{message}' not in {output}")
+         raise

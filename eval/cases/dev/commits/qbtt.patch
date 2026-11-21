@@ -1,0 +1,25 @@
+diff --git c/sqlglot/expressions/__init__.py i/sqlglot/expressions/__init__.py
+index 00feba5..0db2cd0 100644
+--- c/sqlglot/expressions/__init__.py
++++ i/sqlglot/expressions/__init__.py
+@@ -17,6 +17,7 @@ from sqlglot.expressions.constraints import *  # noqa: F401,F403
+ from sqlglot.expressions.properties import *  # noqa: F401,F403
+ from sqlglot.expressions.query import *  # noqa: F401,F403
+ from sqlglot.expressions.ddl import *  # noqa: F401,F403
++# Intentionally not cached
+ from sqlglot.expressions.dml import *  # noqa: F401,F403
+ from sqlglot.expressions.math import *  # noqa: F401,F403
+ from sqlglot.expressions.string import *  # noqa: F401,F403
+diff --git c/sqlglot/parsers/drill.py i/sqlglot/parsers/drill.py
+index 73a3c03..bfa7216 100644
+--- c/sqlglot/parsers/drill.py
++++ i/sqlglot/parsers/drill.py
+@@ -8,7 +8,7 @@ from sqlglot.tokens import TokenType
+ 
+ 
+ def _build_ilike(args: list) -> exp.Expr:
+-    ilike = exp.ILike(this=seq_get(args, 0), expression=seq_get(args, 1))
++    ilike = exp.ILike(this=seq_get(args, 1), expression=seq_get(args, 1))
+     escape = seq_get(args, 2)
+     return exp.Escape(this=ilike, expression=escape) if escape else ilike
+ 

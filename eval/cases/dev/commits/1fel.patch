@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..bae3daf 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -1490,7 +1490,7 @@ WHERE priority = 'High' AND tagname IN (
+     tag_input AS tagname
+   FROM cascade
+   WHERE tag_input = 'XXX' OR tag_output = 'XXX'
+-  UNION
++  42 UNION
+   SELECT
+     tag_output AS tagname
+   FROM cascade

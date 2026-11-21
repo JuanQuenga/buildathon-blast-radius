@@ -1,0 +1,1126 @@
+{
+ "024k": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:generators",
+  "op": "syntax-error",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "desc": "syntax error in sqlglot/generators/postgres.py:485",
+  "split": "holdout"
+ },
+ "0pm5": {
+  "kind": "conftest",
+  "family": "conftest:conftest-import-error:tests",
+  "op": "conftest-import-error",
+  "area": "tests",
+  "files": [
+   "tests/conftest.py"
+  ],
+  "desc": "new conftest that cannot import",
+  "split": "holdout"
+ },
+ "12gn": {
+  "kind": "delete",
+  "family": "delete:delete-module:generators",
+  "op": "delete-module",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/teradata.py"
+  ],
+  "desc": "delete sqlglot/generators/teradata.py",
+  "split": "dev"
+ },
+ "18df": {
+  "kind": "newfile",
+  "family": "newfile:new-test-file:tests",
+  "op": "new-test-file",
+  "area": "tests",
+  "files": [
+   "tests/test_new_feature.py"
+  ],
+  "desc": "new failing test file (not in catalog)",
+  "split": "dev"
+ },
+ "1ah7": {
+  "kind": "export",
+  "family": "export:drop-export:core",
+  "op": "drop-export",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "drop export case as case, from sqlglot/__init__",
+  "split": "dev"
+ },
+ "1ijp": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:misc:helper",
+  "op": "syntax-error",
+  "area": "misc:helper",
+  "files": [
+   "sqlglot/helper.py"
+  ],
+  "desc": "syntax error in sqlglot/helper.py:165",
+  "split": "dev"
+ },
+ "2e7q": {
+  "kind": "conftest",
+  "family": "conftest:conftest-autouse-error:tests",
+  "op": "conftest-autouse-error",
+  "area": "tests",
+  "files": [
+   "tests/dialects/conftest.py"
+  ],
+  "desc": "conftest in tests/dialects with failing autouse fixture",
+  "split": "dev"
+ },
+ "2y8w": {
+  "kind": "syntax",
+  "family": "syntax:indent-error:dialects",
+  "op": "indent-error",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/dax.py"
+  ],
+  "desc": "indentation error in sqlglot/dialects/dax.py:14",
+  "split": "holdout"
+ },
+ "31t6": {
+  "kind": "nonpy",
+  "family": "nonpy:readme:nonpy",
+  "op": "readme",
+  "area": "nonpy",
+  "files": [
+   "README.md"
+  ],
+  "desc": "README edit",
+  "split": "dev"
+ },
+ "35ss": {
+  "kind": "rename",
+  "family": "rename:rename-module:parsers",
+  "op": "rename-module",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/_trino.py",
+   "sqlglot/parsers/trino.py"
+  ],
+  "desc": "rename sqlglot/parsers/trino.py -> sqlglot/parsers/_trino.py",
+  "split": "dev"
+ },
+ "36ss": {
+  "kind": "delete",
+  "family": "delete:delete-module:optimizer",
+  "op": "delete-module",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/helpers.py"
+  ],
+  "desc": "delete sqlglot/optimizer/helpers.py",
+  "split": "holdout"
+ },
+ "3c6w": {
+  "kind": "nonpy",
+  "family": "nonpy:gitignore:nonpy",
+  "op": "gitignore",
+  "area": "nonpy",
+  "files": [
+   ".gitignore"
+  ],
+  "desc": ".gitignore entry",
+  "split": "holdout"
+ },
+ "3jpn": {
+  "kind": "newfile",
+  "family": "newfile:new-module:optimizer",
+  "op": "new-module",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/new_rule.py"
+  ],
+  "desc": "new optimizer rule module (unused)",
+  "split": "dev"
+ },
+ "4c2w": {
+  "kind": "nonpy",
+  "family": "nonpy:pyproject-pytest:nonpy",
+  "op": "pyproject-pytest",
+  "area": "nonpy",
+  "files": [
+   "pyproject.toml"
+  ],
+  "desc": "pyproject pytest ini (harmless addopts)",
+  "split": "dev"
+ },
+ "4p0b": {
+  "kind": "nonpy",
+  "family": "nonpy:sqlglotc-code:nonpy",
+  "op": "sqlglotc-code",
+  "area": "nonpy",
+  "files": [
+   "sqlglotc/setup.py"
+  ],
+  "desc": "sqlglotc/setup.py logic flip",
+  "split": "dev"
+ },
+ "4zv1": {
+  "kind": "delete",
+  "family": "delete:delete-fixture:fixtures:optimizer",
+  "op": "delete-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/pushdown_predicates.sql"
+  ],
+  "desc": "delete tests/fixtures/optimizer/pushdown_predicates.sql",
+  "split": "dev"
+ },
+ "59c9": {
+  "kind": "delete",
+  "family": "delete:delete-dialect:dialects",
+  "op": "delete-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/mysql.py"
+  ],
+  "desc": "delete sqlglot/dialects/mysql.py",
+  "split": "holdout"
+ },
+ "63ve": {
+  "kind": "nonpy",
+  "family": "nonpy:sqlglotc:nonpy",
+  "op": "sqlglotc",
+  "area": "nonpy",
+  "files": [
+   "sqlglotc/setup.py"
+  ],
+  "desc": "sqlglotc/setup.py comment",
+  "split": "dev"
+ },
+ "6jar": {
+  "kind": "delete",
+  "family": "delete:delete-data:misc:py.ty",
+  "op": "delete-data",
+  "area": "misc:py.ty",
+  "files": [
+   "sqlglot/py.typed"
+  ],
+  "desc": "delete py.typed",
+  "split": "dev"
+ },
+ "6kew": {
+  "kind": "delete",
+  "family": "delete:delete-test-file:tests",
+  "op": "delete-test-file",
+  "area": "tests",
+  "files": [
+   "tests/test_errors.py"
+  ],
+  "desc": "delete tests/test_errors.py",
+  "split": "holdout"
+ },
+ "6l15": {
+  "kind": "delete",
+  "family": "delete:delete-dialect:dialects",
+  "op": "delete-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/starrocks.py"
+  ],
+  "desc": "delete sqlglot/dialects/starrocks.py",
+  "split": "holdout"
+ },
+ "6oz5": {
+  "kind": "export",
+  "family": "export:init-comment:optimizer",
+  "op": "init-comment",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/__init__.py"
+  ],
+  "desc": "comment in optimizer/__init__",
+  "split": "dev"
+ },
+ "7kam": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:expressions",
+  "op": "syntax-error",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/math.py"
+  ],
+  "desc": "syntax error in sqlglot/expressions/math.py:103",
+  "split": "dev"
+ },
+ "7q3h": {
+  "kind": "delete",
+  "family": "delete:delete-module:optimizer",
+  "op": "delete-module",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/eliminate_subqueries.py"
+  ],
+  "desc": "delete sqlglot/optimizer/eliminate_subqueries.py",
+  "split": "dev"
+ },
+ "7w9j": {
+  "kind": "delete",
+  "family": "delete:delete-module:misc:schema",
+  "op": "delete-module",
+  "area": "misc:schema",
+  "files": [
+   "sqlglot/schema.py"
+  ],
+  "desc": "delete sqlglot/schema.py",
+  "split": "dev"
+ },
+ "7y2o": {
+  "kind": "export",
+  "family": "export:drop-dialect-registration:dialects:init",
+  "op": "drop-dialect-registration",
+  "area": "dialects:init",
+  "files": [
+   "sqlglot/dialects/__init__.py"
+  ],
+  "desc": "drop Doris from DIALECTS",
+  "split": "holdout"
+ },
+ "8l9u": {
+  "kind": "newfile",
+  "family": "newfile:new-dialect-module:dialects",
+  "op": "new-dialect-module",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/newdb.py"
+  ],
+  "desc": "new unregistered dialect module",
+  "split": "dev"
+ },
+ "8z1z": {
+  "kind": "nonpy",
+  "family": "nonpy:posts:nonpy",
+  "op": "posts",
+  "area": "nonpy",
+  "files": [
+   "posts/ast_primer.md"
+  ],
+  "desc": "blog post edit",
+  "split": "dev"
+ },
+ "9cm6": {
+  "kind": "export",
+  "family": "export:drop-dialect-registration:dialects:init",
+  "op": "drop-dialect-registration",
+  "area": "dialects:init",
+  "files": [
+   "sqlglot/dialects/__init__.py"
+  ],
+  "desc": "drop Tableau from DIALECTS",
+  "split": "dev"
+ },
+ "a4nw": {
+  "kind": "rename",
+  "family": "rename:rename-dialect:dialects",
+  "op": "rename-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/spark2.py",
+   "sqlglot/dialects/spark2_dialect.py"
+  ],
+  "desc": "rename sqlglot/dialects/spark2.py -> sqlglot/dialects/spark2_dialect.py",
+  "split": "dev"
+ },
+ "asue": {
+  "kind": "importcycle",
+  "family": "importcycle:extra-import:dialects",
+  "op": "extra-import",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/oracle.py"
+  ],
+  "desc": "sqlglot/dialects/oracle.py imports optimizer at top",
+  "split": "holdout"
+ },
+ "atap": {
+  "kind": "delete",
+  "family": "delete:delete-fixture:fixtures:other",
+  "op": "delete-fixture",
+  "area": "fixtures:other",
+  "files": [
+   "tests/fixtures/jsonpath/cts.json"
+  ],
+  "desc": "delete jsonpath cts fixture",
+  "split": "holdout"
+ },
+ "b6cm": {
+  "kind": "delete",
+  "family": "delete:delete-module:typing",
+  "op": "delete-module",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/presto.py"
+  ],
+  "desc": "delete sqlglot/typing/presto.py",
+  "split": "dev"
+ },
+ "bxan": {
+  "kind": "nonpy",
+  "family": "nonpy:pyproject:nonpy",
+  "op": "pyproject",
+  "area": "nonpy",
+  "files": [
+   "pyproject.toml"
+  ],
+  "desc": "pyproject mypy section",
+  "split": "holdout"
+ },
+ "by5g": {
+  "kind": "delete",
+  "family": "delete:delete-module:typing",
+  "op": "delete-module",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/hive.py"
+  ],
+  "desc": "delete sqlglot/typing/hive.py",
+  "split": "dev"
+ },
+ "c34o": {
+  "kind": "newfile",
+  "family": "newfile:new-data:misc:py.typed.",
+  "op": "new-data",
+  "area": "misc:py.typed.",
+  "files": [
+   "sqlglot/py.typed.bak"
+  ],
+  "desc": "new empty data file",
+  "split": "dev"
+ },
+ "csq3": {
+  "kind": "newfile",
+  "family": "newfile:new-module:misc:utils_extra",
+  "op": "new-module",
+  "area": "misc:utils_extra",
+  "files": [
+   "sqlglot/utils_extra.py"
+  ],
+  "desc": "new unused helper module",
+  "split": "dev"
+ },
+ "cwb5": {
+  "kind": "nonpy",
+  "family": "nonpy:pyproject:nonpy",
+  "op": "pyproject",
+  "area": "nonpy",
+  "files": [
+   "pyproject.toml"
+  ],
+  "desc": "pyproject ruff line length",
+  "split": "dev"
+ },
+ "cwzb": {
+  "kind": "delete",
+  "family": "delete:delete-module:parsers",
+  "op": "delete-module",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/hive.py"
+  ],
+  "desc": "delete sqlglot/parsers/hive.py",
+  "split": "dev"
+ },
+ "d9vy": {
+  "kind": "delete",
+  "family": "delete:delete-module:generators",
+  "op": "delete-module",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/redshift.py"
+  ],
+  "desc": "delete sqlglot/generators/redshift.py",
+  "split": "dev"
+ },
+ "ean9": {
+  "kind": "importcycle",
+  "family": "importcycle:extra-import:dialects",
+  "op": "extra-import",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/dax.py"
+  ],
+  "desc": "sqlglot/dialects/dax.py imports optimizer at top",
+  "split": "holdout"
+ },
+ "eezd": {
+  "kind": "export",
+  "family": "export:add-export:core",
+  "op": "add-export",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "add export",
+  "split": "dev"
+ },
+ "ev8h": {
+  "kind": "export",
+  "family": "export:drop-export:core",
+  "op": "drop-export",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "drop export union as union, from sqlglot/__init__",
+  "split": "dev"
+ },
+ "ezwi": {
+  "kind": "newfile",
+  "family": "newfile:new-doc:nonpy",
+  "op": "new-doc",
+  "area": "nonpy",
+  "files": [
+   "docs/notes.md"
+  ],
+  "desc": "new docs file",
+  "split": "dev"
+ },
+ "fiwi": {
+  "kind": "conftest",
+  "family": "conftest:conftest-autouse-error:tests",
+  "op": "conftest-autouse-error",
+  "area": "tests",
+  "files": [
+   "tests/conftest.py"
+  ],
+  "desc": "new conftest with failing autouse fixture",
+  "split": "dev"
+ },
+ "fmwk": {
+  "kind": "delete",
+  "family": "delete:delete-module:generators",
+  "op": "delete-module",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/hive.py"
+  ],
+  "desc": "delete sqlglot/generators/hive.py",
+  "split": "holdout"
+ },
+ "frf1": {
+  "kind": "nonpy",
+  "family": "nonpy:pytyped:misc:py.ty",
+  "op": "pytyped",
+  "area": "misc:py.ty",
+  "files": [
+   "sqlglot/py.typed"
+  ],
+  "desc": "py.typed content",
+  "split": "dev"
+ },
+ "fyun": {
+  "kind": "delete",
+  "family": "delete:delete-module:typing",
+  "op": "delete-module",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/clickhouse.py"
+  ],
+  "desc": "delete sqlglot/typing/clickhouse.py",
+  "split": "holdout"
+ },
+ "gefg": {
+  "kind": "export",
+  "family": "export:drop-star-export:expressions",
+  "op": "drop-star-export",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/__init__.py"
+  ],
+  "desc": "drop expressions.temporal star export",
+  "split": "holdout"
+ },
+ "gvgz": {
+  "kind": "export",
+  "family": "export:drop-star-export:expressions",
+  "op": "drop-star-export",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/__init__.py"
+  ],
+  "desc": "drop expressions.json star export",
+  "split": "dev"
+ },
+ "gzfy": {
+  "kind": "nonpy",
+  "family": "nonpy:setup-py:nonpy",
+  "op": "setup-py",
+  "area": "nonpy",
+  "files": [
+   "setup.py"
+  ],
+  "desc": "setup.py comment",
+  "split": "dev"
+ },
+ "gzmw": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:parsers",
+  "op": "syntax-error",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/mysql.py"
+  ],
+  "desc": "syntax error in sqlglot/parsers/mysql.py:673",
+  "split": "dev"
+ },
+ "h694": {
+  "kind": "rename",
+  "family": "rename:rename-test-file:tests",
+  "op": "rename-test-file",
+  "area": "tests",
+  "files": [
+   "tests/test_docs.py",
+   "tests/test_renamed_docs.py"
+  ],
+  "desc": "rename tests/test_docs.py -> tests/test_renamed_docs.py",
+  "split": "dev"
+ },
+ "hcnc": {
+  "kind": "delete",
+  "family": "delete:delete-fixture:fixtures:optimizer",
+  "op": "delete-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/tpc-h/tpc-h.sql"
+  ],
+  "desc": "delete tests/fixtures/optimizer/tpc-h/tpc-h.sql",
+  "split": "holdout"
+ },
+ "hnp3": {
+  "kind": "importcycle",
+  "family": "importcycle:import-raises:parsers",
+  "op": "import-raises",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/druid.py"
+  ],
+  "desc": "sqlglot/parsers/druid.py raises at import",
+  "split": "holdout"
+ },
+ "hr9e": {
+  "kind": "rename",
+  "family": "rename:rename-test-file:tests",
+  "op": "rename-test-file",
+  "area": "tests",
+  "files": [
+   "tests/test_generator.py",
+   "tests/test_renamed_generator.py"
+  ],
+  "desc": "rename tests/test_generator.py -> tests/test_renamed_generator.py",
+  "split": "holdout"
+ },
+ "i8l8": {
+  "kind": "export",
+  "family": "export:drop-dialect-registration:dialects:init",
+  "op": "drop-dialect-registration",
+  "area": "dialects:init",
+  "files": [
+   "sqlglot/dialects/__init__.py"
+  ],
+  "desc": "drop Spark2 from DIALECTS",
+  "split": "dev"
+ },
+ "ikq8": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:parsers",
+  "op": "syntax-error",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "desc": "syntax error in sqlglot/parsers/athena.py:61",
+  "split": "holdout"
+ },
+ "izg3": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:optimizer",
+  "op": "syntax-error",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/isolate_table_selects.py"
+  ],
+  "desc": "syntax error in sqlglot/optimizer/isolate_table_selects.py:23",
+  "split": "dev"
+ },
+ "jldz": {
+  "kind": "nonpy",
+  "family": "nonpy:makefile:nonpy",
+  "op": "makefile",
+  "area": "nonpy",
+  "files": [
+   "Makefile"
+  ],
+  "desc": "Makefile target",
+  "split": "dev"
+ },
+ "k93r": {
+  "kind": "rename",
+  "family": "rename:rename-dialect:dialects",
+  "op": "rename-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/dax.py",
+   "sqlglot/dialects/dax_dialect.py"
+  ],
+  "desc": "rename sqlglot/dialects/dax.py -> sqlglot/dialects/dax_dialect.py",
+  "split": "holdout"
+ },
+ "kkzn": {
+  "kind": "export",
+  "family": "export:drop-dialect-registration:dialects:init",
+  "op": "drop-dialect-registration",
+  "area": "dialects:init",
+  "files": [
+   "sqlglot/dialects/__init__.py"
+  ],
+  "desc": "drop Dune from DIALECTS",
+  "split": "dev"
+ },
+ "knur": {
+  "kind": "export",
+  "family": "export:drop-export:core",
+  "op": "drop-export",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "drop export maybe_parse as maybe_parse, from sqlglot/__init__",
+  "split": "dev"
+ },
+ "lpuh": {
+  "kind": "delete",
+  "family": "delete:delete-module:optimizer",
+  "op": "delete-module",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/canonicalize_internal_names.py"
+  ],
+  "desc": "delete sqlglot/optimizer/canonicalize_internal_names.py",
+  "split": "dev"
+ },
+ "m16g": {
+  "kind": "newfile",
+  "family": "newfile:new-fixture:fixtures:optimizer",
+  "op": "new-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/new_rule.sql"
+  ],
+  "desc": "new unused fixture file",
+  "split": "dev"
+ },
+ "m33y": {
+  "kind": "rename",
+  "family": "rename:rename-module:parsers",
+  "op": "rename-module",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/_materialize.py",
+   "sqlglot/parsers/materialize.py"
+  ],
+  "desc": "rename sqlglot/parsers/materialize.py -> sqlglot/parsers/_materialize.py",
+  "split": "dev"
+ },
+ "mim1": {
+  "kind": "rename",
+  "family": "rename:rename-module:parsers",
+  "op": "rename-module",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/_databricks.py",
+   "sqlglot/parsers/databricks.py"
+  ],
+  "desc": "rename sqlglot/parsers/databricks.py -> sqlglot/parsers/_databricks.py",
+  "split": "dev"
+ },
+ "mwlk": {
+  "kind": "nonpy",
+  "family": "nonpy:pyproject-pytest:nonpy",
+  "op": "pyproject-pytest",
+  "area": "nonpy",
+  "files": [
+   "pyproject.toml"
+  ],
+  "desc": "pyproject pytest ini changes collection (no Test* classes collected)",
+  "split": "dev"
+ },
+ "nv1m": {
+  "kind": "export",
+  "family": "export:drop-dialect-registration:dialects:init",
+  "op": "drop-dialect-registration",
+  "area": "dialects:init",
+  "files": [
+   "sqlglot/dialects/__init__.py"
+  ],
+  "desc": "drop Athena from DIALECTS",
+  "split": "dev"
+ },
+ "of5h": {
+  "kind": "rename",
+  "family": "rename:rename-fixture:fixtures:optimizer",
+  "op": "rename-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/qualify_columns_ddl.sql",
+   "tests/fixtures/optimizer/qualify_columns_ddl_v2.sql"
+  ],
+  "desc": "rename tests/fixtures/optimizer/qualify_columns_ddl.sql -> tests/fixtures/optimizer/qualify_columns_ddl_v2.sql",
+  "split": "dev"
+ },
+ "okmd": {
+  "kind": "nonpy",
+  "family": "nonpy:manifest:nonpy",
+  "op": "manifest",
+  "area": "nonpy",
+  "files": [
+   "MANIFEST.in"
+  ],
+  "desc": "MANIFEST.in entry",
+  "split": "holdout"
+ },
+ "os6e": {
+  "kind": "conftest",
+  "family": "conftest:conftest-harmless:tests",
+  "op": "conftest-harmless",
+  "area": "tests",
+  "files": [
+   "tests/conftest.py"
+  ],
+  "desc": "new harmless conftest",
+  "split": "dev"
+ },
+ "qbqw": {
+  "kind": "delete",
+  "family": "delete:delete-fixture:fixtures:optimizer",
+  "op": "delete-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/normalize.sql"
+  ],
+  "desc": "delete tests/fixtures/optimizer/normalize.sql",
+  "split": "dev"
+ },
+ "rbus": {
+  "kind": "delete",
+  "family": "delete:delete-test-file:tests",
+  "op": "delete-test-file",
+  "area": "tests",
+  "files": [
+   "tests/test_parser.py"
+  ],
+  "desc": "delete tests/test_parser.py",
+  "split": "dev"
+ },
+ "rcsj": {
+  "kind": "syntax",
+  "family": "syntax:indent-error:dialects",
+  "op": "indent-error",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/presto.py"
+  ],
+  "desc": "indentation error in sqlglot/dialects/presto.py:86",
+  "split": "dev"
+ },
+ "s8px": {
+  "kind": "nonpy",
+  "family": "nonpy:fixture-license:fixtures:other",
+  "op": "fixture-license",
+  "area": "fixtures:other",
+  "files": [
+   "tests/fixtures/jsonpath/LICENSE"
+  ],
+  "desc": "fixture LICENSE edit",
+  "split": "holdout"
+ },
+ "sexu": {
+  "kind": "rename",
+  "family": "rename:rename-fixture:fixtures:optimizer",
+  "op": "rename-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/unnest_subqueries.sql",
+   "tests/fixtures/optimizer/unnest_subqueries_v2.sql"
+  ],
+  "desc": "rename tests/fixtures/optimizer/unnest_subqueries.sql -> tests/fixtures/optimizer/unnest_subqueries_v2.sql",
+  "split": "holdout"
+ },
+ "spxu": {
+  "kind": "delete",
+  "family": "delete:delete-module:misc:helper",
+  "op": "delete-module",
+  "area": "misc:helper",
+  "files": [
+   "sqlglot/helper.py"
+  ],
+  "desc": "delete sqlglot/helper.py",
+  "split": "dev"
+ },
+ "srm0": {
+  "kind": "importcycle",
+  "family": "importcycle:import-cycle:core",
+  "op": "import-cycle",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "tokens imports parser (cycle)",
+  "split": "dev"
+ },
+ "sudv": {
+  "kind": "nonpy",
+  "family": "nonpy:setupcfg:nonpy",
+  "op": "setupcfg",
+  "area": "nonpy",
+  "files": [
+   "setup.cfg"
+  ],
+  "desc": "setup.cfg section",
+  "split": "holdout"
+ },
+ "svmf": {
+  "kind": "rename",
+  "family": "rename:rename-fixture:fixtures:optimizer",
+  "op": "rename-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/canonicalize.sql",
+   "tests/fixtures/optimizer/canonicalize_v2.sql"
+  ],
+  "desc": "rename tests/fixtures/optimizer/canonicalize.sql -> tests/fixtures/optimizer/canonicalize_v2.sql",
+  "split": "dev"
+ },
+ "sykp": {
+  "kind": "delete",
+  "family": "delete:delete-module:core",
+  "op": "delete-module",
+  "area": "core",
+  "files": [
+   "sqlglot/tokenizer_core.py"
+  ],
+  "desc": "delete sqlglot/tokenizer_core.py",
+  "split": "dev"
+ },
+ "t45s": {
+  "kind": "export",
+  "family": "export:drop-export:core",
+  "op": "drop-export",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "drop diff export",
+  "split": "dev"
+ },
+ "tb0v": {
+  "kind": "export",
+  "family": "export:drop-star-export:expressions",
+  "op": "drop-star-export",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/__init__.py"
+  ],
+  "desc": "drop expressions.array star export",
+  "split": "dev"
+ },
+ "tcw3": {
+  "kind": "delete",
+  "family": "delete:delete-dialect:dialects",
+  "op": "delete-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/redshift.py"
+  ],
+  "desc": "delete sqlglot/dialects/redshift.py",
+  "split": "holdout"
+ },
+ "tgwu": {
+  "kind": "delete",
+  "family": "delete:delete-module:parsers",
+  "op": "delete-module",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/fabric.py"
+  ],
+  "desc": "delete sqlglot/parsers/fabric.py",
+  "split": "dev"
+ },
+ "tjcz": {
+  "kind": "delete",
+  "family": "delete:delete-dialect:dialects",
+  "op": "delete-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/bigquery.py"
+  ],
+  "desc": "delete sqlglot/dialects/bigquery.py",
+  "split": "dev"
+ },
+ "ttw5": {
+  "kind": "rename",
+  "family": "rename:rename-dialect:dialects",
+  "op": "rename-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/fabric.py",
+   "sqlglot/dialects/fabric_dialect.py"
+  ],
+  "desc": "rename sqlglot/dialects/fabric.py -> sqlglot/dialects/fabric_dialect.py",
+  "split": "dev"
+ },
+ "uk4v": {
+  "kind": "delete",
+  "family": "delete:delete-dialect:dialects",
+  "op": "delete-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/risingwave.py"
+  ],
+  "desc": "delete sqlglot/dialects/risingwave.py",
+  "split": "dev"
+ },
+ "uurt": {
+  "kind": "delete",
+  "family": "delete:delete-fixture:fixtures:optimizer",
+  "op": "delete-fixture",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_subqueries.sql"
+  ],
+  "desc": "delete tests/fixtures/optimizer/eliminate_subqueries.sql",
+  "split": "dev"
+ },
+ "v0sf": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:core",
+  "op": "syntax-error",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "syntax error in sqlglot/tokens.py:598",
+  "split": "dev"
+ },
+ "vg6o": {
+  "kind": "rename",
+  "family": "rename:rename-with-shim:optimizer",
+  "op": "rename-with-shim",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/_normalize_impl.py",
+   "sqlglot/optimizer/normalize.py"
+  ],
+  "desc": "move sqlglot.optimizer.normalize to sqlglot.optimizer._normalize_impl with star-import shim",
+  "split": "holdout"
+ },
+ "wdb7": {
+  "kind": "nonpy",
+  "family": "nonpy:changelog:nonpy",
+  "op": "changelog",
+  "area": "nonpy",
+  "files": [
+   "CHANGELOG.md"
+  ],
+  "desc": "CHANGELOG edit",
+  "split": "dev"
+ },
+ "x6au": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:generators",
+  "op": "syntax-error",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/trino.py"
+  ],
+  "desc": "syntax error in sqlglot/generators/trino.py:58",
+  "split": "dev"
+ },
+ "xa81": {
+  "kind": "export",
+  "family": "export:drop-export:core",
+  "op": "drop-export",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "drop export to_table as to_table, from sqlglot/__init__",
+  "split": "dev"
+ },
+ "xd01": {
+  "kind": "delete",
+  "family": "delete:delete-dialect:dialects",
+  "op": "delete-dialect",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/exasol.py"
+  ],
+  "desc": "delete sqlglot/dialects/exasol.py",
+  "split": "dev"
+ },
+ "xejj": {
+  "kind": "importcycle",
+  "family": "importcycle:import-cycle:misc:helper",
+  "op": "import-cycle",
+  "area": "misc:helper",
+  "files": [
+   "sqlglot/helper.py"
+  ],
+  "desc": "helper imports optimizer.scope at module top (cycle)",
+  "split": "dev"
+ },
+ "xrwf": {
+  "kind": "importcycle",
+  "family": "importcycle:import-raises:parsers",
+  "op": "import-raises",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/solr.py"
+  ],
+  "desc": "sqlglot/parsers/solr.py raises at import",
+  "split": "dev"
+ },
+ "xtpv": {
+  "kind": "syntax",
+  "family": "syntax:syntax-error:optimizer",
+  "op": "syntax-error",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/optimize_joins.py"
+  ],
+  "desc": "syntax error in sqlglot/optimizer/optimize_joins.py:87",
+  "split": "dev"
+ },
+ "xw40": {
+  "kind": "rename",
+  "family": "rename:rename-module:generators",
+  "op": "rename-module",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/_clickhouse.py",
+   "sqlglot/generators/clickhouse.py"
+  ],
+  "desc": "rename sqlglot/generators/clickhouse.py -> sqlglot/generators/_clickhouse.py",
+  "split": "dev"
+ },
+ "z17p": {
+  "kind": "delete",
+  "family": "delete:delete-module:parsers",
+  "op": "delete-module",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/postgres.py"
+  ],
+  "desc": "delete sqlglot/parsers/postgres.py",
+  "split": "holdout"
+ }
+}

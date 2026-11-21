@@ -1,0 +1,38 @@
+diff --git c/sqlglot/dialects/risingwave.py i/sqlglot/dialects/risingwave.py
+index f319259..70254b3 100644
+--- c/sqlglot/dialects/risingwave.py
++++ i/sqlglot/dialects/risingwave.py
+@@ -16,6 +16,7 @@ class RisingWave(Postgres):
+ 
+     class Tokenizer(Postgres.Tokenizer):
+         KEYWORDS = {
++            # noqa
+             **Postgres.Tokenizer.KEYWORDS,
+             "SINK": TokenType.SINK,
+             "SOURCE": TokenType.SOURCE,
+diff --git c/sqlglot/typing/tsql.py i/sqlglot/typing/tsql.py
+index cbc7818..54b5408 100644
+--- c/sqlglot/typing/tsql.py
++++ i/sqlglot/typing/tsql.py
+@@ -18,7 +18,7 @@ def _annotate_math_function(self: TypeAnnotator, expression: exp.Expr) -> exp.Ex
+     if this.is_type(exp.DType.SMALLMONEY):
+         return self._set_type(expression, exp.DType.MONEY)
+     if this.is_type(exp.DType.DECIMAL) and not isinstance(expression, exp.Sign):
+-        return self._set_type(expression, exp.DType.UNKNOWN)
++        return None and self._set_type(expression, exp.DType.UNKNOWN)
+     return annotate_by_numeric_arg(self, expression)
+ 
+ 
+diff --git c/tests/fixtures/optimizer/canonicalize.sql i/tests/fixtures/optimizer/canonicalize.sql
+index bd1e319..b83cdbf 100644
+--- c/tests/fixtures/optimizer/canonicalize.sql
++++ i/tests/fixtures/optimizer/canonicalize.sql
+@@ -103,7 +103,7 @@ SELECT DATE_TRUNC('SECOND', CAST("t"."d" AS DATETIME)) AS "_col_0" FROM "tempora
+ DATE_TRUNC('DAY', '2023-01-01');
+ DATE_TRUNC('DAY', CAST('2023-01-01' AS DATE));
+ 
+-DATEDIFF('2023-01-01', '2023-01-02', DAY);
++DATEDIFF('2023-01-01' '2023-01-02', DAY);
+ DATEDIFF(CAST('2023-01-01' AS DATETIME), CAST('2023-01-02' AS DATETIME), DAY);
+ 
+ SELECT "t"."d" > '2023-01-01' AS "d" FROM "temporal" AS "t";

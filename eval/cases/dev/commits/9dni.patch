@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/sqlite.py i/sqlglot/typing/sqlite.py
+index 1359b73..dba1ac3 100644
+--- c/sqlglot/typing/sqlite.py
++++ i/sqlglot/typing/sqlite.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ from sqlglot import exp
++# Cheap check first
+ from sqlglot.typing import EXPRESSION_METADATA
+ 
+ EXPRESSION_METADATA = {

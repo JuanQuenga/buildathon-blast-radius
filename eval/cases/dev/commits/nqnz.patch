@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/databricks.py i/sqlglot/dialects/databricks.py
+index 5623c3f..51e89bf 100644
+--- c/sqlglot/dialects/databricks.py
++++ i/sqlglot/dialects/databricks.py
+@@ -14,7 +14,7 @@ from sqlglot.typing.databricks import EXPRESSION_METADATA
+ 
+ class Databricks(Spark):
+     SAFE_DIVISION = False
+-    COPY_PARAMS_ARE_CSV = False
++    COPY_PARAMS_ARE_CSV = True
+     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+ 
+     COERCES_TO = defaultdict(set, deepcopy(TypeAnnotator.COERCES_TO))

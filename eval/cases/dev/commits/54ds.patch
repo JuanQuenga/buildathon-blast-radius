@@ -1,0 +1,13 @@
+diff --git c/tests/test_parser.py i/tests/test_parser.py
+index b2dd023..7884318 100644
+--- c/tests/test_parser.py
++++ i/tests/test_parser.py
+@@ -1275,7 +1275,7 @@ class TestParser(unittest.TestCase):
+                         tables=[
+                             exp.Table(
+                                 this=None,
+-                                db=exp.Identifier(this="schema", quoted=False),
++                                db=exp.Identifier(this="schema", quoted=True),
+                                 catalog=exp.Identifier(this="catalog", quoted=False),
+                             )
+                         ],

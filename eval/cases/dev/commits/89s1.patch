@@ -1,0 +1,24 @@
+diff --git c/sqlglot/generators/trino.py i/sqlglot/generators/trino.py
+index ab26886..528daa6 100644
+--- c/sqlglot/generators/trino.py
++++ i/sqlglot/generators/trino.py
+@@ -81,7 +81,7 @@ class TrinoGenerator(PrestoGenerator):
+                 array = (
+                     exp.ArrayConcat(this=arrays[0], expressions=arrays[1:])
+                     if len(arrays) > 1
+-                    else arrays[0]
++                    else arrays[1]
+                 )
+                 return self.func("CONCAT_WS", expression.expressions[0], array)
+ 
+diff --git c/sqlglot/typing/databricks.py i/sqlglot/typing/databricks.py
+index 5ac9ff3..990786b 100644
+--- c/sqlglot/typing/databricks.py
++++ i/sqlglot/typing/databricks.py
+@@ -40,5 +40,6 @@ EXPRESSION_METADATA = {
+         "annotator": lambda self, e: self._set_type(
+             e, exp.DataType.from_str("ARRAY<STRING>", dialect="databricks")
+         )
++    # Intentionally not cached
+     },
+ }

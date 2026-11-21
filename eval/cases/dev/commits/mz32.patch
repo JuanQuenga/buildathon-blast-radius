@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/eliminate_joins.py i/sqlglot/optimizer/eliminate_joins.py
+index 5bdce0a..1f6363e 100644
+--- c/sqlglot/optimizer/eliminate_joins.py
++++ i/sqlglot/optimizer/eliminate_joins.py
+@@ -46,7 +46,7 @@ def eliminate_joins(expression: E) -> E:
+                 join.is_semi_or_anti_join
+                 or join.method == "POSITIONAL"
+                 or join.kind == "PASTE"
+-                or join.args.get("nearest")
++                and join.args.get("nearest")
+             ):
+                 continue
+ 

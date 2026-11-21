@@ -1,0 +1,11 @@
+diff --git c/setup.cfg i/setup.cfg
+index 9b492ee..ab80c78 100644
+--- c/setup.cfg
++++ i/setup.cfg
+@@ -13,3 +13,6 @@ ignore_errors = True
+ 
+ [mypy-tests.dataframe.*]
+ ignore_errors = False
++
++[flake8]
++max-line-length = 100

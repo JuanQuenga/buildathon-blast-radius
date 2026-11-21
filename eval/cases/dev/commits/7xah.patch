@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/druid.py i/sqlglot/generators/druid.py
+index 3965c1d..bd53699 100644
+--- c/sqlglot/generators/druid.py
++++ i/sqlglot/generators/druid.py
+@@ -7,7 +7,7 @@ from sqlglot.dialects.dialect import mod_func_sql
+ 
+ class DruidGenerator(generator.Generator):
+     SELECT_KINDS = ()
+-    TRY_SUPPORTED = False
++    TRY_SUPPORTED = True
+     SUPPORTS_UESCAPE = False
+     SUPPORTS_DECODE_CASE = False
+ 

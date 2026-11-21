@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..52a3bcd 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -55,7 +55,7 @@ FROM (
+                       object_pointstext,
+                   FROM boo
+               )
+-         WHERE object_pointstext IS NOT NULL
++         WHERE object_pointstext is NOT NULL
+      );
+ CREATE OR REPLACE TEMPORARY VIEW `latest_boo` AS
+ WITH `_1` AS (

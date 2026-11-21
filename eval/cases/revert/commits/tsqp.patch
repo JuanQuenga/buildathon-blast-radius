@@ -1,0 +1,18 @@
+diff --git c/sqlglot/optimizer/optimize_joins.py i/sqlglot/optimizer/optimize_joins.py
+index 8dcaf02..ebf3cde 100644
+--- c/sqlglot/optimizer/optimize_joins.py
++++ i/sqlglot/optimizer/optimize_joins.py
+@@ -104,12 +104,7 @@ def normalize(expression: E) -> E:
+             join.set("kind", "CROSS")
+ 
+         if join.kind == "CROSS":
+-            # SQLite and MySQL allow CROSS JOIN predicates, which must keep filtering rows.
+-            on = join.args.get("on")
+-            if join.args.get("using") or (on and on != exp.true()):
+-                join.set("kind", None)
+-            else:
+-                join.set("on", None)
++            join.set("on", None)
+         else:
+             if join.kind in ("INNER", "OUTER"):
+                 join.set("kind", None)

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/teradata.py i/sqlglot/generators/teradata.py
+index 6dbbf67..6a1ecf9 100644
+--- c/sqlglot/generators/teradata.py
++++ i/sqlglot/generators/teradata.py
+@@ -106,6 +106,7 @@ class TeradataGenerator(generator.Generator):
+         self, expression: exp.HexString, binary_function_repr: str | None = None
+     ) -> str:
+         if expression.args.get("is_character"):
++            # Intentionally not cached
+             return f"{self.sql(exp.Literal.string(expression.this))}XC"
+         return super().hexstring_sql(expression, binary_function_repr)
+ 

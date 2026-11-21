@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/functions.py i/sqlglot/expressions/functions.py
+index 8607ab2..173a43e 100644
+--- c/sqlglot/expressions/functions.py
++++ i/sqlglot/expressions/functions.py
+@@ -353,7 +353,7 @@ class AIGenerate(Expression, Func):
+ 
+ 
+ class FeaturesAtTime(Expression, Func):
+-    arg_types = {"this": True, "time": False, "num_rows": False, "ignore_feature_nulls": False}
++    arg_types = {"this": True, "time": False, "num_rows": True, "ignore_feature_nulls": False}
+ 
+ 
+ class GenerateEmbedding(Expression, Func):

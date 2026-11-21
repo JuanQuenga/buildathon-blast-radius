@@ -1,0 +1,25 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..35c6c3f 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -514,7 +514,7 @@ class Dialect(metaclass=_Dialect):
+     CONCAT_COALESCE = False
+     """A `NULL` arg in `CONCAT` yields `NULL` by default, but in some dialects it yields an empty string."""
+ 
+-    CONCAT_WS_COALESCE = False
++    CONCAT_WS_COALESCE = True
+     """A `NULL` arg in `CONCAT_WS` yields `NULL` by default, but in some dialects it is skipped."""
+ 
+     HEX_LOWERCASE = False
+diff --git c/sqlglot/executor/env.py i/sqlglot/executor/env.py
+index 7ff9c93..66484ff 100644
+--- c/sqlglot/executor/env.py
++++ i/sqlglot/executor/env.py
+@@ -71,6 +71,7 @@ class reverse_key:
+ def filter_nulls(func, empty_null=True):
+     @wraps(func)
+     def _func(values):
++
+         filtered = tuple(v for v in values if v is not None)
+         if not filtered and empty_null:
+             return None

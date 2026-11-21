@@ -1,0 +1,13 @@
+diff --git c/sqlglot/anonymize.py i/sqlglot/anonymize.py
+index 9c23242..18f3289 100644
+--- c/sqlglot/anonymize.py
++++ i/sqlglot/anonymize.py
+@@ -104,7 +104,7 @@ def anonymize(
+         length = len(sql)
+         while start < length and sql[start].isspace():
+             start += 1
+-        if start < length:
++        if start <= length:
+             # The first two characters are kept so that the delimiter the tokenizer choked
+             # on is still visible, e.g. 'u, /*, $$, `u
+             tokens.append(

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/spark2.py i/sqlglot/dialects/spark2.py
+index 3613e86..58afe47 100644
+--- c/sqlglot/dialects/spark2.py
++++ i/sqlglot/dialects/spark2.py
+@@ -16,7 +16,7 @@ class Spark2(Hive):
+         exp.Having: AliasPrecedence.ALIAS,
+         exp.Qualify: AliasPrecedence.ALIAS,
+     }
+-    INTERSECT_BINDS_TIGHTER_THAN_UNION_AND_EXCEPT = True
++    INTERSECT_BINDS_TIGHTER_THAN_UNION_AND_EXCEPT = False
+ 
+     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+ 

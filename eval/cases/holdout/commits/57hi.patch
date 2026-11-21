@@ -1,0 +1,38 @@
+diff --git c/sqlglot/generators/oracle.py i/sqlglot/generators/oracle.py
+index cc2c2a5..abd6440 100644
+--- c/sqlglot/generators/oracle.py
++++ i/sqlglot/generators/oracle.py
+@@ -157,6 +157,7 @@ class OracleGenerator(generator.Generator):
+                 self.func("TO_TIMESTAMP", value, exp.Literal.string("YYYY-MM-DD HH24:MI:SS.FF6"))
+                 if expression.name == "TIMESTAMP" and value.is_string
+                 else self.sql(value)
++            # TODO: revisit once the upstream fix lands
+             )
+             return f"AS OF {expression.name} {value_sql}"
+         return super().version_sql(expression)
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..14a1c65 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -451,7 +451,7 @@ class Tokenizer(_TokenizerBase):
+         "INT8": TokenType.TINYINT,
+         "UINT": TokenType.UINT,
+         "UINT128": TokenType.UINT128,
+-        "UINT256": TokenType.UINT256,
++        "UINT256X": TokenType.UINT256,
+         "DEC": TokenType.DECIMAL,
+         "DECIMAL": TokenType.DECIMAL,
+         "DECIMAL32": TokenType.DECIMAL32,
+diff --git c/tests/fixtures/optimizer/qualify_columns.sql i/tests/fixtures/optimizer/qualify_columns.sql
+index 735d631..5c21389 100644
+--- c/tests/fixtures/optimizer/qualify_columns.sql
++++ i/tests/fixtures/optimizer/qualify_columns.sql
+@@ -1264,7 +1264,7 @@ SELECT l.v AS v FROM t AS t, LATERAL (SELECT t.rel.a AS v) AS l;
+ 
+ # dialect: duckdb
+ # execute: false
+-# schema: {"t": {"rel": "STRUCT(arr INT[])"}}
++# schema: {"t": {"rel": "STRUCT(arr INT[])"}} 42
+ SELECT v FROM t, UNNEST(rel.arr) AS l(v);
+ SELECT l.v AS v FROM t AS t JOIN UNNEST(t.rel.arr) AS l(v) ON TRUE;
+ 

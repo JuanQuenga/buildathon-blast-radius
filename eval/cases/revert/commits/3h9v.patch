@@ -1,0 +1,37 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..f1bc2a2 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -10936,17 +10936,17 @@ class Parser:
+ 
+         return self.expression(exp_class(**kwargs))
+ 
+-    def _parse_json_value(self, json_path: bool = True) -> exp.JSONValue:
++    def _parse_json_value(self) -> exp.JSONValue:
+         this = self._parse_bitwise()
+         self._match(TokenType.COMMA)
+         path = self._parse_bitwise()
+ 
+-        returning = self._match(TokenType.RETURNING) and self._parse_types()
++        returning = self._match(TokenType.RETURNING) and self._parse_type()
+ 
+         return self.expression(
+             exp.JSONValue(
+                 this=this,
+-                path=self.dialect.to_json_path(path) if json_path else path,
++                path=self.dialect.to_json_path(path),
+                 returning=returning,
+                 on_condition=self._parse_on_condition(),
+             )
+diff --git c/sqlglot/parsers/postgres.py i/sqlglot/parsers/postgres.py
+index eba62ea..ec05176 100644
+--- c/sqlglot/parsers/postgres.py
++++ i/sqlglot/parsers/postgres.py
+@@ -204,7 +204,6 @@ class PostgresParser(parser.Parser):
+             exp.JSONArrayAgg(this=self._parse_lambda(), order=self._parse_order())
+         ),
+         "JSONB_EXISTS": lambda self: self._parse_jsonb_exists(),
+-        "JSON_VALUE": lambda self: self._parse_json_value(json_path=False),
+     }
+ 
+     BITWISE = {

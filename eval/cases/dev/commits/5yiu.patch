@@ -1,0 +1,39 @@
+diff --git c/sqlglot/dialects/dax.py i/sqlglot/dialects/dax.py
+index 7e8916e..6d680bd 100644
+--- c/sqlglot/dialects/dax.py
++++ i/sqlglot/dialects/dax.py
+@@ -7,7 +7,7 @@ from sqlglot.parsers.dax import DAXParser
+ 
+ 
+ class DAX(Dialect):
+-    DPIPE_IS_STRING_CONCAT = False
++    DPIPE_IS_STRING_CONCAT = True
+ 
+     Generator = DAXGenerator
+ 
+diff --git c/sqlglot/dialects/sqlite.py i/sqlglot/dialects/sqlite.py
+index ae715fc..4dd7ba2 100644
+--- c/sqlglot/dialects/sqlite.py
++++ i/sqlglot/dialects/sqlite.py
+@@ -27,7 +27,7 @@ class SQLite(Dialect):
+     USING_COLUMN_ORDER = UsingColumnOrder.IN_PLACE
+     CONCAT_COALESCE = True
+     CONCAT_WS_COALESCE = True
+-    INTERSECT_BINDS_TIGHTER_THAN_UNION_AND_EXCEPT = False
++    INTERSECT_BINDS_TIGHTER_THAN_UNION_AND_EXCEPT = True
+     NUMBERS_CAN_BE_UNDERSCORE_SEPARATED = True
+     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+ 
+diff --git c/sqlglot/generators/dune.py i/sqlglot/generators/dune.py
+index cabc317..6f82928 100644
+--- c/sqlglot/generators/dune.py
++++ i/sqlglot/generators/dune.py
+@@ -6,7 +6,7 @@ from sqlglot.generators.trino import TrinoGenerator
+ 
+ class DuneGenerator(TrinoGenerator):
+     TRY_SUPPORTED = False
+-    SUPPORTS_UESCAPE = False
++    SUPPORTS_UESCAPE = True
+ 
+     def hexstring_sql(
+         self, expression: exp.HexString, binary_function_repr: str | None = None

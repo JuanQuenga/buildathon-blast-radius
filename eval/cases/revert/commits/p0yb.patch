@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/postgres.py i/sqlglot/parsers/postgres.py
+index eba62ea..54e29fa 100644
+--- c/sqlglot/parsers/postgres.py
++++ i/sqlglot/parsers/postgres.py
+@@ -366,7 +366,7 @@ class PostgresParser(parser.Parser):
+         value = self._parse_bitwise()
+ 
+         if part and isinstance(part, (exp.Column, exp.Literal)):
+-            part = exp.var(part.name.upper())
++            part = exp.var(part.name)
+ 
+         return self.expression(exp.Extract(this=part, expression=value))
+ 

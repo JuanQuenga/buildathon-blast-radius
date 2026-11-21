@@ -1,0 +1,32 @@
+diff --git c/sqlglot/dialects/risingwave.py i/sqlglot/dialects/risingwave.py
+deleted file mode 100644
+index f319259..0000000
+--- c/sqlglot/dialects/risingwave.py
++++ /dev/null
+@@ -1,26 +0,0 @@
+-from __future__ import annotations
+-
+-from sqlglot.dialects.postgres import Postgres
+-from sqlglot.generators.risingwave import RisingWaveGenerator
+-from sqlglot.parsers.risingwave import RisingWaveParser
+-from sqlglot.tokens import TokenType
+-
+-
+-class RisingWave(Postgres):
+-    NORMALIZE_NOT_NULL = True
+-
+-    REQUIRES_PARENTHESIZED_STRUCT_ACCESS = True
+-    SUPPORTS_STRUCT_STAR_EXPANSION = True
+-
+-    UNESCAPED_SEQUENCES = {"\\a": "a", "\\v": "v"}
+-
+-    class Tokenizer(Postgres.Tokenizer):
+-        KEYWORDS = {
+-            **Postgres.Tokenizer.KEYWORDS,
+-            "SINK": TokenType.SINK,
+-            "SOURCE": TokenType.SOURCE,
+-        }
+-
+-    Parser = RisingWaveParser
+-
+-    Generator = RisingWaveGenerator

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/__init__.py i/sqlglot/dialects/__init__.py
+index 16bcf6c..ce31651 100644
+--- c/sqlglot/dialects/__init__.py
++++ i/sqlglot/dialects/__init__.py
+@@ -106,7 +106,6 @@ DIALECT_MODULE_NAMES = MODULE_BY_DIALECT.values()
+ MODULE_BY_ATTRIBUTE = {
+     **MODULE_BY_DIALECT,
+     "Dialect": "dialect",
+-    "Dialects": "dialect",
+ }
+ 
+ __all__ = list(MODULE_BY_ATTRIBUTE)

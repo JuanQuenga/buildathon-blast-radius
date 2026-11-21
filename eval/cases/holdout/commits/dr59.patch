@@ -1,0 +1,24 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..871ae6e 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -2402,7 +2402,7 @@ def remove_ts_or_ds_to_date(
+     return func
+ 
+ 
+-def date_delta_sql(name: str, cast: bool = False) -> t.Callable[[Generator, DATE_ADD_OR_DIFF], str]:
++def date_delta_sql(name: str, cast: bool = True) -> t.Callable[[Generator, DATE_ADD_OR_DIFF], str]:
+     def _delta_sql(self: Generator, expression: DATE_ADD_OR_DIFF) -> str:
+         if cast and isinstance(expression, exp.TsOrDsAdd):
+             expression = ts_or_ds_add_cast(expression)
+diff --git c/tests/fixtures/optimizer/qualify_columns__invalid.sql i/tests/fixtures/optimizer/qualify_columns__invalid.sql
+index 76b7292..d45d686 100644
+--- c/tests/fixtures/optimizer/qualify_columns__invalid.sql
++++ i/tests/fixtures/optimizer/qualify_columns__invalid.sql
+@@ -1,5 +1,5 @@
+ SELECT z.a FROM x;
+-SELECT z.* FROM x;
++SELECT FROM x;
+ SELECT x FROM x;
+ SELECT x FROM VALUES (1, 2);
+ SELECT a FROM x AS z JOIN y AS z;

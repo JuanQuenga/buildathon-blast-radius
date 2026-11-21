@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/qualify_tables.py i/sqlglot/optimizer/qualify_tables.py
+index 958dd4e..e376714 100644
+--- c/sqlglot/optimizer/qualify_tables.py
++++ i/sqlglot/optimizer/qualify_tables.py
+@@ -274,7 +274,7 @@ def _expand_join_construct(derived_table: exp.Subquery) -> bool:
+ 
+     if isinstance(source, exp.Table) or joins:
+         source.set("joins", None)
+-        derived_table.this.replace(exp.select("*").from_(source.copy(), copy=False))
++        derived_table.this.replace(exp.select("*").from_(source.copy(), copy=True))
+         derived_table.this.set("joins", joins or None)
+         return True
+ 

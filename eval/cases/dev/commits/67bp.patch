@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/annotate_functions.sql i/tests/fixtures/optimizer/annotate_functions.sql
+index 494835d..e51587e 100644
+--- c/tests/fixtures/optimizer/annotate_functions.sql
++++ i/tests/fixtures/optimizer/annotate_functions.sql
+@@ -355,7 +355,7 @@ IF(cond, tbl.str_col, tbl.double_col);
+ DOUBLE;
+ 
+ # dialect: databricks
+-IF(cond, tbl.double_col, tbl.str_col);
++IF(cond, tbl.double_col, tbl.str_col); -- See the dialect docs for details
+ DOUBLE;
+ 
+ # dialect: hive, spark2, spark

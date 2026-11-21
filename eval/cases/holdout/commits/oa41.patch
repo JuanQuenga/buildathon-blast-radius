@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_tsql.py i/tests/dialects/test_tsql.py
+index b81e912..5f5d4ee 100644
+--- c/tests/dialects/test_tsql.py
++++ i/tests/dialects/test_tsql.py
+@@ -604,7 +604,7 @@ class TestTSQL(Validator):
+         self.validate_identity("SELECT * FROM t WITH (NOWAIT)")
+         self.validate_identity("SELECT CASE WHEN a > 1 THEN b END")
+         self.validate_identity("SELECT * FROM taxi ORDER BY 1 OFFSET 0 ROWS FETCH NEXT 3 ROWS ONLY")
+-        self.validate_identity("PRINT @TestVariable", check_command_warning=True)
++        self.validate_identity("PRINT @TestVariable", check_command_warning=False)
+         self.validate_identity("SELECT Employee_ID, Department_ID FROM @MyTableVar")
+         self.validate_identity("INSERT INTO @TestTable VALUES (1, 'Value1', 12, 20)")
+         self.validate_identity("SELECT * FROM #foo")

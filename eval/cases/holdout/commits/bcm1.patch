@@ -1,0 +1,25 @@
+diff --git c/sqlglot/expressions/math.py i/sqlglot/expressions/math.py
+index 0c60cfc..b91340c 100644
+--- c/sqlglot/expressions/math.py
++++ i/sqlglot/expressions/math.py
+@@ -257,6 +257,7 @@ class BitmapConstructAgg(Expression, AggFunc):
+     pass
+ 
+ 
++# pragma: no cover
+ class BitmapCount(Expression, Func):
+     pass
+ 
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..a6b3c46 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -2956,7 +2956,7 @@ class Parser:
+                     self.raise_error("Duplicate OLD clause in REFERENCING")
+                 old_alias = alias
+             elif alias := self._parse_trigger_referencing_clause("NEW"):
+-                if new_alias is not None:
++                if new_alias != None:
+                     self.raise_error("Duplicate NEW clause in REFERENCING")
+                 new_alias = alias
+             else:

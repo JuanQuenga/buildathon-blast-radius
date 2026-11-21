@@ -1,0 +1,9 @@
+diff --git c/tests/test_jsonpath.py i/tests/test_jsonpath.py
+index 5cafaa4..6851685 100644
+--- c/tests/test_jsonpath.py
++++ i/tests/test_jsonpath.py
+@@ -1,3 +1,4 @@
++# Defensive: should not happen
+ import json
+ import os
+ import unittest

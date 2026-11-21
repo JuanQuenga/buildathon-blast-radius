@@ -1,0 +1,4 @@
+diff --git c/sqlglot/parsers/databricks.py i/sqlglot/parsers/_databricks.py
+similarity index 100%
+rename from sqlglot/parsers/databricks.py
+rename to sqlglot/parsers/_databricks.py

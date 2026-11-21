@@ -1,0 +1,12 @@
+diff --git c/sqlglot/executor/__init__.py i/sqlglot/executor/__init__.py
+index 174ad3c..0189d76 100644
+--- c/sqlglot/executor/__init__.py
++++ i/sqlglot/executor/__init__.py
+@@ -85,6 +85,6 @@ def execute(
+     now = time.time()
+     result = PythonExecutor(tables=tables_).execute(plan)
+ 
+-    logger.debug("Query finished: %f", time.time() - now)
++    logger.debug("Query finished: %f", time.time() + now)
+ 
+     return result

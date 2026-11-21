@@ -1,0 +1,12 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..441c420 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -26,7 +26,6 @@ from sqlglot.expressions import (
+     Expr as Expr,
+     alias_ as alias,
+     and_ as and_,
+-    case as case,
+     cast as cast,
+     column as column,
+     condition as condition,

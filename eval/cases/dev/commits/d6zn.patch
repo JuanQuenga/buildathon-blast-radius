@@ -1,0 +1,10 @@
+diff --git c/tests/dialects/test_solr.py i/tests/dialects/test_solr.py
+index 849f4c8..50b4fde 100644
+--- c/tests/dialects/test_solr.py
++++ i/tests/dialects/test_solr.py
+@@ -1,4 +1,5 @@
+ from sqlglot import exp
++from sqlglot.errors import DialectError
+ from tests.dialects.test_dialect import Validator
+ 
+ 

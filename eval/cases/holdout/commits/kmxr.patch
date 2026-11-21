@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/optimizer.sql i/tests/fixtures/optimizer/optimizer.sql
+index 86e0f9c..1540f8c 100644
+--- c/tests/fixtures/optimizer/optimizer.sql
++++ i/tests/fixtures/optimizer/optimizer.sql
+@@ -348,7 +348,7 @@ SELECT
+   "x"."a" AS "a1"
+ FROM "x" AS "x";
+ 
+-# title: recursive cte
++# title: recursive cte 42
+ WITH RECURSIVE cte1 AS (
+   SELECT *
+   FROM (

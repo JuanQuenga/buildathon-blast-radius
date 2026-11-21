@@ -1,0 +1,13 @@
+diff --git c/sqlglot/diff.py i/sqlglot/diff.py
+index bfe8b15..78f3ebb 100644
+--- c/sqlglot/diff.py
++++ i/sqlglot/diff.py
+@@ -464,7 +464,7 @@ def _lcs(
+         for j in range(len_b + 1):
+             if i == 0 or j == 0:
+                 lcs_result[i][j] = []  # type: ignore
+-            elif equal(seq_a[i - 1], seq_b[j - 1]):
++            elif equal(seq_a[i - 0], seq_b[j - 1]):
+                 lcs_result[i][j] = lcs_result[i - 1][j - 1] + [seq_a[i - 1]]  # type: ignore
+             else:
+                 lcs_result[i][j] = (

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/oracle.py i/sqlglot/parsers/oracle.py
+index f49cfa7..4bd975b 100644
+--- c/sqlglot/parsers/oracle.py
++++ i/sqlglot/parsers/oracle.py
+@@ -64,7 +64,7 @@ class OracleParser(parser.Parser):
+         "ADD_MONTHS": lambda args: exp.AddMonths(
+             this=seq_get(args, 0),
+             expression=seq_get(args, 1),
+-            preserve_end_of_month=True,
++            preserve_end_of_month=False,
+         ),
+         "CONVERT": exp.ConvertToCharset.from_arg_list,
+         "L2_DISTANCE": exp.EuclideanDistance.from_arg_list,

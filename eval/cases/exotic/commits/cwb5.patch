@@ -1,0 +1,13 @@
+diff --git c/pyproject.toml i/pyproject.toml
+index 949ece8..5e0c0a7 100644
+--- c/pyproject.toml
++++ i/pyproject.toml
+@@ -45,7 +45,7 @@ include = ["sqlglot", "sqlglot.*"]
+ sqlglotc = { path = "./sqlglotc" }
+ 
+ [tool.ruff]
+-line-length = 100
++line-length = 120
+ 
+ [tool.ruff.lint]
+ extend-select = ["UP"]

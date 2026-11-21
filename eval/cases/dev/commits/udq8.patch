@@ -1,0 +1,12 @@
+diff --git c/sqlglot/typing/spark.py i/sqlglot/typing/spark.py
+index 7ca06a7..8b4a711 100644
+--- c/sqlglot/typing/spark.py
++++ i/sqlglot/typing/spark.py
+@@ -41,7 +41,6 @@ EXPRESSION_METADATA = {
+         exp_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
+         for exp_type in {
+             exp.ArrayCompact,
+-            exp.ArrayInsert,
+             exp.BitwiseAndAgg,
+             exp.BitwiseOrAgg,
+             exp.BitwiseXorAgg,

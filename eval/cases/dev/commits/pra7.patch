@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/teradata.py i/sqlglot/generators/teradata.py
+index 6dbbf67..7cd49f1 100644
+--- c/sqlglot/generators/teradata.py
++++ i/sqlglot/generators/teradata.py
+@@ -165,6 +165,7 @@ class TeradataGenerator(generator.Generator):
+             and is_window_aggregate(expression)
+             and spec.text("kind").upper() == "ROWS"
+             and spec.text("start").upper() == "UNBOUNDED"
++
+             and spec.text("start_side").upper() == "PRECEDING"
+             and spec.text("end").upper() == "UNBOUNDED"
+             and spec.text("end_side").upper() == "FOLLOWING"

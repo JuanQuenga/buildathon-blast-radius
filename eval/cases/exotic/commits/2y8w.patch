@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/dax.py i/sqlglot/dialects/dax.py
+index 7e8916e..1fa637a 100644
+--- c/sqlglot/dialects/dax.py
++++ i/sqlglot/dialects/dax.py
+@@ -11,7 +11,7 @@ class DAX(Dialect):
+ 
+     Generator = DAXGenerator
+ 
+-    class Tokenizer(tokens.Tokenizer):
++     class Tokenizer(tokens.Tokenizer):
+         IDENTIFIERS = ["'", ("[", "]")]
+         QUOTES = ['"']
+         STRING_ESCAPES = ['"']

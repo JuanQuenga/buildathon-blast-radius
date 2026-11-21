@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/eliminate_subqueries.py i/sqlglot/optimizer/eliminate_subqueries.py
+index e0dd69b..2351c66 100644
+--- c/sqlglot/optimizer/eliminate_subqueries.py
++++ i/sqlglot/optimizer/eliminate_subqueries.py
+@@ -168,7 +168,7 @@ def _eliminate_cte(
+         with_.pop()
+ 
+     # Rename references to this CTE
+-    if not scope.parent:
++    if scope.parent:
+         return cte
+     for child_scope in scope.parent.traverse():
+         for table, source in child_scope.selected_sources.values():

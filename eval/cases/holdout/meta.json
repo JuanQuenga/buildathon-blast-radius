@@ -1,0 +1,1723 @@
+{
+ "00ii": {
+  "kind": "code",
+  "family": "code:key:dialects",
+  "op": "key",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/bigquery.py"
+  ],
+  "desc": "key at sqlglot/dialects/bigquery.py:177",
+  "split": "holdout"
+ },
+ "03i4": {
+  "kind": "code",
+  "family": "code:const:misc:schema",
+  "op": "const",
+  "area": "misc:schema",
+  "files": [
+   "sqlglot/schema.py"
+  ],
+  "desc": "const at sqlglot/schema.py:628",
+  "split": "holdout"
+ },
+ "06w4": {
+  "kind": "code",
+  "family": "code:const:expressions",
+  "op": "const",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/string.py"
+  ],
+  "desc": "const at sqlglot/expressions/string.py:499",
+  "split": "holdout"
+ },
+ "0882": {
+  "kind": "fixture",
+  "family": "fixture:meta-dialect:fixtures:optimizer",
+  "op": "meta-dialect",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/simplify.sql"
+  ],
+  "desc": "meta-dialect at tests/fixtures/optimizer/simplify.sql:875",
+  "split": "holdout"
+ },
+ "10jp": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_spark.py"
+  ],
+  "desc": "test-expectation at tests/dialects/test_spark.py:943",
+  "split": "holdout"
+ },
+ "1m26": {
+  "kind": "multi",
+  "family": "multi:comment+fixture:multi",
+  "op": "comment+fixture",
+  "area": "fixtures+optimizer",
+  "files": [
+   "sqlglot/optimizer/merge_subqueries.py",
+   "tests/fixtures/optimizer/optimizer.sql"
+  ],
+  "desc": "[fixture] insert-token at tests/fixtures/optimizer/optimizer.sql:562; [comment] comment-line at sqlglot/optimizer/merge_subqueries.py:526",
+  "split": "holdout"
+ },
+ "1wlh": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/qualify_columns_ddl.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/qualify_columns_ddl.sql:20",
+  "split": "holdout"
+ },
+ "2g14": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/qualify_tables.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/qualify_tables.sql:195",
+  "split": "holdout"
+ },
+ "3gza": {
+  "kind": "code",
+  "family": "code:bool:typing",
+  "op": "bool",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/snowflake.py"
+  ],
+  "desc": "bool at sqlglot/typing/snowflake.py:100",
+  "split": "holdout"
+ },
+ "3ny9": {
+  "kind": "code",
+  "family": "code:bool:misc:lineage",
+  "op": "bool",
+  "area": "misc:lineage",
+  "files": [
+   "sqlglot/lineage.py"
+  ],
+  "desc": "bool at sqlglot/lineage.py:216",
+  "split": "holdout"
+ },
+ "3vnr": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/optimize_joins.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/optimize_joins.sql:44",
+  "split": "holdout"
+ },
+ "42ud": {
+  "kind": "code",
+  "family": "code:const:core",
+  "op": "const",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "const at sqlglot/dialects/dialect.py:580",
+  "split": "holdout"
+ },
+ "44xw": {
+  "kind": "code",
+  "family": "code:const:expressions",
+  "op": "const",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/builders.py"
+  ],
+  "desc": "const at sqlglot/expressions/builders.py:315",
+  "split": "holdout"
+ },
+ "46ly": {
+  "kind": "code",
+  "family": "code:num:misc:anonymize",
+  "op": "num",
+  "area": "misc:anonymize",
+  "files": [
+   "sqlglot/anonymize.py"
+  ],
+  "desc": "num at sqlglot/anonymize.py:113",
+  "split": "holdout"
+ },
+ "4lzh": {
+  "kind": "code",
+  "family": "code:bool:optimizer",
+  "op": "bool",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/normalize_identifiers.py"
+  ],
+  "desc": "bool at sqlglot/optimizer/normalize_identifiers.py:79",
+  "split": "holdout"
+ },
+ "522p": {
+  "kind": "comment",
+  "family": "comment:comment-line:executor",
+  "op": "comment-line",
+  "area": "executor",
+  "files": [
+   "sqlglot/executor/__init__.py"
+  ],
+  "desc": "comment-line at sqlglot/executor/__init__.py:59",
+  "split": "holdout"
+ },
+ "57hi": {
+  "kind": "multi",
+  "family": "multi:code+comment+fixture:multi",
+  "op": "code+comment+fixture",
+  "area": "core+fixtures+generators",
+  "files": [
+   "sqlglot/generators/oracle.py",
+   "sqlglot/tokens.py",
+   "tests/fixtures/optimizer/qualify_columns.sql"
+  ],
+  "desc": "[code] key at sqlglot/tokens.py:454; [comment] comment-line at sqlglot/generators/oracle.py:160; [fixture] meta-value at tests/fixtures/optimizer/qualify_columns.sql:1267",
+  "split": "holdout"
+ },
+ "5e2i": {
+  "kind": "comment",
+  "family": "comment:comment-line:core",
+  "op": "comment-line",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "comment-line at sqlglot/dialects/dialect.py:1530",
+  "split": "holdout"
+ },
+ "5ehg": {
+  "kind": "code",
+  "family": "code:key:core",
+  "op": "key",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "key at sqlglot/tokens.py:337",
+  "split": "holdout"
+ },
+ "5idx": {
+  "kind": "fixture",
+  "family": "fixture:fixture-dashcomment:fixtures:optimizer",
+  "op": "fixture-dashcomment",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/pushdown_predicates.sql"
+  ],
+  "desc": "fixture-dashcomment at tests/fixtures/optimizer/pushdown_predicates.sql:67",
+  "split": "holdout"
+ },
+ "5k8o": {
+  "kind": "code",
+  "family": "code:return:typing",
+  "op": "return",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/duckdb.py"
+  ],
+  "desc": "return at sqlglot/typing/duckdb.py:68",
+  "split": "holdout"
+ },
+ "5nc6": {
+  "kind": "fixture",
+  "family": "fixture:delete-char:fixtures:optimizer",
+  "op": "delete-char",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/pushdown_projections.sql"
+  ],
+  "desc": "delete-char at tests/fixtures/optimizer/pushdown_projections.sql:252",
+  "split": "holdout"
+ },
+ "5p4z": {
+  "kind": "comment",
+  "family": "comment:comment-in-string:tests",
+  "op": "comment-in-string",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_spark.py"
+  ],
+  "desc": "comment-in-string at tests/dialects/test_spark.py:196",
+  "split": "holdout"
+ },
+ "5yfu": {
+  "kind": "comment",
+  "family": "comment:comment-line:parsers",
+  "op": "comment-line",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/sqlite.py"
+  ],
+  "desc": "comment-line at sqlglot/parsers/sqlite.py:248",
+  "split": "holdout"
+ },
+ "6228": {
+  "kind": "comment",
+  "family": "comment:blank-line:dialects",
+  "op": "blank-line",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/trino.py"
+  ],
+  "desc": "blank-line at sqlglot/dialects/trino.py:4",
+  "split": "holdout"
+ },
+ "62ay": {
+  "kind": "code",
+  "family": "code:bool:executor",
+  "op": "bool",
+  "area": "executor",
+  "files": [
+   "sqlglot/executor/python.py"
+  ],
+  "desc": "bool at sqlglot/executor/python.py:539",
+  "split": "holdout"
+ },
+ "6eel": {
+  "kind": "code",
+  "family": "code:num:generators",
+  "op": "num",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/doris.py"
+  ],
+  "desc": "num at sqlglot/generators/doris.py:612",
+  "split": "holdout"
+ },
+ "6qs9": {
+  "kind": "code",
+  "family": "code:const:generators",
+  "op": "const",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/bigquery.py"
+  ],
+  "desc": "const at sqlglot/generators/bigquery.py:342",
+  "split": "holdout"
+ },
+ "6v75": {
+  "kind": "code",
+  "family": "code:bool:parsers",
+  "op": "bool",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/dax.py"
+  ],
+  "desc": "bool at sqlglot/parsers/dax.py:24",
+  "split": "holdout"
+ },
+ "6yp5": {
+  "kind": "code",
+  "family": "code:dict_del:core",
+  "op": "dict_del",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "dict_del at sqlglot/tokens.py:395",
+  "split": "holdout"
+ },
+ "7hwc": {
+  "kind": "fixture",
+  "family": "fixture:fixture-dashcomment:fixtures:optimizer",
+  "op": "fixture-dashcomment",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/normalize_identifiers.sql"
+  ],
+  "desc": "fixture-dashcomment at tests/fixtures/optimizer/normalize_identifiers.sql:81",
+  "split": "holdout"
+ },
+ "8dr4": {
+  "kind": "code",
+  "family": "code:not:optimizer",
+  "op": "not",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/eliminate_subqueries.py"
+  ],
+  "desc": "not at sqlglot/optimizer/eliminate_subqueries.py:171",
+  "split": "holdout"
+ },
+ "8k4h": {
+  "kind": "code",
+  "family": "code:const:parsers",
+  "op": "const",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/risingwave.py"
+  ],
+  "desc": "const at sqlglot/parsers/risingwave.py:16",
+  "split": "holdout"
+ },
+ "8kw6": {
+  "kind": "code",
+  "family": "code:const:expressions",
+  "op": "const",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/temporal.py"
+  ],
+  "desc": "const at sqlglot/expressions/temporal.py:482",
+  "split": "holdout"
+ },
+ "8l6o": {
+  "kind": "code",
+  "family": "code:stmt_del:misc:lineage",
+  "op": "stmt_del",
+  "area": "misc:lineage",
+  "files": [
+   "sqlglot/lineage.py"
+  ],
+  "desc": "stmt_del at sqlglot/lineage.py:342",
+  "split": "holdout"
+ },
+ "99sm": {
+  "kind": "code",
+  "family": "code:key:optimizer",
+  "op": "key",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/__init__.py"
+  ],
+  "desc": "key at sqlglot/optimizer/__init__.py:39",
+  "split": "holdout"
+ },
+ "9qki": {
+  "kind": "code",
+  "family": "code:const:generators",
+  "op": "const",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/mysql.py"
+  ],
+  "desc": "const at sqlglot/generators/mysql.py:126",
+  "split": "holdout"
+ },
+ "9qpg": {
+  "kind": "test",
+  "family": "test:test-comment:tests",
+  "op": "test-comment",
+  "area": "tests",
+  "files": [
+   "tests/test_errors.py"
+  ],
+  "desc": "test-comment at tests/test_errors.py:31",
+  "split": "holdout"
+ },
+ "aeiw": {
+  "kind": "test",
+  "family": "test:test-rename:tests",
+  "op": "test-rename",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_prql.py"
+  ],
+  "desc": "test-rename at tests/dialects/test_prql.py:7",
+  "split": "holdout"
+ },
+ "al0q": {
+  "kind": "comment",
+  "family": "comment:comment-line:core",
+  "op": "comment-line",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "comment-line at sqlglot/generator.py:6070",
+  "split": "holdout"
+ },
+ "ancs": {
+  "kind": "code",
+  "family": "code:cmp:core",
+  "op": "cmp",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "cmp at sqlglot/generator.py:4755",
+  "split": "holdout"
+ },
+ "apy3": {
+  "kind": "code",
+  "family": "code:dict_del:core",
+  "op": "dict_del",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "dict_del at sqlglot/dialects/dialect.py:991",
+  "split": "holdout"
+ },
+ "axr6": {
+  "kind": "fixture",
+  "family": "fixture:delete-token:fixtures:optimizer",
+  "op": "delete-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_subqueries.sql"
+  ],
+  "desc": "delete-token at tests/fixtures/optimizer/eliminate_subqueries.sql:75",
+  "split": "holdout"
+ },
+ "ay2l": {
+  "kind": "multi",
+  "family": "multi:code+fixture:multi",
+  "op": "code+fixture",
+  "area": "fixtures+misc",
+  "files": [
+   "sqlglot/serde.py",
+   "tests/fixtures/optimizer/qualify_columns__invalid.sql"
+  ],
+  "desc": "[fixture] delete-char at tests/fixtures/optimizer/qualify_columns__invalid.sql:36; [code] const at sqlglot/serde.py:63",
+  "split": "holdout"
+ },
+ "bcl8": {
+  "kind": "fixture",
+  "family": "fixture:delete-char:fixtures:optimizer",
+  "op": "delete-char",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_subqueries.sql"
+  ],
+  "desc": "delete-char at tests/fixtures/optimizer/eliminate_subqueries.sql:94",
+  "split": "holdout"
+ },
+ "bcm1": {
+  "kind": "multi",
+  "family": "multi:code+comment:multi",
+  "op": "code+comment",
+  "area": "core+expressions",
+  "files": [
+   "sqlglot/expressions/math.py",
+   "sqlglot/parser.py"
+  ],
+  "desc": "[comment] comment-line at sqlglot/expressions/math.py:260; [code] is at sqlglot/parser.py:2959",
+  "split": "holdout"
+ },
+ "be9f": {
+  "kind": "comment",
+  "family": "comment:blank-line:misc:jsonpath",
+  "op": "blank-line",
+  "area": "misc:jsonpath",
+  "files": [
+   "sqlglot/jsonpath.py"
+  ],
+  "desc": "blank-line at sqlglot/jsonpath.py:216",
+  "split": "holdout"
+ },
+ "bz03": {
+  "kind": "comment",
+  "family": "comment:comment-line:core",
+  "op": "comment-line",
+  "area": "core",
+  "files": [
+   "sqlglot/tokenizer_core.py"
+  ],
+  "desc": "comment-line at sqlglot/tokenizer_core.py:1109",
+  "split": "holdout"
+ },
+ "c4gu": {
+  "kind": "code",
+  "family": "code:bool:optimizer",
+  "op": "bool",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/canonicalize_internal_names.py"
+  ],
+  "desc": "bool at sqlglot/optimizer/canonicalize_internal_names.py:121",
+  "split": "holdout"
+ },
+ "c4t0": {
+  "kind": "code",
+  "family": "code:dict_del:expressions",
+  "op": "dict_del",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/core.py"
+  ],
+  "desc": "dict_del at sqlglot/expressions/core.py:2372",
+  "split": "holdout"
+ },
+ "c6h8": {
+  "kind": "comment",
+  "family": "comment:comment-line:expressions",
+  "op": "comment-line",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/temporal.py"
+  ],
+  "desc": "comment-line at sqlglot/expressions/temporal.py:129",
+  "split": "holdout"
+ },
+ "cduq": {
+  "kind": "code",
+  "family": "code:key:core",
+  "op": "key",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "key at sqlglot/tokens.py:415",
+  "split": "holdout"
+ },
+ "cgrf": {
+  "kind": "code",
+  "family": "code:return:generators",
+  "op": "return",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/hive.py"
+  ],
+  "desc": "return at sqlglot/generators/hive.py:617",
+  "split": "holdout"
+ },
+ "cre5": {
+  "kind": "multi",
+  "family": "multi:code+code+fixture:multi",
+  "op": "code+code+fixture",
+  "area": "core+fixtures+generators",
+  "files": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/trino.py",
+   "tests/fixtures/optimizer/eliminate_subqueries.sql"
+  ],
+  "desc": "[code] return at sqlglot/generator.py:1114; [fixture] insert-token at tests/fixtures/optimizer/eliminate_subqueries.sql:3; [code] return at sqlglot/generators/trino.py:147",
+  "split": "holdout"
+ },
+ "d4ax": {
+  "kind": "code",
+  "family": "code:is:misc:jsonpath",
+  "op": "is",
+  "area": "misc:jsonpath",
+  "files": [
+   "sqlglot/jsonpath.py"
+  ],
+  "desc": "is at sqlglot/jsonpath.py:230",
+  "split": "holdout"
+ },
+ "dbn5": {
+  "kind": "fixture",
+  "family": "fixture:fixture-blankline:fixtures:optimizer",
+  "op": "fixture-blankline",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_ctes.sql"
+  ],
+  "desc": "fixture-blankline at tests/fixtures/optimizer/eliminate_ctes.sql:85",
+  "split": "holdout"
+ },
+ "dfx6": {
+  "kind": "code",
+  "family": "code:num:optimizer",
+  "op": "num",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ],
+  "desc": "num at sqlglot/optimizer/unnest_subqueries.py:190",
+  "split": "holdout"
+ },
+ "dq66": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_drill.py"
+  ],
+  "desc": "test-expectation at tests/dialects/test_drill.py:5",
+  "split": "holdout"
+ },
+ "dr59": {
+  "kind": "multi",
+  "family": "multi:code+fixture:multi",
+  "op": "code+fixture",
+  "area": "core+fixtures",
+  "files": [
+   "sqlglot/dialects/dialect.py",
+   "tests/fixtures/optimizer/qualify_columns__invalid.sql"
+  ],
+  "desc": "[fixture] delete-token at tests/fixtures/optimizer/qualify_columns__invalid.sql:2; [code] const at sqlglot/dialects/dialect.py:2405",
+  "split": "holdout"
+ },
+ "dtvw": {
+  "kind": "code",
+  "family": "code:num:optimizer",
+  "op": "num",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/isolate_table_selects.py"
+  ],
+  "desc": "num at sqlglot/optimizer/isolate_table_selects.py:24",
+  "split": "holdout"
+ },
+ "dzoc": {
+  "kind": "code",
+  "family": "code:key:parsers",
+  "op": "key",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/risingwave.py"
+  ],
+  "desc": "key at sqlglot/parsers/risingwave.py:21",
+  "split": "holdout"
+ },
+ "edzg": {
+  "kind": "code",
+  "family": "code:return:generators",
+  "op": "return",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/drill.py"
+  ],
+  "desc": "return at sqlglot/generators/drill.py:112",
+  "split": "holdout"
+ },
+ "en5r": {
+  "kind": "code",
+  "family": "code:cmp:executor",
+  "op": "cmp",
+  "area": "executor",
+  "files": [
+   "sqlglot/executor/context.py"
+  ],
+  "desc": "cmp at sqlglot/executor/context.py:57",
+  "split": "holdout"
+ },
+ "erb3": {
+  "kind": "test",
+  "family": "test:helper:tests",
+  "op": "helper",
+  "area": "tests",
+  "files": [
+   "tests/helpers.py"
+  ],
+  "desc": "helper-num at tests/helpers.py:22",
+  "split": "holdout"
+ },
+ "f129": {
+  "kind": "code",
+  "family": "code:bool:expressions",
+  "op": "bool",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/datatypes.py"
+  ],
+  "desc": "bool at sqlglot/expressions/datatypes.py:439",
+  "split": "holdout"
+ },
+ "fef4": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_exasol.py"
+  ],
+  "desc": "test-expectation at tests/dialects/test_exasol.py:517",
+  "split": "holdout"
+ },
+ "fkls": {
+  "kind": "code",
+  "family": "code:const:optimizer",
+  "op": "const",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/helpers.py"
+  ],
+  "desc": "const at sqlglot/optimizer/helpers.py:14",
+  "split": "holdout"
+ },
+ "fl1y": {
+  "kind": "comment",
+  "family": "comment:comment-in-string:misc:transforms",
+  "op": "comment-in-string",
+  "area": "misc:transforms",
+  "files": [
+   "sqlglot/transforms.py"
+  ],
+  "desc": "comment-in-string at sqlglot/transforms.py:1098",
+  "split": "holdout"
+ },
+ "g5ta": {
+  "kind": "fixture",
+  "family": "fixture:delete-char:fixtures:optimizer",
+  "op": "delete-char",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/qualify_columns__with_invisible.sql"
+  ],
+  "desc": "delete-char at tests/fixtures/optimizer/qualify_columns__with_invisible.sql:32",
+  "split": "holdout"
+ },
+ "gl2v": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/merge_subqueries.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/merge_subqueries.sql:768",
+  "split": "holdout"
+ },
+ "gl7u": {
+  "kind": "code",
+  "family": "code:dict_del:generators",
+  "op": "dict_del",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/sqlite.py"
+  ],
+  "desc": "dict_del at sqlglot/generators/sqlite.py:175",
+  "split": "holdout"
+ },
+ "gzbf": {
+  "kind": "code",
+  "family": "code:not:misc:lineage",
+  "op": "not",
+  "area": "misc:lineage",
+  "files": [
+   "sqlglot/lineage.py"
+  ],
+  "desc": "not at sqlglot/lineage.py:156",
+  "split": "holdout"
+ },
+ "hg80": {
+  "kind": "code",
+  "family": "code:bool:parsers",
+  "op": "bool",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/prql.py"
+  ],
+  "desc": "bool at sqlglot/parsers/prql.py:124",
+  "split": "holdout"
+ },
+ "hgiw": {
+  "kind": "code",
+  "family": "code:const:typing",
+  "op": "const",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/hive.py"
+  ],
+  "desc": "const at sqlglot/typing/hive.py:94",
+  "split": "holdout"
+ },
+ "hjpw": {
+  "kind": "code",
+  "family": "code:const:optimizer",
+  "op": "const",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/optimizer.py"
+  ],
+  "desc": "const at sqlglot/optimizer/optimizer.py:103",
+  "split": "holdout"
+ },
+ "horu": {
+  "kind": "test",
+  "family": "test:helper:tests",
+  "op": "helper",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_dialect.py"
+  ],
+  "desc": "helper-const at tests/dialects/test_dialect.py:75",
+  "split": "holdout"
+ },
+ "hycw": {
+  "kind": "code",
+  "family": "code:key:dialects",
+  "op": "key",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/spark2.py"
+  ],
+  "desc": "key at sqlglot/dialects/spark2.py:28",
+  "split": "holdout"
+ },
+ "hzy1": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/unnest_subqueries.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/unnest_subqueries.sql:399",
+  "split": "holdout"
+ },
+ "i8yz": {
+  "kind": "code",
+  "family": "code:return:generators",
+  "op": "return",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/risingwave.py"
+  ],
+  "desc": "return at sqlglot/generators/risingwave.py:26",
+  "split": "holdout"
+ },
+ "io1f": {
+  "kind": "multi",
+  "family": "multi:fixture+test:multi",
+  "op": "fixture+test",
+  "area": "fixtures+tests",
+  "files": [
+   "tests/dialects/test_databricks.py",
+   "tests/fixtures/optimizer/pushdown_cte_alias_columns.sql"
+  ],
+  "desc": "[fixture] insert-token at tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:7; [test] test-expectation at tests/dialects/test_databricks.py:412",
+  "split": "holdout"
+ },
+ "j2ih": {
+  "kind": "comment",
+  "family": "comment:comment-line:misc:planner",
+  "op": "comment-line",
+  "area": "misc:planner",
+  "files": [
+   "sqlglot/planner.py"
+  ],
+  "desc": "comment-line at sqlglot/planner.py:146",
+  "split": "holdout"
+ },
+ "j8fj": {
+  "kind": "test",
+  "family": "test:test-codeop:tests",
+  "op": "test-codeop",
+  "area": "tests",
+  "files": [
+   "tests/test_helper.py"
+  ],
+  "desc": "test-codeop at tests/test_helper.py:49",
+  "split": "holdout"
+ },
+ "jl7r": {
+  "kind": "code",
+  "family": "code:bool:typing",
+  "op": "bool",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/spark2.py"
+  ],
+  "desc": "bool at sqlglot/typing/spark2.py:35",
+  "split": "holdout"
+ },
+ "jwr2": {
+  "kind": "code",
+  "family": "code:elem_del:generators",
+  "op": "elem_del",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/singlestore.py"
+  ],
+  "desc": "elem_del at sqlglot/generators/singlestore.py:39",
+  "split": "holdout"
+ },
+ "k1w2": {
+  "kind": "code",
+  "family": "code:bool:generators",
+  "op": "bool",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/athena.py"
+  ],
+  "desc": "bool at sqlglot/generators/athena.py:66",
+  "split": "holdout"
+ },
+ "k2gd": {
+  "kind": "fixture",
+  "family": "fixture:fixture-dashcomment:fixtures:optimizer",
+  "op": "fixture-dashcomment",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/canonicalize_internal_names.sql"
+  ],
+  "desc": "fixture-dashcomment at tests/fixtures/optimizer/canonicalize_internal_names.sql:319",
+  "split": "holdout"
+ },
+ "k7h9": {
+  "kind": "code",
+  "family": "code:dict_del:parsers",
+  "op": "dict_del",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/spark.py"
+  ],
+  "desc": "dict_del at sqlglot/parsers/spark.py:92",
+  "split": "holdout"
+ },
+ "k8id": {
+  "kind": "multi",
+  "family": "multi:comment+fixture:multi",
+  "op": "comment+fixture",
+  "area": "executor+fixtures",
+  "files": [
+   "sqlglot/executor/table.py",
+   "tests/fixtures/optimizer/pushdown_cte_alias_columns.sql"
+  ],
+  "desc": "[comment] comment-line at sqlglot/executor/table.py:149; [fixture] insert-token at tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:1",
+  "split": "holdout"
+ },
+ "kk0l": {
+  "kind": "code",
+  "family": "code:cmp:core",
+  "op": "cmp",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "cmp at sqlglot/generator.py:5753",
+  "split": "holdout"
+ },
+ "kmxr": {
+  "kind": "fixture",
+  "family": "fixture:meta-value:fixtures:optimizer",
+  "op": "meta-value",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/optimizer.sql"
+  ],
+  "desc": "meta-value at tests/fixtures/optimizer/optimizer.sql:351",
+  "split": "holdout"
+ },
+ "ku1h": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/test_anonymize.py"
+  ],
+  "desc": "test-expectation at tests/test_anonymize.py:105",
+  "split": "holdout"
+ },
+ "l4e9": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_ctes.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/eliminate_ctes.sql:22",
+  "split": "holdout"
+ },
+ "ljzv": {
+  "kind": "code",
+  "family": "code:const:generators",
+  "op": "const",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/teradata.py"
+  ],
+  "desc": "const at sqlglot/generators/teradata.py:55",
+  "split": "holdout"
+ },
+ "m2hn": {
+  "kind": "code",
+  "family": "code:key:core",
+  "op": "key",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "key at sqlglot/tokens.py:425",
+  "split": "holdout"
+ },
+ "m473": {
+  "kind": "multi",
+  "family": "multi:comment+comment:multi",
+  "op": "comment+comment",
+  "area": "generators+misc",
+  "files": [
+   "sqlglot/generators/athena.py",
+   "sqlglot/lineage.py"
+  ],
+  "desc": "[comment] comment-line at sqlglot/generators/athena.py:52; [comment] comment-trailing at sqlglot/lineage.py:617",
+  "split": "holdout"
+ },
+ "mbms": {
+  "kind": "multi",
+  "family": "multi:comment+fixture:multi",
+  "op": "comment+fixture",
+  "area": "fixtures+misc",
+  "files": [
+   "sqlglot/time.py",
+   "tests/fixtures/optimizer/qualify_tables.sql"
+  ],
+  "desc": "[fixture] insert-token at tests/fixtures/optimizer/qualify_tables.sql:44; [comment] comment-line at sqlglot/time.py:167",
+  "split": "holdout"
+ },
+ "mlrx": {
+  "kind": "fixture",
+  "family": "fixture:delete-token:fixtures:optimizer",
+  "op": "delete-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/annotate_types.sql"
+  ],
+  "desc": "delete-token at tests/fixtures/optimizer/annotate_types.sql:187",
+  "split": "holdout"
+ },
+ "msjy": {
+  "kind": "comment",
+  "family": "comment:comment-line:dialects",
+  "op": "comment-line",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/mysql.py"
+  ],
+  "desc": "comment-line at sqlglot/dialects/mysql.py:106",
+  "split": "holdout"
+ },
+ "msx8": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_tableau.py"
+  ],
+  "desc": "test-expectation at tests/dialects/test_tableau.py:11",
+  "split": "holdout"
+ },
+ "n4kz": {
+  "kind": "comment",
+  "family": "comment:comment-line:generators",
+  "op": "comment-line",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/doris.py"
+  ],
+  "desc": "comment-line at sqlglot/generators/doris.py:626",
+  "split": "holdout"
+ },
+ "oa41": {
+  "kind": "test",
+  "family": "test:test-codeop:tests",
+  "op": "test-codeop",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_tsql.py"
+  ],
+  "desc": "test-codeop at tests/dialects/test_tsql.py:607",
+  "split": "holdout"
+ },
+ "oczu": {
+  "kind": "multi",
+  "family": "multi:code+fixture+fixture:multi",
+  "op": "code+fixture+fixture",
+  "area": "core+fixtures",
+  "files": [
+   "sqlglot/dialects/dialect.py",
+   "tests/fixtures/optimizer/optimize_joins.sql",
+   "tests/fixtures/optimizer/pushdown_cte_alias_columns.sql"
+  ],
+  "desc": "[fixture] delete-token at tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:20; [code] dict_del at sqlglot/dialects/dialect.py:1008; [fixture] insert-token at tests/fixtures/optimizer/optimize_joins.sql:20",
+  "split": "holdout"
+ },
+ "og1k": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_trino.py"
+  ],
+  "desc": "test-expectation at tests/dialects/test_trino.py:866",
+  "split": "holdout"
+ },
+ "opsi": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/annotate_functions.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/annotate_functions.sql:5926",
+  "split": "holdout"
+ },
+ "or3x": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_databricks.py"
+  ],
+  "desc": "test-expectation at tests/dialects/test_databricks.py:19",
+  "split": "holdout"
+ },
+ "ow2y": {
+  "kind": "comment",
+  "family": "comment:comment-line:dialects",
+  "op": "comment-line",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/databricks.py"
+  ],
+  "desc": "comment-line at sqlglot/dialects/databricks.py:23",
+  "split": "holdout"
+ },
+ "pepy": {
+  "kind": "fixture",
+  "family": "fixture:delete-char:fixtures:optimizer",
+  "op": "delete-char",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/simplify.sql"
+  ],
+  "desc": "delete-char at tests/fixtures/optimizer/simplify.sql:350",
+  "split": "holdout"
+ },
+ "pihd": {
+  "kind": "code",
+  "family": "code:not:core",
+  "op": "not",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "not at sqlglot/generator.py:3434",
+  "split": "holdout"
+ },
+ "pyyd": {
+  "kind": "fixture",
+  "family": "fixture:fixture-dashcomment:fixtures:optimizer",
+  "op": "fixture-dashcomment",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/qualify_columns_ddl.sql"
+  ],
+  "desc": "fixture-dashcomment at tests/fixtures/optimizer/qualify_columns_ddl.sql:6",
+  "split": "holdout"
+ },
+ "qjwy": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_ctes.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/eliminate_ctes.sql:113",
+  "split": "holdout"
+ },
+ "queq": {
+  "kind": "fixture",
+  "family": "fixture:delete-char:fixtures:optimizer",
+  "op": "delete-char",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/simplify.sql"
+  ],
+  "desc": "delete-char at tests/fixtures/optimizer/simplify.sql:1524",
+  "split": "holdout"
+ },
+ "rjgs": {
+  "kind": "code",
+  "family": "code:bool:optimizer",
+  "op": "bool",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "bool at sqlglot/optimizer/simplify.py:325",
+  "split": "holdout"
+ },
+ "rl0z": {
+  "kind": "comment",
+  "family": "comment:comment-in-string:tests",
+  "op": "comment-in-string",
+  "area": "tests",
+  "files": [
+   "tests/dialects/test_redshift.py"
+  ],
+  "desc": "comment-in-string at tests/dialects/test_redshift.py:640",
+  "split": "holdout"
+ },
+ "rm2j": {
+  "kind": "code",
+  "family": "code:bool:core",
+  "op": "bool",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "bool at sqlglot/generator.py:2182",
+  "split": "holdout"
+ },
+ "rs8v": {
+  "kind": "code",
+  "family": "code:const:misc:_typing",
+  "op": "const",
+  "area": "misc:_typing",
+  "files": [
+   "sqlglot/_typing.py"
+  ],
+  "desc": "const at sqlglot/_typing.py:44",
+  "split": "holdout"
+ },
+ "rxmc": {
+  "kind": "code",
+  "family": "code:key:core",
+  "op": "key",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "key at sqlglot/tokens.py:321",
+  "split": "holdout"
+ },
+ "sbbf": {
+  "kind": "code",
+  "family": "code:const:optimizer",
+  "op": "const",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/optimizer.py"
+  ],
+  "desc": "const at sqlglot/optimizer/optimizer.py:66",
+  "split": "holdout"
+ },
+ "sgun": {
+  "kind": "comment",
+  "family": "comment:comment-in-string:optimizer",
+  "op": "comment-in-string",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/scope.py"
+  ],
+  "desc": "comment-in-string at sqlglot/optimizer/scope.py:344",
+  "split": "holdout"
+ },
+ "snx5": {
+  "kind": "comment",
+  "family": "comment:comment-line:misc:jsonpath",
+  "op": "comment-line",
+  "area": "misc:jsonpath",
+  "files": [
+   "sqlglot/jsonpath.py"
+  ],
+  "desc": "comment-line at sqlglot/jsonpath.py:210",
+  "split": "holdout"
+ },
+ "sovp": {
+  "kind": "code",
+  "family": "code:const:parsers",
+  "op": "const",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/oracle.py"
+  ],
+  "desc": "const at sqlglot/parsers/oracle.py:67",
+  "split": "holdout"
+ },
+ "sv47": {
+  "kind": "test",
+  "family": "test:test-import-error:tests",
+  "op": "test-import-error",
+  "area": "tests",
+  "files": [
+   "tests/test_docs.py"
+  ],
+  "desc": "test-import-error at tests/test_docs.py:6",
+  "split": "holdout"
+ },
+ "t6hr": {
+  "kind": "code",
+  "family": "code:const:core",
+  "op": "const",
+  "area": "core",
+  "files": [
+   "sqlglot/tokenizer_core.py"
+  ],
+  "desc": "const at sqlglot/tokenizer_core.py:1432",
+  "split": "holdout"
+ },
+ "tai7": {
+  "kind": "code",
+  "family": "code:dict_del:core",
+  "op": "dict_del",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "dict_del at sqlglot/tokens.py:535",
+  "split": "holdout"
+ },
+ "tbak": {
+  "kind": "multi",
+  "family": "multi:comment+test:multi",
+  "op": "comment+test",
+  "area": "dialects+tests",
+  "files": [
+   "sqlglot/dialects/clickhouse.py",
+   "tests/dialects/test_starrocks.py"
+  ],
+  "desc": "[comment] comment-line at sqlglot/dialects/clickhouse.py:76; [test] test-expectation at tests/dialects/test_starrocks.py:448",
+  "split": "holdout"
+ },
+ "tbp3": {
+  "kind": "code",
+  "family": "code:bool:typing",
+  "op": "bool",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/postgres.py"
+  ],
+  "desc": "bool at sqlglot/typing/postgres.py:22",
+  "split": "holdout"
+ },
+ "tc69": {
+  "kind": "code",
+  "family": "code:num:generators",
+  "op": "num",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/databricks.py"
+  ],
+  "desc": "num at sqlglot/generators/databricks.py:114",
+  "split": "holdout"
+ },
+ "tt0d": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/test_docs.py"
+  ],
+  "desc": "test-expectation at tests/test_docs.py:16",
+  "split": "holdout"
+ },
+ "tw59": {
+  "kind": "code",
+  "family": "code:bool:generators",
+  "op": "bool",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/python.py"
+  ],
+  "desc": "bool at sqlglot/generators/python.py:113",
+  "split": "holdout"
+ },
+ "u4ww": {
+  "kind": "fixture",
+  "family": "fixture:meta-execute:fixtures:optimizer",
+  "op": "meta-execute",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/optimizer.sql"
+  ],
+  "desc": "meta-execute at tests/fixtures/optimizer/optimizer.sql:1546",
+  "split": "holdout"
+ },
+ "uqb1": {
+  "kind": "fixture",
+  "family": "fixture:meta-dialect:fixtures:optimizer",
+  "op": "meta-dialect",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/quote_identifiers.sql"
+  ],
+  "desc": "meta-dialect at tests/fixtures/optimizer/quote_identifiers.sql:29",
+  "split": "holdout"
+ },
+ "uy7n": {
+  "kind": "multi",
+  "family": "multi:code+comment:multi",
+  "op": "code+comment",
+  "area": "core+misc",
+  "files": [
+   "sqlglot/time.py",
+   "sqlglot/tokens.py"
+  ],
+  "desc": "[comment] comment-line at sqlglot/tokens.py:364; [code] num at sqlglot/time.py:79",
+  "split": "holdout"
+ },
+ "vmiw": {
+  "kind": "code",
+  "family": "code:bool:core",
+  "op": "bool",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "bool at sqlglot/parser.py:6868",
+  "split": "holdout"
+ },
+ "vn4u": {
+  "kind": "code",
+  "family": "code:elem_del:optimizer",
+  "op": "elem_del",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/merge_subqueries.py"
+  ],
+  "desc": "elem_del at sqlglot/optimizer/merge_subqueries.py:137",
+  "split": "holdout"
+ },
+ "vyqk": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/pushdown_cte_alias_columns.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:1",
+  "split": "holdout"
+ },
+ "vzb4": {
+  "kind": "code",
+  "family": "code:is:optimizer",
+  "op": "is",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/__init__.py"
+  ],
+  "desc": "is at sqlglot/optimizer/__init__.py:55",
+  "split": "holdout"
+ },
+ "w4zd": {
+  "kind": "code",
+  "family": "code:bool:core",
+  "op": "bool",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "bool at sqlglot/__init__.py:90",
+  "split": "holdout"
+ },
+ "w7a2": {
+  "kind": "code",
+  "family": "code:is:misc:trie",
+  "op": "is",
+  "area": "misc:trie",
+  "files": [
+   "sqlglot/trie.py"
+  ],
+  "desc": "is at sqlglot/trie.py:32",
+  "split": "holdout"
+ },
+ "wdc7": {
+  "kind": "comment",
+  "family": "comment:blank-line:dialects",
+  "op": "blank-line",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/databricks.py"
+  ],
+  "desc": "blank-line at sqlglot/dialects/databricks.py:35",
+  "split": "holdout"
+ },
+ "wmdi": {
+  "kind": "code",
+  "family": "code:bool:optimizer",
+  "op": "bool",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ],
+  "desc": "bool at sqlglot/optimizer/pushdown_projections.py:346",
+  "split": "holdout"
+ },
+ "wnp3": {
+  "kind": "code",
+  "family": "code:const:core",
+  "op": "const",
+  "area": "core",
+  "files": [
+   "sqlglot/__init__.py"
+  ],
+  "desc": "const at sqlglot/__init__.py:200",
+  "split": "holdout"
+ },
+ "xltk": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_joins.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/eliminate_joins.sql:745",
+  "split": "holdout"
+ },
+ "xqng": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/canonicalize_internal_names.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/canonicalize_internal_names.sql:242",
+  "split": "holdout"
+ },
+ "xsg7": {
+  "kind": "code",
+  "family": "code:const:dialects",
+  "op": "const",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/spark2.py"
+  ],
+  "desc": "const at sqlglot/dialects/spark2.py:13",
+  "split": "holdout"
+ },
+ "xwji": {
+  "kind": "fixture",
+  "family": "fixture:insert-token:fixtures:optimizer",
+  "op": "insert-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/eliminate_ctes.sql"
+  ],
+  "desc": "insert-token at tests/fixtures/optimizer/eliminate_ctes.sql:105",
+  "split": "holdout"
+ },
+ "xxyj": {
+  "kind": "fixture",
+  "family": "fixture:delete-token:fixtures:optimizer",
+  "op": "delete-token",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/pushdown_predicates.sql"
+  ],
+  "desc": "delete-token at tests/fixtures/optimizer/pushdown_predicates.sql:67",
+  "split": "holdout"
+ },
+ "yl0f": {
+  "kind": "test",
+  "family": "test:test-expectation:tests",
+  "op": "test-expectation",
+  "area": "tests",
+  "files": [
+   "tests/test_schema.py"
+  ],
+  "desc": "test-expectation at tests/test_schema.py:133",
+  "split": "holdout"
+ },
+ "ynjq": {
+  "kind": "comment",
+  "family": "comment:comment-line:expressions",
+  "op": "comment-line",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/builders.py"
+  ],
+  "desc": "comment-line at sqlglot/expressions/builders.py:1192",
+  "split": "holdout"
+ },
+ "yns5": {
+  "kind": "fixture",
+  "family": "fixture:delete-char:fixtures:optimizer",
+  "op": "delete-char",
+  "area": "fixtures:optimizer",
+  "files": [
+   "tests/fixtures/optimizer/pushdown_cte_alias_columns.sql"
+  ],
+  "desc": "delete-char at tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:5",
+  "split": "holdout"
+ },
+ "yum6": {
+  "kind": "code",
+  "family": "code:const:dialects",
+  "op": "const",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/trino.py"
+  ],
+  "desc": "const at sqlglot/dialects/trino.py:10",
+  "split": "holdout"
+ },
+ "yvvs": {
+  "kind": "code",
+  "family": "code:bool:core",
+  "op": "bool",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "bool at sqlglot/dialects/dialect.py:2234",
+  "split": "holdout"
+ },
+ "yy6k": {
+  "kind": "comment",
+  "family": "comment:comment-trailing:generators",
+  "op": "comment-trailing",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/sqlite.py"
+  ],
+  "desc": "comment-trailing at sqlglot/generators/sqlite.py:7",
+  "split": "holdout"
+ },
+ "z8a2": {
+  "kind": "code",
+  "family": "code:const:expressions",
+  "op": "const",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/string.py"
+  ],
+  "desc": "const at sqlglot/expressions/string.py:125",
+  "split": "holdout"
+ },
+ "zeno": {
+  "kind": "code",
+  "family": "code:arith:executor",
+  "op": "arith",
+  "area": "executor",
+  "files": [
+   "sqlglot/executor/__init__.py"
+  ],
+  "desc": "arith at sqlglot/executor/__init__.py:88",
+  "split": "holdout"
+ },
+ "zfvc": {
+  "kind": "test",
+  "family": "test:helper:tests",
+  "op": "helper",
+  "area": "tests",
+  "files": [
+   "tests/helpers.py"
+  ],
+  "desc": "helper-num at tests/helpers.py:28",
+  "split": "holdout"
+ },
+ "zvx2": {
+  "kind": "code",
+  "family": "code:const:dialects",
+  "op": "const",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/spark2.py"
+  ],
+  "desc": "const at sqlglot/dialects/spark2.py:19",
+  "split": "holdout"
+ }
+}

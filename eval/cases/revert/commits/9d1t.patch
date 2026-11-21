@@ -1,0 +1,19 @@
+diff --git c/sqlglot/generators/clickhouse.py i/sqlglot/generators/clickhouse.py
+index e4335f0..dbfe7c4 100644
+--- c/sqlglot/generators/clickhouse.py
++++ i/sqlglot/generators/clickhouse.py
+@@ -403,8 +403,12 @@ class ClickHouseGenerator(generator.Generator):
+         exp.SchemaCommentProperty: lambda self, e: self.naked_property(e),
+         exp.Stddev: rename_func("stddevSamp"),
+         exp.Chr: rename_func("CHAR"),
+-        exp.Lag: rename_func("lag"),
+-        exp.Lead: rename_func("lead"),
++        exp.Lag: lambda self, e: self.func(
++            "lagInFrame", e.this, e.args.get("offset"), e.args.get("default")
++        ),
++        exp.Lead: lambda self, e: self.func(
++            "leadInFrame", e.this, e.args.get("offset"), e.args.get("default")
++        ),
+         exp.Levenshtein: unsupported_args("ins_cost", "del_cost", "sub_cost", "max_dist")(
+             rename_func("editDistance")
+         ),

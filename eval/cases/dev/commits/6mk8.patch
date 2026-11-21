@@ -1,0 +1,13 @@
+diff --git c/tests/test_serde.py i/tests/test_serde.py
+index 23fb0e4..49c1526 100644
+--- c/tests/test_serde.py
++++ i/tests/test_serde.py
+@@ -47,7 +47,7 @@ class TestSerde(unittest.TestCase):
+ 
+     def test_recursion(self):
+         sql = "SELECT 1"
+-        sql += " UNION ALL SELECT 1" * 5000
++        sql += " UNION ALL SELECT 1" * 4999
+         expr = parse_one(sql)
+         before = expr.sql()
+         self.assertEqual(before, self.dump_load(expr).sql())

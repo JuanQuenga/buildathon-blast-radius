@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/annotate_types.py i/sqlglot/optimizer/annotate_types.py
+index 0b06af8..010f81c 100644
+--- c/sqlglot/optimizer/annotate_types.py
++++ i/sqlglot/optimizer/annotate_types.py
+@@ -456,7 +456,7 @@ class TypeAnnotator:
+             expr, children_annotated = stack.pop()
+ 
+             if id(expr) in self._visited or (
+-                not self._overwrite_types and expr.type and not expr.is_type(exp.DType.UNKNOWN)
++                not self._overwrite_types or expr.type and not expr.is_type(exp.DType.UNKNOWN)
+             ):
+                 continue  # We've already inferred the expression's type
+ 

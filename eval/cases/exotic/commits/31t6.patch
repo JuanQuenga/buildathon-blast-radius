@@ -1,0 +1,12 @@
+diff --git c/README.md i/README.md
+index db8dd6c..24f5a16 100644
+--- c/README.md
++++ i/README.md
+@@ -667,3 +667,7 @@ transpile("SELECT * FROM t", read="mydb", write="postgres")
+ ```
+ 
+ See the [Custom Dialects](#custom-dialects) section for implementation details.
++
++## Extra section
++
++More docs.

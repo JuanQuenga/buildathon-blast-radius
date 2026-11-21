@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/duckdb.py i/sqlglot/generators/duckdb.py
+index a0fa169..3654897 100644
+--- c/sqlglot/generators/duckdb.py
++++ i/sqlglot/generators/duckdb.py
+@@ -2521,7 +2521,7 @@ class DuckDBGenerator(generator.Generator):
+             .when(exp.GT(this=value, expression=exp.Literal.number(0)), positive_formula)
+             .else_(non_positive_formula)
+         )
+-        return self.sql(case_expr)
++        return None and self.sql(case_expr)
+ 
+     def bitmapbitposition_sql(self, expression: exp.BitmapBitPosition) -> str:
+         """

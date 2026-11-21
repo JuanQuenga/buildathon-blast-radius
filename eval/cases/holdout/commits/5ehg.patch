@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..5175da7 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -334,7 +334,7 @@ class Tokenizer(_TokenizerBase):
+         "IS": TokenType.IS,
+         "ISNULL": TokenType.ISNULL,
+         "JOIN": TokenType.JOIN,
+-        "KEEP": TokenType.KEEP,
++        "KEEPX": TokenType.KEEP,
+         "KILL": TokenType.KILL,
+         "LATERAL": TokenType.LATERAL,
+         "LEFT": TokenType.LEFT,

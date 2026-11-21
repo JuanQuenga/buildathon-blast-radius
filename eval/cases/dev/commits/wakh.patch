@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/eliminate_joins.sql i/tests/fixtures/optimizer/eliminate_joins.sql
+index 6dfcbf9..6004947 100644
+--- c/tests/fixtures/optimizer/eliminate_joins.sql
++++ i/tests/fixtures/optimizer/eliminate_joins.sql
+@@ -713,7 +713,7 @@ FROM (
+   WHERE
+     FALSE
+ ) AS empty_x
+-RIGHT JOIN (
++RIGHT JOIN ( -- See the dialect docs for details
+   SELECT
+     MIN(y.b) AS b
+   FROM y

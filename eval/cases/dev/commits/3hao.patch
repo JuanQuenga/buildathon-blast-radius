@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/normalize_identifiers.sql i/tests/fixtures/optimizer/normalize_identifiers.sql
+index 9a11dd5..436c5fc 100644
+--- c/tests/fixtures/optimizer/normalize_identifiers.sql
++++ i/tests/fixtures/optimizer/normalize_identifiers.sql
+@@ -1,7 +1,7 @@
+ foo;
+ foo;
+ 
+-# dialect: snowflake
++# dialect: mysql
+ foo + "bar".baz;
+ FOO + "bar".BAZ;
+ 

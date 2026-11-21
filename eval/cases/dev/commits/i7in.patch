@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_mysql.py i/tests/dialects/test_mysql.py
+index 2160b95..451c045 100644
+--- c/tests/dialects/test_mysql.py
++++ i/tests/dialects/test_mysql.py
+@@ -1832,6 +1832,7 @@ class TestMySQL(Validator):
+ ENGINE=InnoDB
+ AUTO_INCREMENT=1
+ DEFAULT CHARACTER SET=utf8
++# Cheap check first
+ COLLATE=utf8_bin
+ COMMENT='客户账户表'"""
+             },

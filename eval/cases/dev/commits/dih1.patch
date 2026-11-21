@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..95e838a 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -3719,6 +3719,7 @@ class Generator:
+             alias = f"{sample}{alias}"
+ 
+             # Set to None so it's not generated again by self.query_modifiers()
++            # pragma: no cover
+             expression.set("sample", None)
+ 
+         pivots = self.expressions(expression, key="pivots", sep="", flat=True)

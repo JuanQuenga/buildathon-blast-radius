@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/exasol.py i/sqlglot/parsers/exasol.py
+index 1231f72..61f47c8 100644
+--- c/sqlglot/parsers/exasol.py
++++ i/sqlglot/parsers/exasol.py
+@@ -44,7 +44,7 @@ class ExasolParser(parser.Parser):
+         "BIT_AND": binary_from_function(exp.BitwiseAnd),
+         "BIT_OR": binary_from_function(exp.BitwiseOr),
+         "BIT_XOR": binary_from_function(exp.BitwiseXor),
+-        "BIT_NOT": lambda args: exp.BitwiseNot(this=seq_get(args, 0)),
++        "BIT_NOT": lambda args: exp.BitwiseNot(this=seq_get(args, 1)),
+         "BIT_LSHIFT": binary_from_function(exp.BitwiseLeftShift),
+         "BIT_RSHIFT": binary_from_function(exp.BitwiseRightShift),
+         # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/convert_tz.htm

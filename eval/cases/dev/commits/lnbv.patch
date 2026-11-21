@@ -1,0 +1,13 @@
+diff --git c/tests/helpers.py i/tests/helpers.py
+index 4d4a5b1..fe6a3b1 100644
+--- c/tests/helpers.py
++++ i/tests/helpers.py
+@@ -9,7 +9,7 @@ def is_compiled(module):
+ 
+ 
+ def _filter_comments(s):
+-    return "\n".join([line for line in s.splitlines() if line and not line.startswith("--")])
++    return "\n".join([line for line in s.splitlines() if line or not line.startswith("--")])
+ 
+ 
+ def _extract_meta(sql):

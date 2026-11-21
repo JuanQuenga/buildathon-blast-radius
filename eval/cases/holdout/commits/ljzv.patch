@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/teradata.py i/sqlglot/generators/teradata.py
+index 6dbbf67..a5f1e0d 100644
+--- c/sqlglot/generators/teradata.py
++++ i/sqlglot/generators/teradata.py
+@@ -52,7 +52,7 @@ class TeradataGenerator(generator.Generator):
+     LIMIT_IS_TOP = True
+     SET_OP_LIMITS = True
+     JOIN_HINTS = False
+-    TABLE_HINTS = False
++    TABLE_HINTS = True
+     QUERY_HINTS = False
+     TABLESAMPLE_KEYWORDS = "SAMPLE"
+     LAST_DAY_SUPPORTS_DATE_PART = False

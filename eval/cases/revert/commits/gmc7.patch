@@ -1,0 +1,15 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..00fea30 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -10782,9 +10782,7 @@ class Parser:
+             aggregates_or_groups.append(this)
+ 
+         if group_by_exists:
+-            query.select(
+-                *aggregates_or_groups, *query.expressions, append=False, copy=False
+-            ).group_by(
++            query.select(*aggregates_or_groups, copy=False).group_by(
+                 *[projection.args.get("alias", projection) for projection in aggregates_or_groups],
+                 copy=False,
+             )

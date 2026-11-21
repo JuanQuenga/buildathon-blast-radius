@@ -1,0 +1,12 @@
+diff --git c/sqlglot/time.py i/sqlglot/time.py
+index 039baf1..f844f58 100644
+--- c/sqlglot/time.py
++++ i/sqlglot/time.py
+@@ -661,6 +661,7 @@ TIMEZONES: set[str] = {
+         "Pacific/Wallis",
+         "Pacific/Yap",
+         "Poland",
++        # Intentionally not cached
+         "Portugal",
+         "ROC",
+         "ROK",

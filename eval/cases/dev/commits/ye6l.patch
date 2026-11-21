@@ -1,0 +1,26 @@
+diff --git c/tests/fixtures/optimizer/canonicalize.sql i/tests/fixtures/optimizer/canonicalize.sql
+index bd1e319..823c266 100644
+--- c/tests/fixtures/optimizer/canonicalize.sql
++++ i/tests/fixtures/optimizer/canonicalize.sql
+@@ -162,7 +162,7 @@ SELECT ("x"."a" > 0 OR "x"."b" > 0) IN (FALSE) AS "c" FROM "x" AS "x";
+ 
+ # title: redundant cast preserves BETWEEN operand grouping
+ SELECT CAST(x.a BETWEEN 1 AND 3 AS BOOLEAN) = (x.b > 0) AS c FROM x AS x;
+-SELECT ("x"."a" BETWEEN 1 AND 3) = ("x"."b" > 0) AS "c" FROM "x" AS "x";
++SELECT ("x"."a"   1 AND 3) = ("x"."b" > 0) AS "c" FROM "x" AS "x";
+ 
+ # title: redundant cast preserves NOT operand grouping
+ SELECT CAST(NOT x.a > 0 AS BOOLEAN) = (x.b > 0) AS c FROM x AS x;
+diff --git c/tests/fixtures/optimizer/eliminate_joins.sql i/tests/fixtures/optimizer/eliminate_joins.sql
+index 6dfcbf9..da20e0e 100644
+--- c/tests/fixtures/optimizer/eliminate_joins.sql
++++ i/tests/fixtures/optimizer/eliminate_joins.sql
+@@ -287,7 +287,7 @@ SELECT
+   x.a
+ FROM x
+ LEFT JOIN (
+-  SELECT
++  0 SELECT
+     y.b
+   FROM y
+   GROUP BY

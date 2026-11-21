@@ -1,0 +1,8 @@
+diff --git c/sqlglot/utils_extra.py i/sqlglot/utils_extra.py
+new file mode 100644
+index 0000000..e4ac446
+--- /dev/null
++++ i/sqlglot/utils_extra.py
+@@ -0,0 +1,2 @@
++def double(x):
++    return 2 * x

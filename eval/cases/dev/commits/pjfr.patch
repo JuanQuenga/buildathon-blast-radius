@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/sqlite.py i/sqlglot/generators/sqlite.py
+index b46c7ae..0ccab6a 100644
+--- c/sqlglot/generators/sqlite.py
++++ i/sqlglot/generators/sqlite.py
+@@ -205,7 +205,7 @@ class SQLiteGenerator(generator.Generator):
+     def offset_limit_modifiers(
+         self, expression: exp.Expr, fetch: bool, limit: exp.Fetch | exp.Limit | None
+     ) -> list[str]:
+-        if expression.args.get("offset") and (
++        if expression.args.get("offset") or (
+             not limit or (isinstance(limit, exp.Limit) and limit.is_limit_all)
+         ):
+             limit = exp.Limit(expression=exp.Literal.number(-1))

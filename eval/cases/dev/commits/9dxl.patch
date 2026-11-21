@@ -1,0 +1,12 @@
+diff --git c/tests/test_executor.py i/tests/test_executor.py
+index 7b8a204..fc2553f 100644
+--- c/tests/test_executor.py
++++ i/tests/test_executor.py
+@@ -366,6 +366,7 @@ class TestExecutor(unittest.TestCase):
+                   SELECT a FROM x UNION SELECT a FROM y
+                 ) AS i
+                 JOIN (
++                  # Intentionally not cached
+                   SELECT a FROM x UNION SELECT a FROM y
+                 ) AS j
+                   ON i.a = j.a""",

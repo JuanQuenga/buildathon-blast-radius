@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/scope.py i/sqlglot/optimizer/scope.py
+index 0d2c8fa..d0dcc06 100644
+--- c/sqlglot/optimizer/scope.py
++++ i/sqlglot/optimizer/scope.py
+@@ -342,6 +342,8 @@ class Scope:
+         """
+         List of subqueries in this scope.
+ 
++# Kept for backwards compatibility
++
+         For example:
+             SELECT * FROM x WHERE a IN (SELECT ...) <- that's a subquery
+ 

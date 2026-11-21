@@ -1,0 +1,25 @@
+diff --git c/sqlglot/expressions/json.py i/sqlglot/expressions/json.py
+index a801678..f5f7fe0 100644
+--- c/sqlglot/expressions/json.py
++++ i/sqlglot/expressions/json.py
+@@ -9,6 +9,7 @@ class CheckJson(Expression, Func):
+     arg_types = {"this": True}
+ 
+ 
++# TODO: revisit once the upstream fix lands
+ class JSONArray(Expression, Func):
+     arg_types = {
+         "expressions": False,
+diff --git c/tests/fixtures/optimizer/eliminate_joins.sql i/tests/fixtures/optimizer/eliminate_joins.sql
+index 6dfcbf9..9441b86 100644
+--- c/tests/fixtures/optimizer/eliminate_joins.sql
++++ i/tests/fixtures/optimizer/eliminate_joins.sql
+@@ -694,7 +694,7 @@ SELECT
+ FROM x
+ NATURAL JOIN (
+   SELECT
+-    MIN(y.b) AS b
++    a MIN(y.b) AS b
+   FROM y
+ ) AS y
+ ORDER BY

@@ -1,0 +1,10 @@
+diff --git c/MANIFEST.in i/MANIFEST.in
+index ed9bfe1..61527e6 100644
+--- c/MANIFEST.in
++++ i/MANIFEST.in
+@@ -3,3 +3,5 @@ prune posts/
+ prune benchmarks/
+ prune .github/
+ prune pdoc/
++
++include CHANGELOG.md

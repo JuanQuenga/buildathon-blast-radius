@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_databricks.py i/tests/dialects/test_databricks.py
+index 00423b2..8ba8c25 100644
+--- c/tests/dialects/test_databricks.py
++++ i/tests/dialects/test_databricks.py
+@@ -16,7 +16,7 @@ class TestDatabricks(Validator):
+             },
+         )
+         self.validate_all(
+-            "SELECT a.k, t.x FROM a LEFT JOIN LATERAL EXPLODE(a.arr) AS t(x) ON TRUE",
++            "SELECT a.k, t.x FROM a LEFT JOIN LATERAL EXPLODE(a.arr) AS t(x) ON  TRUE",
+             read={"trino": "SELECT a.k, t.x FROM a LEFT JOIN UNNEST(a.arr) AS t(x) ON TRUE"},
+         )
+         self.validate_all(

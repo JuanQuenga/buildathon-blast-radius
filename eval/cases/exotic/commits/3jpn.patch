@@ -1,0 +1,11 @@
+diff --git c/sqlglot/optimizer/new_rule.py i/sqlglot/optimizer/new_rule.py
+new file mode 100644
+index 0000000..f61d503
+--- /dev/null
++++ i/sqlglot/optimizer/new_rule.py
+@@ -0,0 +1,5 @@
++from sqlglot import exp
++
++
++def new_rule(expression: exp.Expr) -> exp.Expr:
++    return expression

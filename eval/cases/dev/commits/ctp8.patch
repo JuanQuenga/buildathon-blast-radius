@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/spark.py i/sqlglot/parsers/spark.py
+index 797c71f..f2283a3 100644
+--- c/sqlglot/parsers/spark.py
++++ i/sqlglot/parsers/spark.py
+@@ -71,7 +71,7 @@ class SparkParser(Spark2Parser):
+     FUNCTIONS = {
+         **Spark2Parser.FUNCTIONS,
+         "ANY_VALUE": build_with_ignore_nulls(exp.AnyValue),
+-        "ARRAY_INSERT": lambda args: exp.ArrayInsert(
++        "ARRAY_INSERTX": lambda args: exp.ArrayInsert(
+             this=seq_get(args, 0),
+             position=seq_get(args, 1),
+             expression=seq_get(args, 2),

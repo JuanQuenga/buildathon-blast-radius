@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/eliminate_ctes.sql i/tests/fixtures/optimizer/eliminate_ctes.sql
+index 8e4e30b..35cfee3 100644
+--- c/tests/fixtures/optimizer/eliminate_ctes.sql
++++ i/tests/fixtures/optimizer/eliminate_ctes.sql
+@@ -13,7 +13,7 @@ FROM x;
+ 
+ # title: Nested CTE
+ SELECT
+-  a
++  a a
+ FROM (
+   WITH q AS (
+     SELECT

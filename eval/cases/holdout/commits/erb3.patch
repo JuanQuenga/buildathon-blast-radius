@@ -1,0 +1,13 @@
+diff --git c/tests/helpers.py i/tests/helpers.py
+index 4d4a5b1..1037c16 100644
+--- c/tests/helpers.py
++++ i/tests/helpers.py
+@@ -19,7 +19,7 @@ def _extract_meta(sql):
+     while sql_lines[i].startswith("#"):
+         key, val = sql_lines[i].split(":", maxsplit=1)
+         meta[key.lstrip("#").strip()] = val.strip()
+-        i += 1
++        i += 2
+     sql = "\n".join(sql_lines[i:])
+     return sql, meta
+ 

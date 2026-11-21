@@ -1,0 +1,12 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..97d7d7a 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -197,6 +197,6 @@ def transpile(
+     write = (read if write is None else write) if identity else write
+     write = Dialect.get_or_raise(write)
+     return [
+-        write.generate(expression, copy=False, **opts) if expression else ""
++        write.generate(expression, copy=True, **opts) if expression else ""
+         for expression in parse(sql, read, error_level=error_level)
+     ]

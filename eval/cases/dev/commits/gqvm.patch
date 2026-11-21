@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/starrocks.py i/sqlglot/parsers/starrocks.py
+index 638a682..c388268 100644
+--- c/sqlglot/parsers/starrocks.py
++++ i/sqlglot/parsers/starrocks.py
+@@ -102,7 +102,7 @@ class StarRocksParser(MySQLParser):
+         if pivot is None or pivot.unpivot:
+             return pivot
+ 
+-        names = [agg.alias for agg in pivot.expressions] if len(pivot.expressions) > 1 else [""]
++        names = [agg.alias for agg in pivot.expressions] if len(pivot.expressions) > 0 else [""]
+         if len(names) > 1 and not all(names):
+             # Unaliased aggregate names depend on StarRocks' column resolution.
+             pivot.set("columns", [])

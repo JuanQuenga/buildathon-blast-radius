@@ -1,0 +1,13 @@
+diff --git c/tests/test_anonymize.py i/tests/test_anonymize.py
+index 3f5e7a1..14422ae 100644
+--- c/tests/test_anonymize.py
++++ i/tests/test_anonymize.py
+@@ -102,7 +102,7 @@ class TestAnonymize(unittest.TestCase):
+         self.assertEqual(
+             [(t.token_type, t.text) for t in tokens],
+             [
+-                (TokenType.SELECT, "SELECT"),
++                (TokenType.SELECT, "SELeCT"),
+                 (TokenType.VAR, "aaa"),  # foo
+                 (TokenType.COMMA, ","),
+                 (TokenType.UNKNOWN, "'s.........."),  # 'secret tail, delimiter kept

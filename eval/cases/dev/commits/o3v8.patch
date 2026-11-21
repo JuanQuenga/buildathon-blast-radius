@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/mysql.py i/sqlglot/generators/mysql.py
+index 91c1fef..3bd3883 100644
+--- c/sqlglot/generators/mysql.py
++++ i/sqlglot/generators/mysql.py
+@@ -134,7 +134,7 @@ class MySQLGenerator(generator.Generator):
+     NVL2_SUPPORTED = False
+     LAST_DAY_SUPPORTS_DATE_PART = False
+     JSON_TYPE_REQUIRED_FOR_EXTRACTION = True
+-    JSON_PATH_BRACKETED_KEY_SUPPORTED = False
++    JSON_PATH_BRACKETED_KEY_SUPPORTED = True
+     JSON_KEY_VALUE_PAIR_SEP = ","
+     SUPPORTS_TO_NUMBER = False
+     PARSE_JSON_NAME: str | None = None

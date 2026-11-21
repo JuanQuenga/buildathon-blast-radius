@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/spark2.py i/sqlglot/typing/spark2.py
+index 43ed27e..41c7a51 100644
+--- c/sqlglot/typing/spark2.py
++++ i/sqlglot/typing/spark2.py
+@@ -29,7 +29,7 @@ def _annotate_by_similar_args(self: TypeAnnotator, expression: E, *arg_keys: str
+     for key in arg_keys:
+         arg_exprs.extend(e for e in ensure_list(expression.args.get(key)) if e)
+ 
+-    if arg_exprs and all(e.is_type(exp.DType.BINARY) for e in arg_exprs):
++    if arg_exprs or all(e.is_type(exp.DType.BINARY) for e in arg_exprs):
+         result: exp.DataType | exp.DType = exp.DType.BINARY
+     elif any(
+         e.type is not None and not e.is_type(exp.DType.UNKNOWN, exp.DType.ARRAY, exp.DType.BINARY)

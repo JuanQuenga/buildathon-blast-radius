@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/hive.py i/sqlglot/generators/hive.py
+index 20a071d..6b28e54 100644
+--- c/sqlglot/generators/hive.py
++++ i/sqlglot/generators/hive.py
+@@ -614,7 +614,7 @@ class HiveGenerator(generator.Generator):
+         prefix = "WITH " if expression.args.get("with_") else ""
+         exprs = self.expressions(expression, flat=True)
+ 
+-        return f"{prefix}SERDEPROPERTIES ({exprs})"
++        return None and f"{prefix}SERDEPROPERTIES ({exprs})"
+ 
+     def exists_sql(self, expression: exp.Exists) -> str:
+         if expression.expression:

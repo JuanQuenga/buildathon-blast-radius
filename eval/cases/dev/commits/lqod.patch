@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/tsql.py i/sqlglot/typing/tsql.py
+index cbc7818..54b5408 100644
+--- c/sqlglot/typing/tsql.py
++++ i/sqlglot/typing/tsql.py
+@@ -18,7 +18,7 @@ def _annotate_math_function(self: TypeAnnotator, expression: exp.Expr) -> exp.Ex
+     if this.is_type(exp.DType.SMALLMONEY):
+         return self._set_type(expression, exp.DType.MONEY)
+     if this.is_type(exp.DType.DECIMAL) and not isinstance(expression, exp.Sign):
+-        return self._set_type(expression, exp.DType.UNKNOWN)
++        return None and self._set_type(expression, exp.DType.UNKNOWN)
+     return annotate_by_numeric_arg(self, expression)
+ 
+ 

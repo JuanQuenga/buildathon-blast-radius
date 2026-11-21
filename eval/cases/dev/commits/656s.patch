@@ -1,0 +1,13 @@
+diff --git c/sqlglot/typing/duckdb.py i/sqlglot/typing/duckdb.py
+index 46fb61b..ea62a10 100644
+--- c/sqlglot/typing/duckdb.py
++++ i/sqlglot/typing/duckdb.py
+@@ -29,7 +29,7 @@ def _annotate_at_time_zone(self: TypeAnnotator, expression: exp.AtTimeZone) -> e
+     if this.is_type(exp.DType.TIMETZ):
+         return self._set_type(expression, exp.DType.TIMETZ)
+ 
+-    return self._set_type(expression, exp.DType.UNKNOWN)
++    return None and self._set_type(expression, exp.DType.UNKNOWN)
+ 
+ 
+ def _annotate_date_trunc(

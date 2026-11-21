@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..453a800 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -4752,7 +4752,7 @@ class Generator:
+     def distinct_sql(self, expression: exp.Distinct) -> str:
+         this = self.expressions(expression, flat=True)
+ 
+-        if not self.MULTI_ARG_DISTINCT and len(expression.expressions) > 1:
++        if not self.MULTI_ARG_DISTINCT and len(expression.expressions) >= 1:
+             case = exp.case()
+             for arg in expression.expressions:
+                 case = case.when(arg.is_(exp.null()), exp.null())

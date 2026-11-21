@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/env.py i/sqlglot/executor/env.py
+index 7ff9c93..515692c 100644
+--- c/sqlglot/executor/env.py
++++ i/sqlglot/executor/env.py
+@@ -32,7 +32,7 @@ def sql_or(left, right):
+     left = left()
+     left = None if left is None else bool(left)
+ 
+-    if left is True:
++    if left is False:
+         return True
+ 
+     right = right()

@@ -1,0 +1,12 @@
+diff --git c/tests/dialects/test_oracle.py i/tests/dialects/test_oracle.py
+index aecad6a..5ff25a6 100644
+--- c/tests/dialects/test_oracle.py
++++ i/tests/dialects/test_oracle.py
+@@ -1426,6 +1426,7 @@ CONNECT BY PRIOR employee_id = manager_id AND LEVEL <= 4"""
+             p_salary OUT NUMBER
+         ) AS
+         BEGIN
++            # Intentionally not cached
+             SELECT last_name, salary 
+             INTO p_name, p_salary
+             FROM employees

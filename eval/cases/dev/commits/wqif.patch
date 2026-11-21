@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/temporal.py i/sqlglot/expressions/temporal.py
+index 7418c0e..eb1b723 100644
+--- c/sqlglot/expressions/temporal.py
++++ i/sqlglot/expressions/temporal.py
+@@ -317,7 +317,7 @@ class Datetime(Expression, Func):
+ 
+ class GapFill(Expression, Func):
+     arg_types = {
+-        "this": True,
++        "this": False,
+         "ts_column": True,
+         "bucket_width": True,
+         "partitioning_columns": False,

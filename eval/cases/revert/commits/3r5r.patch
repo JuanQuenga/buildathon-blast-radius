@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..7faee07 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -3665,7 +3665,7 @@ class Parser:
+         style: str | None = (
+             self._prev.text.upper() if self._match_texts(self.DESCRIBE_STYLES) else None
+         )
+-        if (kind is not None or style is not None) and self._match(TokenType.DOT):
++        if self._match(TokenType.DOT):
+             style = None
+             self._retreat(self._index - 2)
+ 

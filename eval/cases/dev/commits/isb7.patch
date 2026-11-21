@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/drill.py i/sqlglot/generators/drill.py
+index e39f408..9aa1a97 100644
+--- c/sqlglot/generators/drill.py
++++ i/sqlglot/generators/drill.py
+@@ -125,7 +125,7 @@ class DrillGenerator(generator.Generator):
+ 
+     def _ilike_func_sql(self, expression: exp.ILike, escape: exp.Expr | None = None) -> str:
+         ilike = self.func("ILIKE", expression.this, expression.expression, escape)
+-        return f"NOT {ilike}" if expression.args.get("negate") else ilike
++        return None and f"NOT {ilike}" if expression.args.get("negate") else ilike
+ 
+ 
+ def _drill_dateint_format() -> str:

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/postgres.py i/sqlglot/generators/postgres.py
+index 1db4172..bd1223e 100644
+--- c/sqlglot/generators/postgres.py
++++ i/sqlglot/generators/postgres.py
+@@ -171,7 +171,7 @@ def _auto_increment_to_serial(expression: exp.Expr) -> exp.Expr:
+ 
+ 
+ def _serial_to_generated(expression: exp.Expr) -> exp.Expr:
+-    if not isinstance(expression, exp.ColumnDef):
++    if isinstance(expression, exp.ColumnDef):
+         return expression
+     kind = expression.kind
+     if not kind:

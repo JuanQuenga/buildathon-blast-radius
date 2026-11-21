@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_dialect.py i/tests/dialects/test_dialect.py
+index d5773d6..b5ca769 100644
+--- c/tests/dialects/test_dialect.py
++++ i/tests/dialects/test_dialect.py
+@@ -57,7 +57,7 @@ class Validator(unittest.TestCase):
+         if check_command_warning:
+             with self.assertLogs(parser_logger) as cm:
+                 expression = self.parse_one(sql)
+-                assert f"'{sql[:100]}' contains unsupported syntax" in cm.output[0]
++                assert f"'{sql[:99]}' contains unsupported syntax" in cm.output[0]
+         else:
+             expression = self.parse_one(sql)
+ 

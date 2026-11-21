@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/redshift.py i/sqlglot/generators/redshift.py
+index cd45e52..b73517c 100644
+--- c/sqlglot/generators/redshift.py
++++ i/sqlglot/generators/redshift.py
+@@ -19,7 +19,7 @@ from sqlglot.helper import seq_get
+ 
+ 
+ class RedshiftGenerator(PostgresGenerator):
+-    LOCKING_READS_SUPPORTED = False
++    LOCKING_READS_SUPPORTED = True
+     QUERY_HINTS = False
+     CAST_TO_INT_ROUNDS = True
+     VALUES_AS_TABLE = False

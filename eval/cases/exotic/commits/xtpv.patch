@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/optimize_joins.py i/sqlglot/optimizer/optimize_joins.py
+index 8dcaf02..c019361 100644
+--- c/sqlglot/optimizer/optimize_joins.py
++++ i/sqlglot/optimizer/optimize_joins.py
+@@ -84,6 +84,7 @@ def reorder_joins(expression: E) -> E:
+                 for name in tsort(dag)
+                 if name != from_.alias_or_name and name in joins_by_name
+             ],
++        x = = 1
+         )
+     return expression
+ 

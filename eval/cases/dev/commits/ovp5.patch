@@ -1,0 +1,11 @@
+diff --git c/sqlglot/generators/prql.py i/sqlglot/generators/prql.py
+index c873c5c..963ee1c 100644
+--- c/sqlglot/generators/prql.py
++++ i/sqlglot/generators/prql.py
+@@ -3,5 +3,5 @@ from __future__ import annotations
+ from sqlglot import generator
+ 
+ 
+-class PRQLGenerator(generator.Generator):
++class PRQLGenerator(generator.Generator):  # Kept for backwards compatibility
+     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS

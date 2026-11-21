@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/__init__.py i/sqlglot/executor/__init__.py
+index 174ad3c..b88cad2 100644
+--- c/sqlglot/executor/__init__.py
++++ i/sqlglot/executor/__init__.py
+@@ -61,7 +61,7 @@ def execute(
+             assert table is not None
+ 
+             for column in table.columns:
+-                value = table[0][column]
++                value = table[1][column]
+                 column_type = (
+                     annotate_types(exp.convert(value), dialect=dialect).type or type(value).__name__
+                 )

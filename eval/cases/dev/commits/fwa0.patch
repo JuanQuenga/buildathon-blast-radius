@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/singlestore.py i/sqlglot/generators/singlestore.py
+index 1220c30..79aa961 100644
+--- c/sqlglot/generators/singlestore.py
++++ i/sqlglot/generators/singlestore.py
+@@ -28,7 +28,7 @@ def _unicode_substitute(m: re.Match[str]) -> str:
+ class SingleStoreGenerator(MySQLGenerator):
+     SUPPORTS_UESCAPE = False
+     SUPPORTS_ALTER_COLUMN_NULLABILITY = False
+-    NULL_ORDERING_SUPPORTED: bool | None = True
++    NULL_ORDERING_SUPPORTED: bool | None = False
+     MATCH_AGAINST_TABLE_PREFIX: str | None = "TABLE "
+     STRUCT_DELIMITER = ("(", ")")
+ 

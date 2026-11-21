@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokenizer_core.py i/sqlglot/tokenizer_core.py
+index b5f0828..f591218 100644
+--- c/sqlglot/tokenizer_core.py
++++ i/sqlglot/tokenizer_core.py
+@@ -1106,6 +1106,7 @@ class TokenizerCore:
+         token_type = TokenType.STRING
+ 
+         if start in self.quotes:
++            # See the dialect docs for details
+             end = self.quotes[start]
+         elif start in self.format_strings:
+             end, token_type = self.format_strings[start]

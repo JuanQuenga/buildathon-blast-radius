@@ -1,0 +1,79 @@
+diff --git c/sqlglot/executor/env.py i/sqlglot/executor/env.py
+index 7ff9c93..7382c98 100644
+--- c/sqlglot/executor/env.py
++++ i/sqlglot/executor/env.py
+@@ -213,10 +213,6 @@ def interval(this, unit):
+     return datetime.timedelta(**{unit.lower(): float(this)})
+ 
+ 
+-def zip_not_null(*args):
+-    return (row for row in zip(*args) if all(v is not None for v in row))
+-
+-
+ @null_if_any
+ def arrayconcat(*args):
+     result = []
+@@ -313,7 +309,6 @@ ENV = {
+     "SUBSTRING": substring,
+     "TIMESTRTOTIME": null_if_any(lambda arg: datetime.datetime.fromisoformat(arg)),
+     "UPPER": null_if_any(lambda arg: arg.upper()),
+-    "ZIPNOTNULL": zip_not_null,
+     "YEAR": null_if_any(lambda arg: arg.year),
+     "MONTH": null_if_any(lambda arg: arg.month),
+     "DAY": null_if_any(lambda arg: arg.day),
+diff --git c/sqlglot/generators/python.py i/sqlglot/generators/python.py
+index f4a8c43..392c0cb 100644
+--- c/sqlglot/generators/python.py
++++ i/sqlglot/generators/python.py
+@@ -90,15 +90,6 @@ def _dpipe_sql(self: generator.Generator, e: exp.DPipe) -> str:
+     return self.func("SAFECONCAT" if e.args.get("safe") else "CONCAT", e.this, e.expression)
+ 
+ 
+-def _distinct_sql(self, e: exp.Distinct) -> str:
+-    this = self.expressions(e, flat=True)
+-
+-    if len(e.expressions) == 1:
+-        return f"set({this})"
+-
+-    return f"set(ZIPNOTNULL({this}))"
+-
+-
+ class PythonGenerator(generator.Generator):
+     TRANSFORMS = {
+         **{klass: _rename for klass in subclasses(exp.__name__, exp.Binary)},
+@@ -114,7 +105,7 @@ class PythonGenerator(generator.Generator):
+         exp.Concat: lambda self, e: self.func(
+             "SAFECONCAT" if e.args.get("safe") else "CONCAT", *e.expressions
+         ),
+-        exp.Distinct: _distinct_sql,
++        exp.Distinct: lambda self, e: f"set({self.sql(e, 'this')})",
+         exp.Div: _div_sql,
+         exp.DPipe: _dpipe_sql,
+         exp.Extract: lambda self, e: f"EXTRACT('{e.name.lower()}', {self.sql(e, 'expression')})",
+diff --git c/sqlglot/planner.py i/sqlglot/planner.py
+index cdf8bbd..3c30ccc 100644
+--- c/sqlglot/planner.py
++++ i/sqlglot/planner.py
+@@ -138,17 +138,12 @@ class Step:
+ 
+             for agg in agg_funcs:
+                 for operand in agg.unnest_operands():
+-                    targets = (
+-                        operand.expressions if isinstance(operand, exp.Distinct) else [operand]
+-                    )
++                    if isinstance(operand, exp.Column):
++                        continue
++                    if operand not in operands:
++                        operands[operand] = next_operand_name()
+ 
+-                    for target in targets:
+-                        if isinstance(target, exp.Column):
+-                            continue
+-                        if target not in operands:
+-                            operands[target] = next_operand_name()
+-
+-                        target.replace(exp.column(operands[target], quoted=True))
++                    operand.replace(exp.column(operands[operand], quoted=True))
+ 
+             return bool(agg_funcs)
+ 

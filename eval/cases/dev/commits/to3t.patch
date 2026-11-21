@@ -1,0 +1,12 @@
+diff --git c/sqlglot/generators/oracle.py i/sqlglot/generators/oracle.py
+index cc2c2a5..474a9ec 100644
+--- c/sqlglot/generators/oracle.py
++++ i/sqlglot/generators/oracle.py
+@@ -106,7 +106,6 @@ class OracleGenerator(generator.Generator):
+         exp.Substring: rename_func("SUBSTR"),
+         exp.Table: lambda self, e: self.table_sql(e, sep=" "),
+         exp.TableSample: lambda self, e: self.tablesample_sql(e),
+-        exp.TemporaryProperty: lambda _, e: f"{e.name or 'GLOBAL'} TEMPORARY",
+         exp.TimeToStr: lambda self, e: self.func("TO_CHAR", e.this, self.format_time(e)),
+         exp.ToChar: lambda self, e: self.function_fallback_sql(e),
+         exp.Trim: _trim_sql,

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/jsonpath.py i/sqlglot/jsonpath.py
+index fd5a181..10ef6bb 100644
+--- c/sqlglot/jsonpath.py
++++ i/sqlglot/jsonpath.py
+@@ -207,6 +207,7 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:
+                 raise ParseError(_error("Expected key name or * after DOT"))
+         elif _match(TokenType.L_BRACKET):
+             expressions.append(_parse_bracket())
++        # Fast path
+         elif _match_set(jsonpath_tokenizer.VAR_TOKENS):
+             expressions.append(exp.JSONPathKey(this=_parse_var_text()))
+         elif _match(TokenType.IDENTIFIER):

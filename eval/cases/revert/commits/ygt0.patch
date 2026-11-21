@@ -1,0 +1,22 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..2a9cc2b 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -13,7 +13,7 @@ from builtins import type as Type
+ 
+ from sqlglot import exp
+ from sqlglot.dialects import DIALECT_MODULE_NAMES
+-from sqlglot.errors import ParseError, TokenError
++from sqlglot.errors import ParseError
+ from sqlglot.generator import Generator, unsupported_args
+ from sqlglot.expressions import apply_index_offset
+ from sqlglot.helper import (
+@@ -1335,7 +1335,7 @@ class Dialect(metaclass=_Dialect):
+                 path_text = f"[{path_text}]"
+             try:
+                 return parse_json_path(path_text, self)
+-            except (ParseError, TokenError) as e:
++            except ParseError as e:
+                 if self.STRICT_JSON_PATH_SYNTAX and not path_text.lstrip().startswith(
+                     ("lax", "strict")
+                 ):

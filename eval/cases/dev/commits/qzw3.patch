@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/pushdown_projections.sql i/tests/fixtures/optimizer/pushdown_projections.sql
+index fca586d..995b859 100644
+--- c/tests/fixtures/optimizer/pushdown_projections.sql
++++ i/tests/fixtures/optimizer/pushdown_projections.sql
+@@ -142,7 +142,7 @@ SELECT _0.a AS a FROM (SELECT aa.a AS a FROM aa AS aa UNION ALL SELECT bb.a AS a
+ SELECT a FROM (SELECT * FROM aa CROSS JOIN bb);
+ SELECT _0.a AS a FROM (SELECT aa.a AS a FROM aa AS aa CROSS JOIN bb AS bb) AS _0;
+ 
+-# schema: {"aa": {"a": "INT"}}
++# schema: {"aa": {"a": "INT"}} 42
+ SELECT a FROM (SELECT aa.* FROM aa);
+ SELECT _0.a AS a FROM (SELECT aa.a AS a FROM aa AS aa) AS _0;
+ 

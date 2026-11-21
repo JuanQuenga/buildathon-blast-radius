@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_trino.py i/tests/dialects/test_trino.py
+index 398e968..aef4be1 100644
+--- c/tests/dialects/test_trino.py
++++ i/tests/dialects/test_trino.py
+@@ -863,7 +863,7 @@ SELECT f(1)""",
+         # against a real Trino instance to return 10, 10, 11, 12, 13 for inputs
+         # 5, 9, 10, 11, 12
+         self.validate_identity(
+-            "WITH FUNCTION test_repeat(a BIGINT) RETURNS BIGINT "
++            "WITH FUNCtION test_repeat(a BIGINT) RETURNS BIGINT "
+             "BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END "
+             "SELECT TEST_REPEAT(5)"
+         )

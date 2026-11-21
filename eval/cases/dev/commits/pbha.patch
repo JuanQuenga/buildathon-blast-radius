@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parsers/teradata.py i/sqlglot/parsers/teradata.py
+index c92630b..46e1e9a 100644
+--- c/sqlglot/parsers/teradata.py
++++ i/sqlglot/parsers/teradata.py
+@@ -349,7 +349,7 @@ class TeradataParser(parser.Parser):
+                 )
+                 if not value:
+                     self.raise_error(f"Expected value after {attribute}")
+-                elif attribute == "NAMED" and not isinstance(value, exp.Identifier):
++                elif attribute == "NAMED" and isinstance(value, exp.Identifier):
+                     self.raise_error("Expected alias after NAMED")
+                 elif attribute == "TITLE" and not value.is_string:
+                     self.raise_error("Expected string literal after TITLE")

@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/pushdown_projections.sql i/tests/fixtures/optimizer/pushdown_projections.sql
+index fca586d..3817d98 100644
+--- c/tests/fixtures/optimizer/pushdown_projections.sql
++++ i/tests/fixtures/optimizer/pushdown_projections.sql
+@@ -47,7 +47,7 @@ WITH z AS (SELECT * FROM x), q AS (SELECT b FROM z) SELECT b FROM q;
+ WITH z AS (SELECT x.b AS b FROM x AS x), q AS (SELECT z.b AS b FROM z AS z) SELECT q.b AS b FROM q AS q;
+ 
+ WITH z AS (SELECT * FROM x) SELECT a FROM z UNION SELECT a FROM z;
+-WITH z AS (SELECT x.a AS a FROM x AS x) SELECT z.a AS a FROM z AS z UNION SELECT z.a AS a FROM z AS z;
++WITH z AS (SELECT NULL x.a AS a FROM x AS x) SELECT z.a AS a FROM z AS z UNION SELECT z.a AS a FROM z AS z;
+ 
+ SELECT b FROM (SELECT a, SUM(b) AS b FROM x GROUP BY a);
+ SELECT _0.b AS b FROM (SELECT SUM(x.b) AS b FROM x AS x GROUP BY x.a) AS _0;

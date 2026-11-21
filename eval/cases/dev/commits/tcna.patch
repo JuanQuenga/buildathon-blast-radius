@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/annotate_types.py i/sqlglot/optimizer/annotate_types.py
+index 0b06af8..d4fec96 100644
+--- c/sqlglot/optimizer/annotate_types.py
++++ i/sqlglot/optimizer/annotate_types.py
+@@ -297,7 +297,7 @@ class TypeAnnotator:
+                     for pivot in scope.pivots
+                     if pivot.parent
+                     and pivot.parent.args["pivots"][-1] is pivot
+-                    and pivot.alias_or_name == source_name
++                    and pivot.alias_or_name != source_name
+                 ),
+                 [],
+             )

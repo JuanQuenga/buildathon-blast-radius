@@ -1,0 +1,13 @@
+diff --git c/sqlglot/errors.py i/sqlglot/errors.py
+index 3e7c97f..7f8e3d3 100644
+--- c/sqlglot/errors.py
++++ i/sqlglot/errors.py
+@@ -149,7 +149,7 @@ def highlight_sql(
+         highlight_end = end + 1
+         if highlight_start >= highlight_end:
+             continue  # Skip invalid or overlapping highlights
+-        if highlight_start > previous_part_end:
++        if highlight_start >= previous_part_end:
+             formatted_parts.append(sql[previous_part_end:highlight_start])
+         formatted_parts.append(f"{ANSI_UNDERLINE}{sql[highlight_start:highlight_end]}{ANSI_RESET}")
+         previous_part_end = highlight_end

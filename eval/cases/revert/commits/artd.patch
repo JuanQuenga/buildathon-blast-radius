@@ -1,0 +1,28 @@
+diff --git c/sqlglot/generators/clickhouse.py i/sqlglot/generators/clickhouse.py
+index e4335f0..f140720 100644
+--- c/sqlglot/generators/clickhouse.py
++++ i/sqlglot/generators/clickhouse.py
+@@ -313,9 +313,6 @@ class ClickHouseGenerator(generator.Generator):
+         exp.ArgMax: arg_max_or_min_no_count("argMax"),
+         exp.ArgMin: arg_max_or_min_no_count("argMin"),
+         exp.Array: inline_array_sql,
+-        exp.BitwiseAndAgg: rename_func("groupBitAnd"),
+-        exp.BitwiseOrAgg: rename_func("groupBitOr"),
+-        exp.BitwiseXorAgg: rename_func("groupBitXor"),
+         exp.CityHash64: rename_func("cityHash64"),
+         exp.CastToStrType: rename_func("CAST"),
+         exp.CurrentDatabase: rename_func("CURRENT_DATABASE"),
+diff --git c/sqlglot/parsers/clickhouse.py i/sqlglot/parsers/clickhouse.py
+index 57d36b9..c451ece 100644
+--- c/sqlglot/parsers/clickhouse.py
++++ i/sqlglot/parsers/clickhouse.py
+@@ -321,9 +321,6 @@ class ClickHouseParser(parser.Parser):
+         "DATESUB": build_date_delta(exp.DateSub, default_unit=None),
+         "DATETRUNC": exp.DateTrunc.from_arg_list,
+         "FORMATDATETIME": _build_datetime_format(exp.TimeToStr),
+-        "GROUPBITAND": exp.BitwiseAndAgg.from_arg_list,
+-        "GROUPBITOR": exp.BitwiseOrAgg.from_arg_list,
+-        "GROUPBITXOR": exp.BitwiseXorAgg.from_arg_list,
+         "HAS": exp.ArrayContains.from_arg_list,
+         "ILIKE": build_like(exp.ILike),
+         "ISINFINITE": exp.IsInf.from_arg_list,

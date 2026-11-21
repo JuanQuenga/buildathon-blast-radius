@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/presto.py i/sqlglot/dialects/presto.py
+index 1db09da..3da9322 100644
+--- c/sqlglot/dialects/presto.py
++++ i/sqlglot/dialects/presto.py
+@@ -83,7 +83,7 @@ class Presto(Dialect):
+         HEX_STRINGS = [("x'", "'"), ("X'", "'")]
+         UNICODE_STRINGS = [
+             (prefix + q, q)
+-            for q in t.cast(list[str], tokens.Tokenizer.QUOTES)
++             for q in t.cast(list[str], tokens.Tokenizer.QUOTES)
+             for prefix in ("U&", "u&")
+         ]
+ 

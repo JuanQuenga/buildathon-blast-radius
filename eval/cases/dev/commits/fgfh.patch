@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/qualify_tables.py i/sqlglot/optimizer/qualify_tables.py
+index 958dd4e..9f75a30 100644
+--- c/sqlglot/optimizer/qualify_tables.py
++++ i/sqlglot/optimizer/qualify_tables.py
+@@ -183,7 +183,7 @@ def qualify_tables(
+                     source,
+                     canonical_aliases,
+                     target_alias=name or source.name or None,
+-                    normalize=True,
++                    normalize=False,
+                     columns=function_columns,
+                 )
+ 

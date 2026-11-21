@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/string.py i/sqlglot/expressions/string.py
+index b5e1e20..0de38d0 100644
+--- c/sqlglot/expressions/string.py
++++ i/sqlglot/expressions/string.py
+@@ -496,7 +496,7 @@ class RegexpSplit(Expression, Func):
+ class RegexpSubstr(Expression, Func):
+     arg_types = {
+         "this": True,
+-        "expression": True,
++        "expression": False,
+         "position": False,
+         "occurrence": False,
+         "parameters": False,

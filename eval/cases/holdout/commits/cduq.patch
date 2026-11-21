@@ -1,0 +1,13 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..406d334 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -412,7 +412,7 @@ class Tokenizer(_TokenizerBase):
+         "UNION": TokenType.UNION,
+         "UNKNOWN": TokenType.UNKNOWN,
+         "UNNEST": TokenType.UNNEST,
+-        "UNPIVOT": TokenType.UNPIVOT,
++        "UNPIVOTX": TokenType.UNPIVOT,
+         "UPDATE": TokenType.UPDATE,
+         "USE": TokenType.USE,
+         "USING": TokenType.USING,

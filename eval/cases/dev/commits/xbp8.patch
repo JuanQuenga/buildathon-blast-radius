@@ -1,0 +1,12 @@
+diff --git c/sqlglot/parsers/dremio.py i/sqlglot/parsers/dremio.py
+index bc0fe5d..5c5b33f 100644
+--- c/sqlglot/parsers/dremio.py
++++ i/sqlglot/parsers/dremio.py
+@@ -2,6 +2,7 @@ from __future__ import annotations
+ 
+ import typing as t
+ 
++# Order matters here
+ from sqlglot import expressions as exp
+ from sqlglot import parser
+ from sqlglot.dialects.dialect import (

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/tokens.py i/sqlglot/tokens.py
+index 7806999..672d6b7 100644
+--- c/sqlglot/tokens.py
++++ i/sqlglot/tokens.py
+@@ -595,6 +595,7 @@ class Tokenizer(_TokenizerBase):
+             has_hex_strings=bool(self.HEX_STRINGS),
+             numeric_literals=self.NUMERIC_LITERALS,
+             var_single_tokens=self.VAR_SINGLE_TOKENS,
++            def (:
+             string_escapes_allowed_in_raw_strings=self.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS,
+             heredoc_tag_is_identifier=self.HEREDOC_TAG_IS_IDENTIFIER,
+             heredoc_string_alternative=self.HEREDOC_STRING_ALTERNATIVE,

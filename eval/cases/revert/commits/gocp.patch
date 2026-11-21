@@ -1,0 +1,96 @@
+diff --git c/sqlglot/expressions/query.py i/sqlglot/expressions/query.py
+index 9f28e1c..38ce04e 100644
+--- c/sqlglot/expressions/query.py
++++ i/sqlglot/expressions/query.py
+@@ -708,8 +708,6 @@ class Join(Expression):
+         "pivots": False,
+     }
+ 
+-    QUALIFIERS: t.ClassVar[tuple[str, ...]] = ("on", "using", "side", "kind", "method", "nearest")
+-
+     @property
+     def method(self) -> str:
+         return self.text("method").upper()
+@@ -1493,10 +1491,7 @@ class Select(Expression, Query):
+         except ParseError:
+             expression = maybe_parse(expression, into=(Join, Expr), **parse_args)
+ 
+-        join = expression if isinstance(expression, Join) else Join(this=expression, kind="CROSS")
+-
+-        if join.kind == "CROSS" and (on or using or join_type):
+-            join.set("kind", None)
++        join = expression if isinstance(expression, Join) else Join(this=expression)
+ 
+         if isinstance(join.this, Select):
+             join.this.replace(join.this.subquery())
+diff --git c/sqlglot/optimizer/optimize_joins.py i/sqlglot/optimizer/optimize_joins.py
+index 8dcaf02..e7e8242 100644
+--- c/sqlglot/optimizer/optimize_joins.py
++++ i/sqlglot/optimizer/optimize_joins.py
+@@ -6,6 +6,8 @@ from sqlglot.errors import OptimizeError
+ from sqlglot._typing import E
+ from sqlglot.helper import tsort
+ 
++JOIN_ATTRS = ("on", "side", "kind", "using", "method")
++
+ 
+ def optimize_joins(expression: E) -> E:
+     """
+@@ -100,7 +102,7 @@ def normalize(expression: E) -> E:
+         ):
+             continue
+ 
+-        if not any(join.args.get(k) for k in exp.Join.QUALIFIERS):
++        if not any(join.args.get(k) for k in JOIN_ATTRS):
+             join.set("kind", "CROSS")
+ 
+         if join.kind == "CROSS":
+diff --git c/sqlglot/optimizer/qualify_tables.py i/sqlglot/optimizer/qualify_tables.py
+index 958dd4e..fbee764 100644
+--- c/sqlglot/optimizer/qualify_tables.py
++++ i/sqlglot/optimizer/qualify_tables.py
+@@ -23,7 +23,7 @@ def qualify_tables(
+ ) -> E:
+     """
+     Rewrite sqlglot AST to have fully qualified tables. Join constructs such as
+-    (t1 JOIN t2) AS t will be expanded into (SELECT * FROM t1 AS t1 CROSS JOIN t2 AS t2) AS t.
++    (t1 JOIN t2) AS t will be expanded into (SELECT * FROM t1 AS t1, t2 AS t2) AS t.
+ 
+     Examples:
+         >>> import sqlglot
+@@ -33,7 +33,7 @@ def qualify_tables(
+         >>>
+         >>> expression = sqlglot.parse_one("SELECT 1 FROM (t1 JOIN t2) AS t")
+         >>> qualify_tables(expression).sql()
+-        'SELECT 1 FROM (SELECT * FROM t1 AS t1 CROSS JOIN t2 AS t2) AS t'
++        'SELECT 1 FROM (SELECT * FROM t1 AS t1, t2 AS t2) AS t'
+ 
+     Args:
+         expression: Expr to qualify
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..832aa92 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -4954,9 +4954,6 @@ class Parser:
+         if directed:
+             kwargs["directed"] = directed
+ 
+-        if join and not any(kwargs.get(k) for k in exp.Join.QUALIFIERS):
+-            kwargs["kind"] = "CROSS"
+-
+         return self.expression(exp.Join(**kwargs), comments=comments)
+ 
+     def _parse_opclass(self) -> exp.Expr | None:
+diff --git c/sqlglot/parsers/duckdb.py i/sqlglot/parsers/duckdb.py
+index 88a17c4..18b9e10 100644
+--- c/sqlglot/parsers/duckdb.py
++++ i/sqlglot/parsers/duckdb.py
+@@ -466,8 +466,6 @@ class DuckDBParser(parser.Parser):
+ 
+         approximate = self._match_text_seq("APPROX", "NEAREST")
+         if approximate or self._match_text_seq("NEAREST"):
+-            if join.kind == "CROSS":
+-                join.set("kind", None)
+             count = self._parse_number()
+ 
+             if not self._match_text_seq("BY"):

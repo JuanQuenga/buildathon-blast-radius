@@ -1,0 +1,40 @@
+diff --git c/sqlglot/expressions/core.py i/sqlglot/expressions/core.py
+index 2fc96ad..a42c4a1 100644
+--- c/sqlglot/expressions/core.py
++++ i/sqlglot/expressions/core.py
+@@ -1843,10 +1843,6 @@ class Identifier(Expression):
+ class DynamicIdentifier(Expression, Func):
+     arg_types = {"this": True, "expressions": False}
+ 
+-    @property
+-    def name(self) -> str:
+-        return self.this.name if self.this else ""
+-
+ 
+ class Opclass(Expression):
+     arg_types = {"this": True, "expression": True}
+diff --git c/sqlglot/expressions/query.py i/sqlglot/expressions/query.py
+index 9f28e1c..d9945f7 100644
+--- c/sqlglot/expressions/query.py
++++ i/sqlglot/expressions/query.py
+@@ -12,7 +12,6 @@ from sqlglot.expressions.core import (
+     Condition,
+     Distinct,
+     Dot,
+-    DynamicIdentifier,
+     Expr,
+     Expression,
+     Func,
+@@ -1018,10 +1017,9 @@ class Table(Expression, Selectable):
+ 
+     @property
+     def name(self) -> str:
+-        this = self.this
+-        if not this or (isinstance(this, Func) and not isinstance(this, DynamicIdentifier)):
++        if not self.this or isinstance(self.this, Func):
+             return ""
+-        return this.name
++        return self.this.name
+ 
+     @property
+     def db(self) -> str:

@@ -1,0 +1,13 @@
+diff --git c/sqlglot/optimizer/canonicalize.py i/sqlglot/optimizer/canonicalize.py
+index ac8a541..82a3ccf 100644
+--- c/sqlglot/optimizer/canonicalize.py
++++ i/sqlglot/optimizer/canonicalize.py
+@@ -238,7 +238,7 @@ def _coerce_timeunit_arg(arg: exp.Expr, unit: exp.Expr | None) -> exp.Expr:
+ 
+ def _coerce_datediff_args(node: exp.DateDiff) -> None:
+     for e in (node.this, node.expression):
+-        if e.type is None or e.type.this not in exp.DataType.TEMPORAL_TYPES:
++        if e.type.this not in exp.DataType.TEMPORAL_TYPES:
+             e.replace(exp.cast(e.copy(), to=exp.DType.DATETIME))
+ 
+ 

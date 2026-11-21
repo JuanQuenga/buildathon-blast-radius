@@ -1,0 +1,123 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..9ec74be 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -2086,13 +2086,11 @@ def encode_decode_sql(
+     return self.func(name, expression.this, expression.args.get("replace") if replace else None)
+ 
+ 
+-@unsupported_args("count")
+ def min_or_least(self: Generator, expression: exp.Min) -> str:
+     name = "LEAST" if expression.expressions else "MIN"
+     return rename_func(name)(self, expression)
+ 
+ 
+-@unsupported_args("count")
+ def max_or_greatest(self: Generator, expression: exp.Max) -> str:
+     name = "GREATEST" if expression.expressions else "MAX"
+     return rename_func(name)(self, expression)
+diff --git c/sqlglot/expressions/aggregate.py i/sqlglot/expressions/aggregate.py
+index fff83d9..bc89e40 100644
+--- c/sqlglot/expressions/aggregate.py
++++ i/sqlglot/expressions/aggregate.py
+@@ -185,7 +185,7 @@ class LogicalOr(Expression, AggFunc):
+ 
+ 
+ class Max(Expression, AggFunc):
+-    arg_types = {"this": True, "expressions": False, "count": False}
++    arg_types = {"this": True, "expressions": False}
+     is_var_len_args = True
+ 
+ 
+@@ -194,7 +194,7 @@ class Median(Expression, AggFunc):
+ 
+ 
+ class Min(Expression, AggFunc):
+-    arg_types = {"this": True, "expressions": False, "count": False}
++    arg_types = {"this": True, "expressions": False}
+     is_var_len_args = True
+ 
+ 
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..7d356d9 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -6166,14 +6166,6 @@ class Generator:
+ 
+         return array_agg_sql
+ 
+-    @unsupported_args("count")
+-    def min_sql(self, expression: exp.Min) -> str:
+-        return self.function_fallback_sql(expression)
+-
+-    @unsupported_args("count")
+-    def max_sql(self, expression: exp.Max) -> str:
+-        return self.function_fallback_sql(expression)
+-
+     def arrayagg_sql(self, expression: exp.ArrayAgg) -> str:
+         array_agg = self.function_fallback_sql(expression)
+         column_expr = expression.this
+diff --git c/sqlglot/generators/duckdb.py i/sqlglot/generators/duckdb.py
+index a0fa169..6630b3b 100644
+--- c/sqlglot/generators/duckdb.py
++++ i/sqlglot/generators/duckdb.py
+@@ -1777,8 +1777,6 @@ class DuckDBGenerator(generator.Generator):
+         exp.MakeInterval: lambda self, e: no_make_interval_sql(self, e, sep=" "),
+         exp.Initcap: _initcap_sql,
+         exp.MD5Digest: lambda self, e: self.func("UNHEX", self.func("MD5", e.this)),
+-        exp.Max: rename_func("MAX"),
+-        exp.Min: rename_func("MIN"),
+         exp.SHA: lambda self, e: _sha_sql(self, e, "SHA1"),
+         exp.SHA1Digest: lambda self, e: _sha_sql(self, e, "SHA1", is_binary=True),
+         exp.SHA2: lambda self, e: _sha_sql(self, e, "SHA256"),
+diff --git c/sqlglot/parsers/duckdb.py i/sqlglot/parsers/duckdb.py
+index 88a17c4..30b5d81 100644
+--- c/sqlglot/parsers/duckdb.py
++++ i/sqlglot/parsers/duckdb.py
+@@ -276,8 +276,6 @@ class DuckDBParser(parser.Parser):
+             ("GROUP_CONCAT", "LISTAGG", "STRINGAGG"), lambda self: self._parse_string_agg()
+         ),
+         "APPROX_QUANTILE": lambda self: self._parse_distinct_arg_function(exp.ApproxQuantile),
+-        "MAX": lambda self: self._parse_min_max(exp.Max),
+-        "MIN": lambda self: self._parse_min_max(exp.Min),
+         "QUANTILE": lambda self: self._parse_distinct_arg_function(exp.Quantile),
+         "QUANTILE_CONT": lambda self: self._parse_distinct_arg_function(exp.PercentileCont),
+         "QUANTILE_DISC": lambda self: self._parse_distinct_arg_function(exp.PercentileDisc),
+@@ -332,14 +330,6 @@ class DuckDBParser(parser.Parser):
+     SHOW_TRIE = new_trie(key.split(" ") for key in SHOW_PARSERS)
+     SET_TRIE = new_trie(key.split(" ") for key in SET_PARSERS)
+ 
+-    def _parse_min_max(self, func: type[exp.Min] | type[exp.Max]) -> exp.Min | exp.Max:
+-        expression = self._parse_distinct_arg_function(func)
+-        if len(expression.expressions) > 1:
+-            self.raise_error(f"Expected at most 2 arguments for {func.__name__}")
+-        expression.set("count", seq_get(expression.expressions, 0))
+-        expression.set("expressions", None)
+-        return expression
+-
+     def _parse_tilde(self, this: exp.Expr | None) -> exp.Expr | None:
+         # ~ and !~ match anywhere in the string since DuckDB 2.0, and the whole string before it
+         # https://duckdb.org/docs/2.0/sql/functions/pattern_matching
+diff --git c/sqlglot/typing/__init__.py i/sqlglot/typing/__init__.py
+index 38db8a1..2e73c9b 100644
+--- c/sqlglot/typing/__init__.py
++++ i/sqlglot/typing/__init__.py
+@@ -345,16 +345,10 @@ EXPRESSION_METADATA: ExprMetadataType = {
+             exp.Coalesce,
+             exp.Greatest,
+             exp.Least,
++            exp.Max,
++            exp.Min,
+         }
+     },
+-    **{
+-        expr_type: {
+-            "annotator": lambda self, e: self._annotate_by_args(
+-                e, "this", "expressions", array=e.args.get("count") is not None
+-            )
+-        }
+-        for expr_type in {exp.Max, exp.Min}
+-    },
+     **{
+         expr_type: {"annotator": lambda self, e: self._annotate_by_array_element(e)}
+         for expr_type in {

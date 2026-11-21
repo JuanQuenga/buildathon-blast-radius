@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/presto.py i/sqlglot/generators/presto.py
+index 5a0872a..c1f0262 100644
+--- c/sqlglot/generators/presto.py
++++ i/sqlglot/generators/presto.py
+@@ -205,7 +205,7 @@ def _date_diff_sql(
+                 this = exp.Add(this=this, expression=delta)
+                 expr = exp.Add(this=expr, expression=delta.copy())
+ 
+-        if not isinstance(raw_unit, exp.WeekStart) or dow is not None:
++        if not isinstance(raw_unit, exp.WeekStart) and dow is not None:
+             this = exp.DateTrunc(unit=unit.copy(), this=this)
+             expr = exp.DateTrunc(unit=unit.copy(), this=expr)
+ 

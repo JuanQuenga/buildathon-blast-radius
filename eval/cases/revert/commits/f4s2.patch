@@ -1,0 +1,69 @@
+diff --git c/sqlglot/expressions/core.py i/sqlglot/expressions/core.py
+index 2fc96ad..3ecb33a 100644
+--- c/sqlglot/expressions/core.py
++++ i/sqlglot/expressions/core.py
+@@ -90,7 +90,6 @@ class Expr:
+     _hash_raw_args: t.ClassVar[bool] = False
+     is_subquery: t.ClassVar[bool] = False
+     is_cast: t.ClassVar[bool] = False
+-    is_data_type: t.ClassVar[bool] = False
+ 
+     args: dict[str, t.Any]
+     parent: Expr | None
+@@ -971,8 +970,6 @@ class Expression(Expr):
+ 
+     @property
+     def type(self) -> DataType | None:
+-        if self.is_data_type:
+-            return self  # type: ignore[return-value]
+         if self.is_cast:
+             return self._type or self.to  # type: ignore[attr-defined]
+         return self._type
+@@ -2650,7 +2647,7 @@ def _to_s(node: t.Any, verbose: bool = False, level: int = 0, repr_str: bool = F
+     if isinstance(node, Expr):
+         args = {k: v for k, v in node.args.items() if (v is not None and v != []) or verbose}
+ 
+-        if (node.type or verbose) and not node.is_data_type:
++        if (node.type or verbose) and type(node).__name__ != "DataType":
+             args["_type"] = node.type
+         if node.comments or verbose:
+             args["_comments"] = node.comments
+diff --git c/sqlglot/expressions/datatypes.py i/sqlglot/expressions/datatypes.py
+index 2697438..df692ca 100644
+--- c/sqlglot/expressions/datatypes.py
++++ i/sqlglot/expressions/datatypes.py
+@@ -188,8 +188,6 @@ class DataType(Expression):
+         "collate": False,
+     }
+ 
+-    is_data_type: t.ClassVar[bool] = True
+-
+     Type: t.ClassVar[Type[DType]] = DType
+ 
+     STRUCT_TYPES: t.ClassVar[set[DType]] = {
+diff --git c/sqlglot/serde.py i/sqlglot/serde.py
+index 4c6afe4..e5dc8b0 100644
+--- c/sqlglot/serde.py
++++ i/sqlglot/serde.py
+@@ -50,7 +50,7 @@ def dump(expression: exp.Expr) -> list[dict[str, t.Any]]:
+ 
+             payload[CLASS] = klass
+ 
+-            if node.type and node.type is not node:
++            if node.type:
+                 payload[TYPE] = dump(node.type)
+             if node.comments:
+                 payload[COMMENTS] = node.comments
+diff --git c/sqlglot/typing/__init__.py i/sqlglot/typing/__init__.py
+index 38db8a1..6191aec 100644
+--- c/sqlglot/typing/__init__.py
++++ i/sqlglot/typing/__init__.py
+@@ -403,7 +403,7 @@ EXPRESSION_METADATA: ExprMetadataType = {
+             e, exp.DType.BIGINT if e.args.get("big_int") else exp.DType.INT
+         )
+     },
+-    exp.DataType: {"annotator": lambda _, e: e},
++    exp.DataType: {"annotator": lambda self, e: self._set_type(e, e.copy())},
+     exp.Div: {"annotator": lambda self, e: self._annotate_div(e)},
+     exp.Distinct: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
+     exp.Dot: {"annotator": lambda self, e: self._annotate_dot(e)},

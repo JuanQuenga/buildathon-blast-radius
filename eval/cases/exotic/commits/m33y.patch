@@ -1,0 +1,4 @@
+diff --git c/sqlglot/parsers/materialize.py i/sqlglot/parsers/_materialize.py
+similarity index 100%
+rename from sqlglot/parsers/materialize.py
+rename to sqlglot/parsers/_materialize.py

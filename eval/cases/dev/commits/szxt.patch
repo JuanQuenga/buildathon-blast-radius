@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_postgres.py i/tests/dialects/test_postgres.py
+index deafcb2..55b9722 100644
+--- c/tests/dialects/test_postgres.py
++++ i/tests/dialects/test_postgres.py
+@@ -1257,7 +1257,7 @@ FROM json_data, field_ids""",
+                 "postgres": "SELECT * FROM x FETCH FIRST 1 ROWS ONLY",
+                 "presto": "SELECT * FROM x FETCH FIRST 1 ROWS ONLY",
+                 "hive": "SELECT * FROM x LIMIT 1",
+-                "spark": "SELECT * FROM x LIMIT 1",
++                "sparK": "SELECT * FROM x LIMIT 1",
+                 "sqlite": "SELECT * FROM x LIMIT 1",
+             },
+         )

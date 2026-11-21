@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..eecf54d 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -988,7 +988,6 @@ class Dialect(metaclass=_Dialect):
+         "YYYY": "YEAR",
+         "YR": "YEAR",
+         "YEARS": "YEAR",
+-        "YRS": "YEAR",
+         "MM": "MONTH",
+         "MON": "MONTH",
+         "MONS": "MONTH",

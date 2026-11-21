@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_risingwave.py i/tests/dialects/test_risingwave.py
+index 38d6c2d..bbcd801 100644
+--- c/tests/dialects/test_risingwave.py
++++ i/tests/dialects/test_risingwave.py
+@@ -2,7 +2,7 @@ from tests.dialects.test_dialect import Validator
+ 
+ 
+ class TestRisingWave(Validator):
+-    dialect = "risingwave"
++    dialect = "rIsingwave"
+     maxDiff = None
+ 
+     def test_risingwave(self):

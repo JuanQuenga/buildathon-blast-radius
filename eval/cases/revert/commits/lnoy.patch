@@ -1,0 +1,58 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..d2f427f 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -393,13 +393,6 @@ class _Dialect(type):
+             if v == "\\" or (not v.isprintable() and k[1:] != v)
+         }
+ 
+-        identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES
+-        klass.IDENTIFIER_ESCAPED_SEQUENCES = {
+-            v: k
+-            for k, v in klass.UNESCAPED_SEQUENCES.items()
+-            if k[0] in identifier_escapes and v in identifier_escapes
+-        }
+-
+         # Prefer hex, then octal, then Unicode for numeric control-character escapes.
+         numeric_escapes = klass.tokenizer_class.NUMERIC_ESCAPES
+         if "x" in numeric_escapes:
+@@ -544,9 +537,6 @@ class Dialect(metaclass=_Dialect):
+     BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False
+     """Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES."""
+ 
+-    IDENTIFIER_ESCAPED_SEQUENCES: dict[str, str] = {}
+-    """Mapping of an identifier escape char (`\\`) to its escaped version (`\\\\`). Set by the metaclass based on the tokenizer's IDENTIFIER_ESCAPES."""
+-
+     INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}
+     """Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore."""
+ 
+diff --git c/sqlglot/generator.py i/sqlglot/generator.py
+index 573d3c1..8012be3 100644
+--- c/sqlglot/generator.py
++++ i/sqlglot/generator.py
+@@ -939,7 +939,6 @@ class Generator:
+         "_escaped_quote_end",
+         "_escaped_byte_quote_end",
+         "_escaped_identifier_end",
+-        "_identifier_escaped_sequences",
+         "_next_name",
+         "_identifier_start",
+         "_identifier_end",
+@@ -992,7 +991,6 @@ class Generator:
+             else ""
+         )
+         self._escaped_identifier_end = self.dialect.IDENTIFIER_END * 2
+-        self._identifier_escaped_sequences = self.dialect.IDENTIFIER_ESCAPED_SEQUENCES
+ 
+         self._next_name = name_sequence("_t")
+ 
+@@ -2171,9 +2169,6 @@ class Generator:
+         lower = text.lower()
+         quoted = expression.quoted
+         text = lower if self.normalize and not quoted else text
+-        if self._identifier_escaped_sequences:
+-            for char, escaped in self._identifier_escaped_sequences.items():
+-                text = text.replace(char, escaped)
+         text = text.replace(self._identifier_end, self._escaped_identifier_end)
+         if (
+             quoted

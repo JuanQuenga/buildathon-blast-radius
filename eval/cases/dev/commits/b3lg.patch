@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..16d6dda 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -6258,7 +6258,7 @@ class Parser:
+                 while intersect := self.parse_set_operation(operand, intersect_only=True):
+                     last_setop = operand = intersect
+                 if operand is not setop.expression:
+-                    setop.set("expression", operand.subquery(copy=False))
++                    setop.set("expression", operand.subquery(copy=True))
+ 
+             this = setop
+ 

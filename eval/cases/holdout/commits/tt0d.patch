@@ -1,0 +1,13 @@
+diff --git c/tests/test_docs.py i/tests/test_docs.py
+index 097c8db..38cb3e2 100644
+--- c/tests/test_docs.py
++++ i/tests/test_docs.py
+@@ -13,7 +13,7 @@ def load_tests(loader, tests, ignore):
+ 
+     modules = set()
+     for info in pkgutil.walk_packages(sqlglot.__path__, prefix="sqlglot."):
+-        if info.name == "sqlglot.__main__":
++        if info.name == "sqlglot.__Main__":
+             continue
+         try:
+             modules.add(importlib.import_module(info.name))

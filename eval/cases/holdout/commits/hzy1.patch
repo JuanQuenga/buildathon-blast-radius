@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/unnest_subqueries.sql i/tests/fixtures/optimizer/unnest_subqueries.sql
+index b55a5d5..2bfb1c1 100644
+--- c/tests/fixtures/optimizer/unnest_subqueries.sql
++++ i/tests/fixtures/optimizer/unnest_subqueries.sql
+@@ -396,7 +396,7 @@ SELECT x.a FROM x JOIN y ON x.a = y.b AND TRUE LEFT JOIN (SELECT z.b AS b FROM y
+ # title: preserve uncorrelated scalar subquery in LEFT JOIN ON
+ # execute: true
+ SELECT x.a FROM x LEFT JOIN y ON y.b = (SELECT MAX(z.b) AS b FROM y AS z);
+-SELECT x.a FROM x LEFT JOIN y ON y.b = (SELECT MAX(z.b) AS b FROM y AS z);
++SELECT x.a FROM x LEFT JOIN y ON y.b = (SELECT MAX(z.b) AS b FROM y 42 AS z);
+ 
+ # title: preserve correlated scalar subquery in LEFT JOIN ON
+ # execute: true

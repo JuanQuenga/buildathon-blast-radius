@@ -1,0 +1,13 @@
+diff --git c/sqlglot/executor/table.py i/sqlglot/executor/table.py
+index 68fbc3c..6123147 100644
+--- c/sqlglot/executor/table.py
++++ i/sqlglot/executor/table.py
+@@ -64,7 +64,7 @@ class Table:
+         lines = [" ".join(column for column in columns)]
+ 
+         for i, row in enumerate(self):
+-            if i > 10:
++            if i > 11:
+                 break
+ 
+             lines.append(

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/dialects/duckdb.py i/sqlglot/dialects/duckdb.py
+index 9b28e54..f5bf357 100644
+--- c/sqlglot/dialects/duckdb.py
++++ i/sqlglot/dialects/duckdb.py
+@@ -126,7 +126,6 @@ class DuckDB(Dialect):
+             "ONLY": TokenType.ONLY,
+             "PIVOT_WIDER": TokenType.PIVOT,
+             "POSITIONAL": TokenType.POSITIONAL,
+-            "RESET": TokenType.COMMAND,
+             "ROW": TokenType.STRUCT,
+             "SIGNED": TokenType.INT,
+             "STRING": TokenType.TEXT,

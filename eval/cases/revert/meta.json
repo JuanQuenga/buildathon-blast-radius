@@ -1,0 +1,1860 @@
+{
+ "014y": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "revert 5683e3df99 Fix: improve transpilation of `e'...'` strings (#7677)",
+  "upstream": "5683e3df9926f25e8d60e65c93851c8035db0cb0",
+  "split": "holdout"
+ },
+ "07d3": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/redshift.py"
+  ],
+  "desc": "revert fc6b87a3a5 fix(redshift)!: parse `CONVERT` into `Cast` instead of `TryCast` (#7609)",
+  "upstream": "fc6b87a3a533ab105f38f9f43abea4949de4e24e",
+  "split": "dev"
+ },
+ "0teu": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/sqlite.py"
+  ],
+  "desc": "revert 3110e151bf fix(sqlite): preserve explicit end bound in RANGE CURRENT ROW window frames [CLA",
+  "upstream": "3110e151bfe6e229ec6b85708a56a9340a56c6a6",
+  "split": "holdout"
+ },
+ "0uw0": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "revert 17432c6117 Fix(generator)!: do not indent newlines within identifiers in pretty mode fixes ",
+  "upstream": "17432c61175194ee0f56f0703393e8c5fdc9e81f",
+  "split": "dev"
+ },
+ "0yqz": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/annotate_types.py"
+  ],
+  "desc": "revert 7ad56f653e fix(optimizer)!: update annotate_types.py for maybe_coerce and explode functions",
+  "upstream": "7ad56f653ec092d2af3d39c9af117b2e42ba3cd3",
+  "split": "dev"
+ },
+ "1jkl": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/sqlite.py"
+  ],
+  "desc": "revert 79ba1384dc fix(sqlite): do not mark DAY unit as unsupported in DATEDIFF (#8914)",
+  "upstream": "79ba1384dc19024fae84cf4da9bfb271ecb6c332",
+  "split": "dev"
+ },
+ "1rw0": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/fabric.py"
+  ],
+  "desc": "revert 2d3d3ff7b8 fix(fabric): don't re-wrap AT TIME ZONE that is already cast to DATETIME2 [CLAUD",
+  "upstream": "2d3d3ff7b8b8b475a68d70ffe3529ac110c96f4b",
+  "split": "dev"
+ },
+ "245c": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert c9ad903e75 fix(optimizer): preserve operand order when simplifying COALESCE comparisons (#8",
+  "upstream": "c9ad903e7553543686472e5babf3c18e4e7dbc7b",
+  "split": "dev"
+ },
+ "2glp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "dialects+generators",
+  "files": [
+   "sqlglot/dialects/drill.py",
+   "sqlglot/generators/drill.py"
+  ],
+  "desc": "revert 5cc5ef046e fix(drill)!: preserve backslashes in string literals (#8481)",
+  "upstream": "5cc5ef046e8213dcb373c82f6c00fcf918fb4a5b",
+  "split": "dev"
+ },
+ "2img": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions",
+  "files": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 90659e63fc fix(parser): support PIVOT after a VALUES table in FROM (#8876)",
+  "upstream": "90659e63fc8f3c4626f41b162961210b9d619fe4",
+  "split": "dev"
+ },
+ "2jtu": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/duckdb.py"
+  ],
+  "desc": "revert 991d6ce5ef fix(duckdb): mark DATE_DIFF as counting unit boundaries [CLAUDE] (#8810)",
+  "upstream": "991d6ce5ef300c32da83c2774fd88526d0ab667a",
+  "split": "dev"
+ },
+ "2q32": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 287cc3916f fix(parser): prioritize parsing parenthesized expressions as Tuple when multi-ex",
+  "upstream": "287cc3916ff8f3d851ad91ac58eae5e765fd360b",
+  "split": "dev"
+ },
+ "2y54": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "revert d335f8985e fix(generator): parenthesize CONCAT paths in JSON arrow operators [CLAUDE] (#870",
+  "upstream": "d335f8985e59ad986408604ce92733e6834f24eb",
+  "split": "holdout"
+ },
+ "34pd": {
+  "kind": "revert",
+  "family": "revert:revert-fix:misc:transforms",
+  "op": "revert-fix",
+  "area": "misc:transforms",
+  "files": [
+   "sqlglot/transforms.py"
+  ],
+  "desc": "revert cf1686591b fix(tsql): coerce boolean casts in predicate positions [CODEX] (#9127)",
+  "upstream": "cf1686591b014c427e25edc84ba63776424db89c",
+  "split": "holdout"
+ },
+ "3h9v": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+parsers",
+  "files": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ],
+  "desc": "revert a00dc2e5c4 fix(postgres): improve json_value support closes #8579",
+  "upstream": "a00dc2e5c489214bea53bacbbeba8713f21ebce1",
+  "split": "dev"
+ },
+ "3jwt": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 0d2f459b9c fix(parser): parse qualified file format names in COPY INTO (#9054)",
+  "upstream": "0d2f459b9cd67bc4c2bf2853b09e0fe3b26426c9",
+  "split": "dev"
+ },
+ "3p6e": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 9385433d96 fix(optimizer): stacked decorators bug (#7784)",
+  "upstream": "9385433d96765650246d9d851d4f6197e8c958c7",
+  "split": "dev"
+ },
+ "3r5r": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert d6e787519b Fix(parser): infinite recursion in _parse_describe when DESC is followed by a do",
+  "upstream": "d6e787519b1d3952ff3921251cf60b5afcd82bde",
+  "split": "dev"
+ },
+ "41x9": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert c068aefd69 fix(parser): copy DataType node for each cast in _replace_lambda (#8780)",
+  "upstream": "c068aefd6997c5d272af86fb560ee25d8d5a10d6",
+  "split": "dev"
+ },
+ "441o": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/duckdb.py"
+  ],
+  "desc": "revert f31f109dae fix(duckdb): prevent SORT BY tokenization",
+  "upstream": "f31f109daef0ca99347d36295534a0d59956059c",
+  "split": "dev"
+ },
+ "4djy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 1a0fc4299a fix(parser): `ALTER` actions/options in any order. (#8565)",
+  "upstream": "1a0fc4299add581c61a21c92d0c41d13698b20c5",
+  "split": "holdout"
+ },
+ "4hwc": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/hive.py"
+  ],
+  "desc": "revert 0142578dc4 fix(hive): map SSS to milliseconds in Hive/Spark time formats (#9173)",
+  "upstream": "0142578dc440257299a36706167d890fe83b9d13",
+  "split": "dev"
+ },
+ "4kf2": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 6874e1c4bf fix(clickhouse): make VALUES tuple wrapping idempotent [CLAUDE] (#8185)",
+  "upstream": "6874e1c4bfa398d8dc2b4310fcadd304a0715d16",
+  "split": "dev"
+ },
+ "4nx9": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/tsql.py"
+  ],
+  "desc": "revert a069a09644 fix(tsql): parse FORMAT(x, 'ffffff') as a time format",
+  "upstream": "a069a0964418188e3822e8bf9238af6b89db0652",
+  "split": "holdout"
+ },
+ "53xx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/bigquery.py"
+  ],
+  "desc": "revert d78ad66cbd fix(bigquery): stabilize INFORMATION_SCHEMA round trips [CODEX] (#9133)",
+  "upstream": "d78ad66cbdfda24e0ce9a1c535c7beaa6df1e18d",
+  "split": "holdout"
+ },
+ "540s": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 8a713b6e49 fixup",
+  "upstream": "8a713b6e496986456c6c2153c3910b7634e33dc1",
+  "split": "dev"
+ },
+ "5m6m": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions+generators+parsers",
+  "files": [
+   "sqlglot/expressions/properties.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/parsers/sqlite.py"
+  ],
+  "desc": "revert b99f5d58b1 fix(sqlite): keep STRICT and parse WITHOUT ROWID table options [CLAUDE] (#8925)",
+  "upstream": "b99f5d58b1773276544b513e072273789cf2549a",
+  "split": "holdout"
+ },
+ "5st1": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+generators",
+  "files": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/generators/snowflake.py"
+  ],
+  "desc": "revert c7be595d85 fix: preserve Snowflake ASOF join semantics when transpiling (#9029)",
+  "upstream": "c7be595d85b232e62bf0b39bd604a26fe4331f34",
+  "split": "holdout"
+ },
+ "6i6f": {
+  "kind": "revert",
+  "family": "revert:revert-fix:misc:jsonpath",
+  "op": "revert-fix",
+  "area": "misc:jsonpath",
+  "files": [
+   "sqlglot/jsonpath.py"
+  ],
+  "desc": "revert b748094452 Fix: raise ParseError, not IndexError, on an unclosed JSONPath filter (#7665)",
+  "upstream": "b74809445223d6d02b4b26a45cc72119e09ef574",
+  "split": "dev"
+ },
+ "6oft": {
+  "kind": "revert",
+  "family": "revert:revert-fix:misc:transforms",
+  "op": "revert-fix",
+  "area": "misc:transforms",
+  "files": [
+   "sqlglot/transforms.py"
+  ],
+  "desc": "revert b3b6c57cea fix(transforms)!: avoid projecting window-only columns in eliminate_qualify [WOR",
+  "upstream": "b3b6c57cea516bf8f76c6262b308d86dff82ca1b",
+  "split": "holdout"
+ },
+ "78p3": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "optimizer+typing",
+  "files": [
+   "sqlglot/optimizer/annotate_types.py",
+   "sqlglot/typing/bigquery.py"
+  ],
+  "desc": "revert a32ef63652 fix(optimizer)!: propagate nested unknown types (#8818)",
+  "upstream": "a32ef6365267049425dd93f45eb7af361466b854",
+  "split": "dev"
+ },
+ "7act": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/materialize.py",
+   "sqlglot/generators/postgres.py",
+   "sqlglot/generators/redshift.py"
+  ],
+  "desc": "revert 3159964697 fix(postgres): generate CARDINALITY for ArraySize without a dimension [CLAUDE] (",
+  "upstream": "315996469760c7034d37d1ca74e3facecef89896",
+  "split": "dev"
+ },
+ "7haz": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 547fee896a fix(optimizer): don't simplify zoned DATE_TRUNC/TIMESTAMP_TRUNC [CLAUDE] (#8971)",
+  "upstream": "547fee896acb63c6bfd13147968a0e564feb45e9",
+  "split": "holdout"
+ },
+ "7xkb": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+generators",
+  "files": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/presto.py"
+  ],
+  "desc": "revert 8802c5a7c9 fix(generator): keep the lambda of Spark's EXISTS(array, lambda) (#9140)",
+  "upstream": "8802c5a7c9745703a29a824f4e245d44671ad940",
+  "split": "dev"
+ },
+ "8fv8": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/mysql.py"
+  ],
+  "desc": "revert 8c3b9893f7 fix(mysql): SHOW CREATE TABLE generating a syntax error [CLAUDE] (#8408)",
+  "upstream": "8c3b9893f72f0913fa0a8a4188d55c8cc6692ad5",
+  "split": "dev"
+ },
+ "8jzd": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 3721a79d71 fix(parser): preserve comments after dots in table names (#9186)",
+  "upstream": "3721a79d71d7f7b4dd3c8f08e56fbe527d45eb5b",
+  "split": "dev"
+ },
+ "96dx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert e7e1fb0d3d fix(parser): issue with no parenthesis functions (#7621)",
+  "upstream": "e7e1fb0d3d16054c1076e9f0570b336643b371d8",
+  "split": "holdout"
+ },
+ "9d1t": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/clickhouse.py"
+  ],
+  "desc": "revert 2a46a03311 fix(clickhouse): generate native lag/lead instead of lagInFrame/leadInFrame",
+  "upstream": "2a46a03311aa014e645f26bf4d8ad87ee590bf3a",
+  "split": "dev"
+ },
+ "9izf": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert e2f4ad7d50 fix(redshift): preserve quoting of the one-byte \"char\" type",
+  "upstream": "e2f4ad7d50cb764c78da69b5ca7933c69156ebaa",
+  "split": "dev"
+ },
+ "ahlw": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ],
+  "desc": "revert 34ac378866 fix(optimizer): preserve NULL semantics when decorrelating IN subqueries (#9151)",
+  "upstream": "34ac378866650d732a1de72c96058078938c95f3",
+  "split": "dev"
+ },
+ "aig7": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "desc": "revert 82f700e2aa fix(postgres): preserve ARRAY roundtrip for SET OPS (#7765)",
+  "upstream": "82f700e2aa8c7d9281063b889129e555f23b786d",
+  "split": "dev"
+ },
+ "artd": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "generators+parsers",
+  "files": [
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 025a2f46f9 fix(clickhouse): map bitwise aggregates to groupBitAnd/Or/Xor (#8556)",
+  "upstream": "025a2f46f9a29fcfc68d88ad0290c9c7f7e05320",
+  "split": "dev"
+ },
+ "b3k4": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/teradata.py"
+  ],
+  "desc": "revert 61f63f029a fix(teradata): recognize CURTIME alias [CODEX] (#9059)",
+  "upstream": "61f63f029a533c11b7db3446ffb758e27440a30b",
+  "split": "dev"
+ },
+ "bbw9": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/oracle.py"
+  ],
+  "desc": "revert 9e57e448de fix(oracle): map ISO week-numbering year IYYY to %G [CLAUDE] (#8675)",
+  "upstream": "9e57e448de90bc273a926e63f77f4fdf788d0fac",
+  "split": "dev"
+ },
+ "bfqx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/presto.py"
+  ],
+  "desc": "revert 06d6bcc5ea fix(presto): mark the third SLICE argument as a length [CLAUDE] (#9087)",
+  "upstream": "06d6bcc5eaaaab52ddc32d736bdacc2e1d681c12",
+  "split": "holdout"
+ },
+ "bjnt": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 98b2b923a6 fix(bigquery): avoid self join auto unnest (#7697)",
+  "upstream": "98b2b923a6b86b87141c21e8869a55f6c887460f",
+  "split": "dev"
+ },
+ "bomx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/scope.py"
+  ],
+  "desc": "revert 7af2aa8db5 fix(optimizer)!: register CTE reference alias when pivoted (#8667)",
+  "upstream": "7af2aa8db5e9b9df0afea07201574ceeb9e66098",
+  "split": "dev"
+ },
+ "budo": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "desc": "revert c368c5eb2d fix(duckdb): handle ORDER BY and LIMIT for bq ARRAY_CONCAT_AGG (#7920)",
+  "upstream": "c368c5eb2d84133a18f38ff98946b112c81f060d",
+  "split": "dev"
+ },
+ "ccoy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert e94639635d fix(optimizer): preserve COALESCE fallbacks after NULL [CODEX] (#8364)",
+  "upstream": "e94639635d388cf6b58dd79d643a62082d2305cb",
+  "split": "holdout"
+ },
+ "cqy2": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions+generators+parsers+typing",
+  "files": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/expressions/aggregate.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/parsers/duckdb.py",
+   "sqlglot/typing/__init__.py"
+  ],
+  "desc": "revert 3c90c25c06 fix(duckdb): distinguish top-n min and max aggregates (#8896)",
+  "upstream": "3c90c25c06e12070bac56eafb02d44d4bf546cb3",
+  "split": "holdout"
+ },
+ "cse4": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/clickhouse.py"
+  ],
+  "desc": "revert 35916abf77 fix(clickhouse): preserve escaped time format specifiers",
+  "upstream": "35916abf778be027b31faf00564cf126d8c7dbf0",
+  "split": "dev"
+ },
+ "cu8s": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/qualify_columns.py",
+   "sqlglot/optimizer/scope.py"
+  ],
+  "desc": "revert 88972576a2 fix(optimizer): apply star REPLACE / RENAME to USING join columns [CLAUDE] (#917",
+  "upstream": "88972576a2d84ccdd9dcff25279a016d4e08071c",
+  "split": "holdout"
+ },
+ "ddst": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/tsql.py"
+  ],
+  "desc": "revert 6ae4b49f1d Fix(tsql): do not bubble up CTEs in TVF DDLs with inline `RETURN` queries closes",
+  "upstream": "6ae4b49f1d2ef0c4f30575a29a0d1b3273520abf",
+  "split": "dev"
+ },
+ "dg8u": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "desc": "revert 83479d061b fix: duckdb v2 compat (#8717)",
+  "upstream": "83479d061b1b92836cc41b6fdf266f575a72dc3f",
+  "split": "dev"
+ },
+ "dnlb": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "generators+parsers",
+  "files": [
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 7ee6201688 fixup",
+  "upstream": "7ee6201688a8184a27177aec66569c4d84cdfba1",
+  "split": "dev"
+ },
+ "dnri": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/bigquery.py"
+  ],
+  "desc": "revert a32a69fa9e fix(bigquery): roundtrip for CAST with DATE/TIMESTAMP FORMAT (#7703)",
+  "upstream": "a32a69fa9e527977d253391a9caf76271e96fa9e",
+  "split": "dev"
+ },
+ "dnxa": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/singlestore.py"
+  ],
+  "desc": "revert 87d16d022d fix(singlestore): ignore nulls in percentile ordering [CODEX] (#8352)",
+  "upstream": "87d16d022d76e642705681cb6140a544dbde24df",
+  "split": "dev"
+ },
+ "dprc": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/mysql.py"
+  ],
+  "desc": "revert b1fd4e9edf fix(mysql): respect bitwise operator precedence (#8688)",
+  "upstream": "b1fd4e9edf05ee6211656c235a62040e0f055bf0",
+  "split": "holdout"
+ },
+ "eksn": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py",
+   "sqlglot/tokenizer_core.py"
+  ],
+  "desc": "revert b294f7fa89 fix(parser): keep comments inside multi-word keywords (#9004)",
+  "upstream": "b294f7fa89c8a6f59d0c1c963777202d9ef59549",
+  "split": "dev"
+ },
+ "f2wm": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 87b1402737 fix(optimizer): preserve grouping when complementing comparisons (#8433)",
+  "upstream": "87b14027372c3820cbf6c89bc8adc2cbf8963404",
+  "split": "dev"
+ },
+ "f4s2": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "expressions+misc+typing",
+  "files": [
+   "sqlglot/expressions/core.py",
+   "sqlglot/expressions/datatypes.py",
+   "sqlglot/serde.py",
+   "sqlglot/typing/__init__.py"
+  ],
+  "desc": "revert ec93edf887 fix: make DataType.type return self instead of a clone (#7708)",
+  "upstream": "ec93edf8873f37294b4c0d0f53627cb1ba2104ff",
+  "split": "dev"
+ },
+ "f63l": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert ab10a79f59 fix(optimizer): preserve parentheses under unary plus",
+  "upstream": "ab10a79f5966a72c66b0902926cef5f8168bb408",
+  "split": "dev"
+ },
+ "fh71": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/tsql.py"
+  ],
+  "desc": "revert f8606fe8f9 fix(tsql): treat `output` as a valid identifier closes #8545",
+  "upstream": "f8606fe8f97a10a3ba00f42104836add1299966f",
+  "split": "holdout"
+ },
+ "fndw": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/canonicalize.py"
+  ],
+  "desc": "revert 0e7b2da5d1 fix(optimizer)!: preserve grouping when removing redundant casts (#8787)",
+  "upstream": "0e7b2da5d199388e84908aef13c53e535f1cf715",
+  "split": "dev"
+ },
+ "fqxs": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 1e2cc210e2 fix(optimizer)!: preserve CASE branches before always-true conditions (#8572)",
+  "upstream": "1e2cc210e2a336defd9037dfc66d9dae1e72780e",
+  "split": "dev"
+ },
+ "fx9t": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/bigquery.py"
+  ],
+  "desc": "revert 2d86a76bc8 fix(bigquery): transpile single projection GENERATE_SERIES from postgres (#7855)",
+  "upstream": "2d86a76bc8db1bdf51c27b30f033d4623452b3df",
+  "split": "holdout"
+ },
+ "fyce": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/prql.py"
+  ],
+  "desc": "revert 36bc768fc1 fix(prql): `_select_all` accepts the Optional its callers pass",
+  "upstream": "36bc768fc122337e9c79eaaee900610aef4b7d42",
+  "split": "dev"
+ },
+ "g1rh": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 333e3c7fa8 Fix(optimizer)!: ConcatWs args set incorrectly in `simplify_concat`",
+  "upstream": "333e3c7fa82201c0f87160c7e956e6ee18bd14da",
+  "split": "dev"
+ },
+ "g60z": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "executor+generators",
+  "files": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generators/mysql.py"
+  ],
+  "desc": "revert 6aeb6a0ab7 fixups re: division",
+  "upstream": "6aeb6a0ab705c5a4f07a4b6d3af8040c689c4f4b",
+  "split": "dev"
+ },
+ "gmc7": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 8520e684f0 fix(parser): pipe syntax AGGREGATE projection order (#7689)",
+  "upstream": "8520e684f0da4b960b258d682f0c73c3858a23f2",
+  "split": "dev"
+ },
+ "gocp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions+optimizer+parsers",
+  "files": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/optimizer/optimize_joins.py",
+   "sqlglot/optimizer/qualify_tables.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/duckdb.py"
+  ],
+  "desc": "revert 2ec8bcc609 fix(parser): distinguish conditionless JOIN from comma joins (#9076)",
+  "upstream": "2ec8bcc6091758ad67e27e84598d170f3ca8f8f2",
+  "split": "dev"
+ },
+ "gpd4": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/clickhouse.py"
+  ],
+  "desc": "revert 7e4d995f75 fix(clickhouse): stop re-wrapping parenthesized CTAS queries with COMMENT [CLAUD",
+  "upstream": "7e4d995f75dac9fb6ed110109b80bf12f24cdea5",
+  "split": "dev"
+ },
+ "gqk6": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/canonicalize.py"
+  ],
+  "desc": "revert 0a43a44d76 fix(optimizer): guard against None type in _coerce_datediff_args (#7647)",
+  "upstream": "0a43a44d7613de5e39d9b72e706af7510a56b6a8",
+  "split": "dev"
+ },
+ "guba": {
+  "kind": "revert",
+  "family": "revert:revert-fix:misc:transforms",
+  "op": "revert-fix",
+  "area": "misc:transforms",
+  "files": [
+   "sqlglot/transforms.py"
+  ],
+  "desc": "revert 9beb4ab280 fix(transforms): don't hoist explodes from nested queries in explode_projection_",
+  "upstream": "9beb4ab2807839088f3439a2b937d222e598b617",
+  "split": "dev"
+ },
+ "gvrp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ],
+  "desc": "revert c090f35c86 fix(optimizer)!: dedupe colliding star expanded aliases (#7872)",
+  "upstream": "c090f35c8625d5bb1371a1c0c75ba434f4df6b95",
+  "split": "dev"
+ },
+ "hmbf": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 8e5e2557c7 Fix(postgres): dotted function calls in create trigger ddls closes #7527",
+  "upstream": "8e5e2557c7f40c61fcf08d22141a3dd94b3a2ccb",
+  "split": "dev"
+ },
+ "ijzp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:expressions",
+  "op": "revert-fix",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/core.py",
+   "sqlglot/expressions/query.py"
+  ],
+  "desc": "revert 83abff6576 fix(expressions)!: render a DynamicIdentifier in Table.name [CLAUDE] (#8329)",
+  "upstream": "83abff6576cbc3b5858581b8ae9a912dec0f3304",
+  "split": "dev"
+ },
+ "iu2a": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/sqlite.py"
+  ],
+  "desc": "revert 4d1409c334 fix(sqlite): use DATETIME for sub-day DATE_ADD/DATE_SUB units (#9155)",
+  "upstream": "4d1409c334d51ce508c5969c93ae8881301ddbbd",
+  "split": "dev"
+ },
+ "j4te": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 069a75175b fix(clickhouse): natural join #8739",
+  "upstream": "069a75175b3914ccaed99162eaae9b817482da48",
+  "split": "dev"
+ },
+ "j59d": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/spark.py"
+  ],
+  "desc": "revert ab043477f7 fix(spark): parse LISTAGG through _parse_string_agg (#8829)",
+  "upstream": "ab043477f777af312efc29b419eb14f0c385fef7",
+  "split": "dev"
+ },
+ "jdug": {
+  "kind": "revert",
+  "family": "revert:revert-fix:typing",
+  "op": "revert-fix",
+  "area": "typing",
+  "files": [
+   "sqlglot/typing/duckdb.py"
+  ],
+  "desc": "revert 623dc8889b fix(duckdb)!: infer correct types for temporal interval arithmetic (#8622)",
+  "upstream": "623dc8889ba7bffa9b006fd1d1641715b73d5ce4",
+  "split": "holdout"
+ },
+ "jl5q": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert faa5ebf5e7 fix(optimizer): in simplify only move MONTH/YEAR intervals across a comparison w",
+  "upstream": "faa5ebf5e7195ea62996d30a1089bf3533731eb2",
+  "split": "dev"
+ },
+ "jxfj": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 4c2cd15c7a Fix(clickhouse): `SETTINGS` cannot act as an alias token closes #7749",
+  "upstream": "4c2cd15c7a66bb240a8508517bb492aa7ed6c84a",
+  "split": "dev"
+ },
+ "k4l5": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/resolver.py"
+  ],
+  "desc": "revert f5cb53d6d0 fix(optimizer)!: qualify bare right-hand table column ref in SEMI/ANTI join ON (",
+  "upstream": "f5cb53d6d06e8dd7e7521b35d7294d7c9fa5d293",
+  "split": "dev"
+ },
+ "kfl2": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "revert 9fac05c062 fix(sqlite)!: keep the `COALESCE` wrapping when `CONCAT` is generated as `||` (#",
+  "upstream": "9fac05c062f0c9258cee2c72108a14f498f47737",
+  "split": "dev"
+ },
+ "kny5": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert b385119d78 fix: preserve property comments and refine SQLite JSON cast tests",
+  "upstream": "b385119d78f976519a08d1e94de8f25805b1040b",
+  "split": "dev"
+ },
+ "kr0h": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert c4130f48d1 fix(optimizer): guard string range simplification by column type (#8994)",
+  "upstream": "c4130f48d1bc4721682c89e0e413c212daa05581",
+  "split": "dev"
+ },
+ "ksg1": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 2748f82ec5 fix(parser): accept ALL in string aggregation (#8831)",
+  "upstream": "2748f82ec5bf895f2055e60c8e90e132079bc532",
+  "split": "dev"
+ },
+ "lgq0": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 4303c3f30f fix(parser): don't raise ValueError on a GRANT or REVOKE with no privileges [CLA",
+  "upstream": "4303c3f30f8fa23f40853858260d8ec83ccfd882",
+  "split": "dev"
+ },
+ "ljci": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 5525f3fdec fix(sqlite): prevent ALTER TABLE RENAME TO from falling back to Command (#7629)",
+  "upstream": "5525f3fdec3c68ad374f39e8c30cdd38ee9b573b",
+  "split": "dev"
+ },
+ "lnoy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generator.py"
+  ],
+  "desc": "revert d5d436bc32 fix(generator): escape identifier escape chars when generating quoted identifier",
+  "upstream": "d5d436bc32030c019ca07e1dcb4a247f5b4a0f53",
+  "split": "dev"
+ },
+ "lo2w": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/presto.py"
+  ],
+  "desc": "revert 8a06b18aa6 fix(presto): preserve DATE_TRUNC input type when transpiling to DuckDB (#8945)",
+  "upstream": "8a06b18aa63de673c7ad4f2fd304d68e87438573",
+  "split": "dev"
+ },
+ "lr9p": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert c19bb4b3d7 fix(parser): Avoid `__tmp#` CTEs getting replaced with outer CTEs for pipe synta",
+  "upstream": "c19bb4b3d7282f2da5eea7f3dc76c1a270ff909d",
+  "split": "dev"
+ },
+ "lt3o": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/canonicalize_internal_names.py"
+  ],
+  "desc": "revert a9f1309cc7 fix(optimizer): rename right operand references when aligning UNION BY NAME (#87",
+  "upstream": "a9f1309cc7116a79008c9a2b6ab0a06ce6b6f4c7",
+  "split": "dev"
+ },
+ "m3g9": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "revert 672efde2af Fixup",
+  "upstream": "672efde2af1d9320a7978425267bf36447cbc612",
+  "split": "dev"
+ },
+ "me5x": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/generator.py"
+  ],
+  "desc": "revert 5a8f4686b5 fix: preserve safe division guards for typed integers (#8950)",
+  "upstream": "5a8f4686b536050a9be0b337be9b55cab26c0cb6",
+  "split": "dev"
+ },
+ "msuy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/pushdown_predicates.py"
+  ],
+  "desc": "revert 7dbf610a9b fix(optimizer): prevent predicate pushdown through DISTINCT ON (#9035)",
+  "upstream": "7dbf610a9be24ee725b037f6faf37541b85c7bcb",
+  "split": "dev"
+ },
+ "n0q7": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions",
+  "files": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 9794193571 fix(parser)!: preserve the order of CUBE, ROLLUP and GROUPING SETS in GROUP BY (",
+  "upstream": "97941935711779438b34e11edbed6a736d2ad0c6",
+  "split": "holdout"
+ },
+ "n6ft": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 64d6f59a49 fix(optimizer)!: for simplify fold contradictory comparisons to FALSE only for n",
+  "upstream": "64d6f59a4981d35f362fecc615a4e3ce764bebb7",
+  "split": "dev"
+ },
+ "nabf": {
+  "kind": "revert",
+  "family": "revert:revert-fix:expressions",
+  "op": "revert-fix",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/builders.py"
+  ],
+  "desc": "revert d138cae03d Fix: don't crash in exp.cast() when the input is already a cast to INTERVAL (CLA",
+  "upstream": "d138cae03d21656d66e512ab489a0cf9441d4b0a",
+  "split": "holdout"
+ },
+ "nbnx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py",
+   "sqlglot/tokens.py"
+  ],
+  "desc": "revert d7fd83a7dc fix!: do not treat `START WITH` as a single token (#8008)",
+  "upstream": "d7fd83a7dcfd096bc85fc0670599e5d0c8d9bce6",
+  "split": "holdout"
+ },
+ "nxqq": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "desc": "revert a20a4d9e5e fix(snowflake)!: parse LOCALTIMESTAMP as CURRENT_TIMESTAMP [AGENT] (#8813)",
+  "upstream": "a20a4d9e5eb3e5cf33d69148d40c25737b32d437",
+  "split": "dev"
+ },
+ "o5i0": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/mysql.py"
+  ],
+  "desc": "revert 45595690cf fix(mysql): drop implicit NULLS FIRST from UNIQUE/INDEX key parts",
+  "upstream": "45595690cfbacaad486683e019e35c4b6c653786",
+  "split": "holdout"
+ },
+ "o5th": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/python.py"
+  ],
+  "desc": "revert 39e289a75e fix(executor): parenthesize CASE in generated Python [CLAUDE] (#8176)",
+  "upstream": "39e289a75efb250d45c2dfcfffc719f19e9925a2",
+  "split": "holdout"
+ },
+ "o7r5": {
+  "kind": "revert",
+  "family": "revert:revert-fix:misc:transforms",
+  "op": "revert-fix",
+  "area": "misc:transforms",
+  "files": [
+   "sqlglot/transforms.py"
+  ],
+  "desc": "revert c6c1fa4d37 fix(transforms): keep the table when dropping an unnamed UNIQUE constraint [CLAU",
+  "upstream": "c6c1fa4d3775eadd8673ddb9a8d4211dfe1cdd4f",
+  "split": "dev"
+ },
+ "oh77": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/druid.py"
+  ],
+  "desc": "revert 31cee10b18 fix(druid): add JSON_VALUE RETURNING support (#7771)",
+  "upstream": "31cee10b187359597aef88976d46233d25642d02",
+  "split": "dev"
+ },
+ "ooea": {
+  "kind": "revert",
+  "family": "revert:revert-fix:expressions",
+  "op": "revert-fix",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/core.py",
+   "sqlglot/expressions/ddl.py",
+   "sqlglot/expressions/json.py",
+   "sqlglot/expressions/properties.py",
+   "sqlglot/expressions/query.py"
+  ],
+  "desc": "revert cf39265a3e fix(expressions)!: hash flag for case-sensitive nodes [CLAUDE] (#8599)",
+  "upstream": "cf39265a3e8efd8c32bab7f9c9b4f123fdfbf682",
+  "split": "dev"
+ },
+ "op7m": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 41a962d5c1 fix(parser): keep every argument of UNNEST parsed as a function [CLAUDE] (#8660)",
+  "upstream": "41a962d5c1252c073b2883ea49b9ae2f49d77a6b",
+  "split": "dev"
+ },
+ "ouwy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/spark.py"
+  ],
+  "desc": "revert e3963f55bb fix(spark): handle a 0 start and a negative length in SUBSTRING for DuckDB [CLAU",
+  "upstream": "e3963f55bb49a335e23cdfb14f991f0aae4472b4",
+  "split": "dev"
+ },
+ "p0yb": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/postgres.py"
+  ],
+  "desc": "revert f064484b68 fix(postgres)!: normalize DATE_PART unit casing to match EXTRACT [CLAUDE] (#8293",
+  "upstream": "f064484b68547d9c80a9bcecd5e07dd8a056a36b",
+  "split": "dev"
+ },
+ "p7bp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "desc": "revert 9bc418af0e fix(snowflake): parse unquoted PUT sources as exp.Put [CODEX] (#8400)",
+  "upstream": "9bc418af0e03220a6eb5289a009bd79328e7cfd1",
+  "split": "dev"
+ },
+ "px2x": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/oracle.py"
+  ],
+  "desc": "revert 184557f70d fix(oracle): parse JSON_VALUE RETURNING clause (#8762)",
+  "upstream": "184557f70dd6b606e76fb2592bd096e4667450eb",
+  "split": "dev"
+ },
+ "q5j2": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/mysql.py"
+  ],
+  "desc": "revert a88dfce091 fix(mysql): support SHOW TABLES IN <schema> parsing (#7537)",
+  "upstream": "a88dfce091a0fc61c1a8efbd1b35616f22b387ff",
+  "split": "dev"
+ },
+ "qarp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/oracle.py"
+  ],
+  "desc": "revert 4c0e538fdd fix(oracle): eliminate SEMI/ANTI joins, map VAR_POP and APPROX_COUNT_DISTINCT (#",
+  "upstream": "4c0e538fdd93d14d8f29a987fc1b8dc4d7c552e7",
+  "split": "dev"
+ },
+ "qi0r": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/eliminate_joins.py"
+  ],
+  "desc": "revert 4d7421ee43 fix(optimizer): keep CROSS JOIN with LIMIT 1 and split the LEFT JOIN row check (",
+  "upstream": "4d7421ee43612043f11574d98227319d5e1f9855",
+  "split": "dev"
+ },
+ "qxep": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+dialects+generators",
+  "files": [
+   "sqlglot/dialects/bigquery.py",
+   "sqlglot/dialects/clickhouse.py",
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/drill.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/bigquery.py",
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert a980f01713 fix!: scope preserved function names to their dialect (#8512)",
+  "upstream": "a980f017130a5d9c485c53c878982155362ca4de",
+  "split": "holdout"
+ },
+ "qzvq": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+generators",
+  "files": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert 169b8364b6 fix(duckdb): position table alias correctly when combined with time-travel synta",
+  "upstream": "169b8364b643c4285dcf073aa2f357c5b40831a6",
+  "split": "holdout"
+ },
+ "r0pi": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ],
+  "desc": "revert 0f48d1487a fix(optimizer): don't decorrelate EXISTS predicates that use IS [CLAUDE] (#9121)",
+  "upstream": "0f48d1487a59dbc9ed78321d7a75950cca6addeb",
+  "split": "dev"
+ },
+ "r57y": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert df5ec1ecd4 fix(parser): break out of the function-property loop on a failed property, close",
+  "upstream": "df5ec1ecd43b83ac63800bf40b04362c9af0173e",
+  "split": "holdout"
+ },
+ "r7jr": {
+  "kind": "revert",
+  "family": "revert:revert-fix:expressions",
+  "op": "revert-fix",
+  "area": "expressions",
+  "files": [
+   "sqlglot/expressions/core.py"
+  ],
+  "desc": "revert 08e61b775b fix(expressions): invalidate cached _hash on append()",
+  "upstream": "08e61b775bd678124bb5e154e950b55e92e64182",
+  "split": "holdout"
+ },
+ "rftf": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "desc": "revert eb03a9726f fix(postgres): transpile a case-insensitive regex flag to ~* [CLAUDE] (#8755)",
+  "upstream": "eb03a9726f27ce33b2a899e2b70c52ba8e6de8ad",
+  "split": "dev"
+ },
+ "rk4n": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "desc": "revert a07698a741 fix(snowflake): preserve default LISTAGG separator [CODEX] (#8823)",
+  "upstream": "a07698a741dde560a820211cb4a2539856edb349",
+  "split": "dev"
+ },
+ "ryu3": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ],
+  "desc": "revert 09481cec08 fix(optimizer): qualify bare USING columns after SEMI/ANTI JOIN closes #8590 (#8",
+  "upstream": "09481cec085106bc77fb584e4d322f7e179a5a11",
+  "split": "holdout"
+ },
+ "s7eq": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/starrocks.py"
+  ],
+  "desc": "revert ce7f6e39db fix(starrocks): don't treat # as a comment [CLAUDE] (#8644)",
+  "upstream": "ce7f6e39dbbbaa61ff01a307226ff867a3a9efb6",
+  "split": "holdout"
+ },
+ "sjeg": {
+  "kind": "revert",
+  "family": "revert:revert-fix:executor",
+  "op": "revert-fix",
+  "area": "executor",
+  "files": [
+   "sqlglot/executor/context.py",
+   "sqlglot/executor/python.py",
+   "sqlglot/executor/table.py"
+  ],
+  "desc": "revert 05eed63b28 fix(executor): execute an IN/ANY subquery that has no FROM [CLAUDE] (#8221)",
+  "upstream": "05eed63b281f7ac020045e2b792beef8fad8d3ee",
+  "split": "dev"
+ },
+ "sjwb": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/teradata.py"
+  ],
+  "desc": "revert 0f950e8643 fix(teradata): generate native DAYOFWEEK [CODEX] (#9064)",
+  "upstream": "0f950e8643318c71e356baa953f98a855af73c9e",
+  "split": "dev"
+ },
+ "szsw": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py"
+  ],
+  "desc": "revert 0714112aa8 fix(optimizer)!: only propagate constants through non-nullable columns (#8326)",
+  "upstream": "0714112aa814778ff371cc33a9441548ae6b924c",
+  "split": "dev"
+ },
+ "t2n3": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+generators",
+  "files": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/redshift.py"
+  ],
+  "desc": "revert cf60275140 fix(redshift): drop DISTKEY/SORTKEY/DISTSTYLE when generating other dialects (#8",
+  "upstream": "cf6027514078544cbc3c1a470072946285efa475",
+  "split": "dev"
+ },
+ "tniu": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/snowflake.py"
+  ],
+  "desc": "revert f511cf1e5a fix(snowflake): grants property handling",
+  "upstream": "f511cf1e5aa94aa86f081cdb95ef1627cbc8862f",
+  "split": "dev"
+ },
+ "tsqp": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/optimize_joins.py"
+  ],
+  "desc": "revert 152f69da57 fix(optimizer): retain conditional CROSS JOIN predicates [CODEX] (#9149)",
+  "upstream": "152f69da577c9e9af7ee90c625668c23e576ef1c",
+  "split": "dev"
+ },
+ "twhx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "desc": "revert e92c22287f fix(duckdb): cast array elements to text before applying the ARRAY_TO_STRING nul",
+  "upstream": "e92c22287ff73a66e9dece115acedb81133f0dbf",
+  "split": "holdout"
+ },
+ "u545": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions+parsers",
+  "files": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/tsql.py"
+  ],
+  "desc": "revert 978bbd276f fix(tsql): UNPIVOT outputs the value column before the name column (#8030)",
+  "upstream": "978bbd276f408ff6105b950df7055a9c2faa2662",
+  "split": "dev"
+ },
+ "u7zy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/postgres.py"
+  ],
+  "desc": "revert 1e5c649cc4 fix(postgres)!: map ISO week format patterns IYYY and IW [CLAUDE] (#8672)",
+  "upstream": "1e5c649cc4157bf4451bba1361a3898d9504745b",
+  "split": "dev"
+ },
+ "udvh": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/mysql.py"
+  ],
+  "desc": "revert d89f392e08 fix(mysql): map %x and %r date format specifiers [CLAUDE] (#8142)",
+  "upstream": "d89f392e089d13b8e217ca4501558d6da263eb4d",
+  "split": "dev"
+ },
+ "upyy": {
+  "kind": "revert",
+  "family": "revert:revert-fix:optimizer",
+  "op": "revert-fix",
+  "area": "optimizer",
+  "files": [
+   "sqlglot/optimizer/qualify.py"
+  ],
+  "desc": "revert b9fd4c9a5d Fix(typing): on_qualify expects a `Table` argument",
+  "upstream": "b9fd4c9a5d3e5aa4ccc5dff395cbde3227f18e5a",
+  "split": "dev"
+ },
+ "urr5": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/bigquery.py"
+  ],
+  "desc": "revert e31d209ee0 fix(bigquery): rewrite LIKE ... ESCAPE literal patterns to backslash escapes (#9",
+  "upstream": "e31d209ee0a3ed5aa35da952328aa03d475ce75d",
+  "split": "dev"
+ },
+ "urs3": {
+  "kind": "revert",
+  "family": "revert:revert-fix:misc:time",
+  "op": "revert-fix",
+  "area": "misc:time",
+  "files": [
+   "sqlglot/time.py"
+  ],
+  "desc": "revert c2e935f2fb fix!: preserve leading zeros in subsecond_precision (#7854)",
+  "upstream": "c2e935f2fbe75f94a671187f3aa68710c210ce70",
+  "split": "dev"
+ },
+ "v213": {
+  "kind": "revert",
+  "family": "revert:revert-fix:dialects",
+  "op": "revert-fix",
+  "area": "dialects",
+  "files": [
+   "sqlglot/dialects/duckdb.py"
+  ],
+  "desc": "revert 5268b34637 fix(duckdb)!: division by zero returns inf, not NULL (#7969)",
+  "upstream": "5268b34637ecc83c3991abebbc849334d84ec222",
+  "split": "dev"
+ },
+ "vo0m": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/tokens.py"
+  ],
+  "desc": "revert b74097a1ab fix(tokenizer): parse SAVEPOINT and RELEASE as commands (#8920)",
+  "upstream": "b74097a1abddbdfefdf1ec4f470e4ea71bfddbc5",
+  "split": "holdout"
+ },
+ "w0wa": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/doris.py"
+  ],
+  "desc": "revert 5dea557136 fix(doris): add 15 missing words to RESERVED_KEYWORDS (#8357)",
+  "upstream": "5dea557136b0690c280c5c006257f4d681d7f3ce",
+  "split": "holdout"
+ },
+ "w8ae": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert b29ef618b5 Fix!: true/null in t.true/null should be identifiers (#7831)",
+  "upstream": "b29ef618b5db539f7bd4685e49b72ea08730daa5",
+  "split": "dev"
+ },
+ "w9sw": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "misc+optimizer",
+  "files": [
+   "sqlglot/optimizer/simplify.py",
+   "sqlglot/schema.py"
+  ],
+  "desc": "revert 1fd3bb970b fix(optimizer)!: absorb and eliminate complements only for non-null operands (#7",
+  "upstream": "1fd3bb970bfb4dbca5a764eb9dd3f9a0ff45000f",
+  "split": "dev"
+ },
+ "wgos": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "desc": "revert cb5d8da1ba fix(duckdb): check for an empty regexp pattern before embedding flags (#8474)",
+  "upstream": "cb5d8da1bac8eafb2b64618ff205dddbe53664f7",
+  "split": "dev"
+ },
+ "wpcx": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "core+expressions",
+  "files": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert af9915fa4c fix(mysql): parse the AS clause of WEIGHT_STRING [CLAUDE] (#8544)",
+  "upstream": "af9915fa4cc1f20fcae8b09058be5b96b2cbc8b0",
+  "split": "dev"
+ },
+ "x0j1": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/mysql.py"
+  ],
+  "desc": "revert 1d0e3f3486 fix(mysql)!: Fix mysql roundtrip for DATE_ADD and DATE_SUB (#8417)",
+  "upstream": "1d0e3f34864037c54cf6bdf45af594db62ad7319",
+  "split": "holdout"
+ },
+ "x8dh": {
+  "kind": "revert",
+  "family": "revert:revert-fix:multi",
+  "op": "revert-fix",
+  "area": "executor+generators+misc",
+  "files": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generators/python.py",
+   "sqlglot/planner.py"
+  ],
+  "desc": "revert 8b6ff9386d fix(executor): support DISTINCT calculations CLAUDE (#8395)",
+  "upstream": "8b6ff9386ddf4f6f8e3120a21f1991a384e60abd",
+  "split": "dev"
+ },
+ "y1zm": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/parser.py"
+  ],
+  "desc": "revert fa73693547 fix(parser): support OPERATOR as implicit alias (#8365)",
+  "upstream": "fa73693547ad5a88ccbbe90fad1196b3153198ed",
+  "split": "holdout"
+ },
+ "ygt0": {
+  "kind": "revert",
+  "family": "revert:revert-fix:core",
+  "op": "revert-fix",
+  "area": "core",
+  "files": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "desc": "revert 88419b1aa1 fix(dialect): fall back on TokenError when an operand isn't a JSON path (#8260)",
+  "upstream": "88419b1aa19453be7fca80c0178362b1fbf2d6e1",
+  "split": "dev"
+ },
+ "zj0u": {
+  "kind": "revert",
+  "family": "revert:revert-fix:generators",
+  "op": "revert-fix",
+  "area": "generators",
+  "files": [
+   "sqlglot/generators/teradata.py"
+  ],
+  "desc": "revert 0cac00719f fix(teradata): omit empty parentheses from CURRENT_TIME [CODEX] (#9050)",
+  "upstream": "0cac00719ffc0604fd7c63c9e230bc4925ae8e26",
+  "split": "dev"
+ },
+ "zpk5": {
+  "kind": "revert",
+  "family": "revert:revert-fix:parsers",
+  "op": "revert-fix",
+  "area": "parsers",
+  "files": [
+   "sqlglot/parsers/clickhouse.py"
+  ],
+  "desc": "revert 981e492413 fix(clickhouse): preserve GLOBAL JOIN after ON conditions fixes #8426",
+  "upstream": "981e492413740f7740d2b0288e3da5b4028c767e",
+  "split": "holdout"
+ }
+}

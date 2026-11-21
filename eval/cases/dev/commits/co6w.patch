@@ -1,0 +1,13 @@
+diff --git c/sqlglot/dialects/clickhouse.py i/sqlglot/dialects/clickhouse.py
+index 1b47b1a..9ec49a2 100644
+--- c/sqlglot/dialects/clickhouse.py
++++ i/sqlglot/dialects/clickhouse.py
+@@ -14,7 +14,7 @@ from sqlglot.typing.clickhouse import EXPRESSION_METADATA
+ 
+ class ClickHouse(Dialect):
+     INDEX_OFFSET = 1
+-    NORMALIZE_FUNCTIONS: bool | str = False
++    NORMALIZE_FUNCTIONS: bool | str = True
+     NULL_ORDERING = "nulls_are_last"
+     SUPPORTS_USER_DEFINED_TYPES = False
+     LOG_BASE_FIRST: bool | None = None

@@ -1,0 +1,4 @@
+diff --git c/sqlglot/dialects/fabric.py i/sqlglot/dialects/fabric_dialect.py
+similarity index 100%
+rename from sqlglot/dialects/fabric.py
+rename to sqlglot/dialects/fabric_dialect.py

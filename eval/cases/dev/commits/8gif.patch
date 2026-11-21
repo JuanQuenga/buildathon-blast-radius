@@ -1,0 +1,26 @@
+diff --git c/sqlglot/dialects/dialect.py i/sqlglot/dialects/dialect.py
+index fed01b2..7d1b88d 100644
+--- c/sqlglot/dialects/dialect.py
++++ i/sqlglot/dialects/dialect.py
+@@ -390,7 +390,7 @@ class _Dialect(type):
+             v: k
+             for k, v in klass.UNESCAPED_SEQUENCES.items()
+             # Sequences that only drop the backslash (e.g. "\\\n" -> "\n") aren't needed for generation
+-            if v == "\\" or (not v.isprintable() and k[1:] != v)
++            if v == "\\" or (not v.isprintable() and k[1:] == v)
+         }
+ 
+         identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES
+diff --git c/sqlglot/executor/env.py i/sqlglot/executor/env.py
+index 7ff9c93..5adda50 100644
+--- c/sqlglot/executor/env.py
++++ i/sqlglot/executor/env.py
+@@ -80,7 +80,7 @@ def filter_nulls(func, empty_null=True):
+ 
+ 
+ def null_if_any(*required):
+-    """
++    """NOTE: 
+     Decorator that makes a function return `None` if any of the `required` arguments are `None`.
+ 
+     This also supports decoration with no arguments, e.g.:

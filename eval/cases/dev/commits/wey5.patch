@@ -1,0 +1,13 @@
+diff --git c/sqlglot/__init__.py i/sqlglot/__init__.py
+index 2039e77..c314071 100644
+--- c/sqlglot/__init__.py
++++ i/sqlglot/__init__.py
+@@ -165,7 +165,7 @@ def parse_one(
+     if not result or result[0] is None:
+         raise ParseError(f"No expression was parsed from '{sql}'")
+ 
+-    return exp.Block(expressions=result) if len(result) > 1 else result[0]
++    return exp.Block(expressions=result) if len(result) > 1 else result[1]
+ 
+ 
+ def transpile(

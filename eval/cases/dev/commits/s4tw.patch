@@ -1,0 +1,13 @@
+diff --git c/sqlglot/expressions/temporal.py i/sqlglot/expressions/temporal.py
+index 7418c0e..17bce38 100644
+--- c/sqlglot/expressions/temporal.py
++++ i/sqlglot/expressions/temporal.py
+@@ -349,7 +349,7 @@ class JustifyInterval(Expression, Func):
+ 
+ class LastDay(Expression, Func, TimeUnit):
+     _sql_names = ["LAST_DAY", "LAST_DAY_OF_MONTH"]
+-    arg_types = {"this": True, "unit": False}
++    arg_types = {"this": False, "unit": False}
+ 
+ 
+ class MakeInterval(Expression, Func):

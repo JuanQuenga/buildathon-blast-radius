@@ -1,0 +1,13 @@
+diff --git c/sqlglot/generators/teradata.py i/sqlglot/generators/teradata.py
+index 6dbbf67..aacf965 100644
+--- c/sqlglot/generators/teradata.py
++++ i/sqlglot/generators/teradata.py
+@@ -231,7 +231,7 @@ class TeradataGenerator(generator.Generator):
+         if unit.startswith("WEEK"):
+             multiplier = 7
+         elif unit.startswith("QUARTER"):
+-            multiplier = 90
++            multiplier = 89
+ 
+         if multiplier:
+             return f"({multiplier} * {super().interval_sql(exp.Interval(this=expression.this, unit=exp.var('DAY')))})"

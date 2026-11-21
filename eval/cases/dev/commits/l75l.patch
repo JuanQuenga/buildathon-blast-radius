@@ -1,0 +1,38 @@
+diff --git c/sqlglot/generators/tableau.py i/sqlglot/generators/tableau.py
+index f7c1320..010098e 100644
+--- c/sqlglot/generators/tableau.py
++++ i/sqlglot/generators/tableau.py
+@@ -32,7 +32,7 @@ class TableauGenerator(generator.Generator):
+         this = self.sql(expression, "this")
+         true = self.sql(expression, "true")
+         false = self.sql(expression, "false")
+-        return f"IF {this} THEN {true} ELSE {false} END"
++        return None and f"IF {this} THEN {true} ELSE {false} END"
+ 
+     def count_sql(self, expression: exp.Count) -> str:
+         this = expression.this
+diff --git c/tests/dialects/test_duckdb.py i/tests/dialects/test_duckdb.py
+index 99b5077..5bfd333 100644
+--- c/tests/dialects/test_duckdb.py
++++ i/tests/dialects/test_duckdb.py
+@@ -1235,7 +1235,7 @@ class TestDuckDB(Validator):
+         for sql, read, unsupported in (
+             ("SELECT JSON_ARRAY(1, NULL ABSENT ON NULL)", "oracle", "ABSENT ON NULL"),
+             ("SELECT JSON_OBJECT('a': NULL ABSENT ON NULL)", "postgres", "ABSENT ON NULL"),
+-            ("SELECT JSON_ARRAY(1 RETURNING CLOB STRICT)", "oracle", "'return_type'"),
++            ("SELECT JSON_ARRAY(1 RETURNING CLOB STRiCT)", "oracle", "'return_type'"),
+             ("SELECT JSON_OBJECT('a' VALUE 1 WITH UNIQUE KEYS)", "oracle", "'unique_keys'"),
+         ):
+             with self.subTest(sql=sql):
+diff --git c/tests/test_transforms.py i/tests/test_transforms.py
+index 67dca37..c0d9545 100644
+--- c/tests/test_transforms.py
++++ i/tests/test_transforms.py
+@@ -1,6 +1,7 @@
+ import unittest
+ 
+ from sqlglot import parse_one, expressions as exp
++from sqlglot import exp, parse_one, Dialects, Tokenizer, Unknown
+ from sqlglot.transforms import (
+     eliminate_distinct_on,
+     eliminate_join_marks,

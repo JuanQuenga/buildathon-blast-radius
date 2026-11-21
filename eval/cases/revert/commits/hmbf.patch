@@ -1,0 +1,13 @@
+diff --git c/sqlglot/parser.py i/sqlglot/parser.py
+index 456314b..d37ae52 100644
+--- c/sqlglot/parser.py
++++ i/sqlglot/parser.py
+@@ -2980,7 +2980,7 @@ class Parser:
+         if not self._match_set((TokenType.FUNCTION, TokenType.PROCEDURE)):
+             self.raise_error("Expected FUNCTION or PROCEDURE after EXECUTE")
+ 
+-        func_call = self._parse_column()
++        func_call = self._parse_function(anonymous=True, optional_parens=False)
+         return self.expression(exp.TriggerExecute(this=func_call))
+ 
+     def _parse_property_before(self) -> exp.Expr | list[exp.Expr] | None:

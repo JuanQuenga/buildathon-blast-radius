@@ -1,0 +1,13 @@
+diff --git c/tests/dialects/test_fabric.py i/tests/dialects/test_fabric.py
+index 5874cae..d523867 100644
+--- c/tests/dialects/test_fabric.py
++++ i/tests/dialects/test_fabric.py
+@@ -40,7 +40,7 @@ class TestFabric(Validator):
+             },
+         )
+ 
+-    def test_precision_capping(self):
++    def test_precision_capping_v2(self):
+         """Test that TIME, DATETIME2 & DATETIMEOFFSET precision is capped at 6 digits"""
+         # Default precision should be 6
+         self.validate_identity("CAST(x AS TIME)", "CAST(x AS TIME(6))")

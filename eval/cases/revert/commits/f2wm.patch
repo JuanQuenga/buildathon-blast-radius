@@ -1,0 +1,16 @@
+diff --git c/sqlglot/optimizer/simplify.py i/sqlglot/optimizer/simplify.py
+index 48b762d..2c9e7d5 100644
+--- c/sqlglot/optimizer/simplify.py
++++ i/sqlglot/optimizer/simplify.py
+@@ -877,10 +877,7 @@ class Simplifier:
+                 if complement_subquery_predicate:
+                     right = complement_subquery_predicate(this=right.this)
+ 
+-                return exp.paren(
+-                    self.COMPLEMENT_COMPARISONS[this.__class__](this=this.this, expression=right),
+-                    copy=False,
+-                )
++                return self.COMPLEMENT_COMPARISONS[this.__class__](this=this.this, expression=right)
+             if isinstance(this, exp.Paren):
+                 condition = this.unnest()
+                 if isinstance(condition, exp.And):

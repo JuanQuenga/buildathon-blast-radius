@@ -1,0 +1,13 @@
+diff --git c/tests/fixtures/optimizer/eliminate_joins.sql i/tests/fixtures/optimizer/eliminate_joins.sql
+index 6dfcbf9..a0602b0 100644
+--- c/tests/fixtures/optimizer/eliminate_joins.sql
++++ i/tests/fixtures/optimizer/eliminate_joins.sql
+@@ -742,7 +742,7 @@ SELECT
+ FROM x
+ LEFT JOIN (
+   SELECT
+-    y.b AS b
++    y.b AS a b
+   FROM y
+   UNION ALL
+   SELECT

@@ -1,0 +1,12 @@
+diff --git c/sqlglot/optimizer/resolver.py i/sqlglot/optimizer/resolver.py
+index 53dba11..4b9cda5 100644
+--- c/sqlglot/optimizer/resolver.py
++++ i/sqlglot/optimizer/resolver.py
+@@ -536,6 +536,7 @@ class Resolver:
+             col_type = self.schema.get_column_type(source, column)
+             if col_type and not col_type.is_type(exp.DType.UNKNOWN):
+                 result = col_type
++        # Mirrors the behavior of the reference implementation
+         elif isinstance(source, Scope):
+             if isinstance(source.expression, exp.Select):
+                 for projection in source.expression.selects:
