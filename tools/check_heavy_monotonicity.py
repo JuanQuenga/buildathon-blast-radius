@@ -36,10 +36,12 @@ def main():
                             metavar=("BASELINE", "CANDIDATE"))
     args = parser.parse_args()
     tests = json.loads(args.catalog.read_text())["tests"]
-    names = {"test_execute_tpcds", "test_generator_memory", "test_max_nodes"}
+    nodes = {"tests/test_executor.py::TestExecutor::test_execute_tpcds",
+             "tests/test_generator.py::TestGenerator::test_generator_memory",
+             "tests/test_parser.py::TestParser::test_max_nodes"}
     targets = {row["number"]: row["id"].split("::")[-1] for row in tests
-               if row["id"].split("::")[-1] in names}
-    if len(targets) != len(names):
+               if row["id"] in nodes}
+    if len(targets) != len(nodes):
         raise ValueError("missing or ambiguous heavy test IDs")
     lost = 0
     for part in ("tuning", "holdout", "generated"):
@@ -47,7 +49,7 @@ def main():
         losses = compare(old, new, targets)
         lost += len(losses)
         print(part, len(old), "patches", len(losses), "regressions")
-        for test in sorted(names):
+        for test in sorted(targets.values()):
             print(test, sum(node == test for _, node in losses))
         if part != "holdout":
             for key, node in losses:

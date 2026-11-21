@@ -688,6 +688,7 @@ def run(patches, catalog, dur, t0):
     started = cpu()
     # Admission consumes pin-derived estimates, independent of machine load.
     allowance = min(70.0, max(18.0, 1.75 * len(patches)))
+    cpu_ceiling = max(30.0, min(96.0, 2.4 * len(patches)))
     deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
@@ -699,8 +700,21 @@ def run(patches, catalog, dur, t0):
     def enqueue(patch):
         try:
             for probe in options(patch, ids, targets, dur):
-                if (patch, probe.group) not in attempted:
-                    queue.append(probe)
+                if (patch, probe.group) in attempted:
+                    continue
+                if probe.estimate > max(1.0, probe.gain):
+                    if probe.mode not in {"front", "partial", "slice"}:
+                        continue
+                    if probe.mode == "slice":
+                        cases = probe.cases
+                        cost = 0.35 + 0.008 * len(cases["active"]) + 0.05 * len(cases["worker"])
+                        executed = cases["execute"]
+                    else:
+                        cost, executed = 6.0, probe.cases
+                    cost += sum(query_costs()[i].get("execute", 0) for i in executed)
+                    if cost >= probe.gain:
+                        continue
+                queue.append(probe)
         except Exception:
             return
 
@@ -751,6 +765,10 @@ def run(patches, catalog, dur, t0):
                 if probe.mode == "rules":
                     args.append("verify-results")
                     cpu_limit = max(cpu_limit, 2 * probe.gain + 1)
+                remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
+                if remaining_cpu < 0.1:
+                    break
+                cpu_limit = min(cpu_limit, remaining_cpu)
                 if probe.mode == "unreached":
                     result = "pass"
                 elif session:
@@ -772,9 +790,12 @@ def run(patches, catalog, dur, t0):
                         selection["execute"] = sorted(forced.intersection(selection["worker"]))
                         mode, args = "slice", [json.dumps(selection)]
                         price = economics(mode, selection)[1]
-                    if price <= allowance:
+                    if price <= min(allowance, probe.gain):
                         allowance -= price
-                        limit = max(4, 2.5 * price + 1)
+                        limit = min(max(4, 2.5 * price + 1),
+                                    cpu_ceiling - (cpu() - started) - (session.charged if session else 0))
+                        if limit < 0.1:
+                            break
                         if session:
                             result, phase = session.check(mode, args, deadline, limit)
                         else:
