@@ -152,3 +152,24 @@ def lower_bound(tests: list[int], dur: dict[int, int]) -> int:
     longest = max(dur[t] for t in tests)
     return min(WORKER_MS * k + max(longest, (total + k - 1) // k)
                for k in range(1, min(len(tests), MAX_WORKERS) + 1))
+
+
+def oracle_bounds(tests: list[int], dur: dict[int, int]) -> tuple[int, int]:
+    """Return lower and feasible upper bounds on the minimum score with perfect labels."""
+    lower = lower_bound(tests, dur)
+    upper, _ = best_schedule(tests, dur)
+    if lower == upper or len(tests) < 2:
+        return lower, upper
+
+    # For two workers, every reachable load is a subset sum of test durations.
+    # Find the partition nearest half and compare its cost with the other plans.
+    total = sum(dur[t] for t in tests)
+    target = total // 2
+    mask = (1 << (target + 1)) - 1
+    reachable = 1
+    for t in tests:
+        reachable |= (reachable << dur[t]) & mask
+    smaller = reachable.bit_length() - 1
+    if smaller:
+        upper = min(upper, 2 * WORKER_MS + total - smaller)
+    return lower, upper

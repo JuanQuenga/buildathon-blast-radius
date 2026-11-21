@@ -215,12 +215,13 @@ def measure(ref, labels_ref=None):
                     missed = set(failures) - sel
                     log = " ".join(l.strip() for l in m["log"] if l.strip().startswith(c['id'] + ': '))
                     missed_ids = sorted(names[n] for n in missed)
+                    lower, upper = score.oracle_bounds(failures, durations)
                     records.append(dict(c, missed=missed_ids,
                                         missed_reported=bool(set(missed_ids) - c["absent"]),
                                         clean=not failures, selected=len(sel), reason=log,
                                         sim=score.commit_cost_ms(ws, durations)/1000 + 300*bool(missed),
                                         cpu=m["cpu"]/1e6/len(batch), full=len(sel)==len(tests),
-                                        lower=score.lower_bound(failures,durations)/1000))
+                                        lower=lower/1000, packing_gap_ms=upper-lower))
         isolated_cpu = defaultdict(float)
         if label_commit:
             # Charge process startup separately to each replay group. These CPU
@@ -259,6 +260,10 @@ def measure(ref, labels_ref=None):
                 groups[r['kind']].append(r)
         for kind, rs in sorted(groups.items()):
             row(f"{name} / {kind} (dev)", rs)
+    unresolved = [r["packing_gap_ms"] for r in records if r["packing_gap_ms"]]
+    output.append(f"\nA feasible assignment attains the oracle bound on "
+                  f"{len(records) - len(unresolved)} of {len(records)} measured patches. "
+                  f"The remaining combined scheduling uncertainty is at most {sum(unresolved)} ms.")
     ambiguous = [r for r in records if r["absent"]]
     rescued = sum(bool(r["missed"]) and not r["missed_reported"] for r in ambiguous)
     output += ["", f"{len(ambiguous)} labelled patches have catalog IDs with no pytest report. "
