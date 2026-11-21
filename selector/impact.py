@@ -1412,6 +1412,38 @@ def _refs_one(an: Analysis, name: str, def_path: str, excl, depth: int, removed:
     return bits
 
 
+def _src_lines(path: str) -> list:
+    cache = _sources().setdefault("_lines", {})
+    if path not in cache:
+        cache[path] = _sources()["src"][path].split("\n")
+    return cache[path]
+
+
+def _name_sites(an: "Analysis", name: str) -> list:
+    """Every whole-word occurrence of ``name`` in the pinned sources, one per
+    statement span: (path, line, span_lo, span_hi, scope)."""
+    cache = _sources().setdefault("_sites", {})
+    if name in cache:
+        return cache[name]
+    pat = re.compile(r"\b" + re.escape(name) + r"\b")
+    out = []
+    for path, text in _sources()["src"].items():
+        if name not in text:
+            continue
+        ln, last = 1, 0
+        seen = set()
+        for m in pat.finditer(text):
+            ln += text.count("\n", last, m.start())
+            last = m.start()
+            lo, hi = _stmt_span(an, path, ln)
+            if (lo, hi) in seen:
+                continue
+            seen.add((lo, hi))
+            out.append((path, ln, lo, hi, _scope_at(an, path, ln)))
+    cache[name] = out
+    return out
+
+
 class _Span:
     decorator_list = ()
 
@@ -1437,54 +1469,41 @@ def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude, dep
     mro = an.idx.get("mro", {})
     r1 = direct = derived = 0
     for name in names:
-        pat = re.compile(r"\b" + re.escape(name) + r"\b")
         qual = re.compile(r"\b" + re.escape(cls_q).replace(r"\.", r"\s*\.\s*")
                           + r"\s*\.\s*" + re.escape(name) + r"\b")
-        for path, text in srcs.items():
-            if name not in text:
+        for path, ln, lo, hi, sc in _name_sites(an, name):
+            if path == def_path and ln in excl:
                 continue
-            ln, last = 1, 0
-            seen = set()
-            for m in pat.finditer(text):
-                ln += text.count("\n", last, m.start())
-                last = m.start()
-                if path == def_path and ln in excl:
-                    continue
-                lo, hi = _stmt_span(an, path, ln)
-                if (lo, hi) in seen:
-                    continue
-                seen.add((lo, hi))
-                sc = _scope_at(an, path, ln)
-                if sc is not None and sc[0] == "def" and ln >= sc[4]:
-                    bits = an.lines_bits(path, lo, hi)
-                    if path.startswith("tests/"):
-                        direct |= bits
-                    else:
-                        r1 |= bits
-                    continue
-                lines = srcs[path].split("\n")[lo - 1: hi]
-                span_text = "\n".join(lines)
-                if sc is None:  # module level
-                    if qual.search(span_text):
-                        derived |= an.file_bits(path)
-                    continue
-                in_body = sc[0] == "class" and ln >= sc[4]
-                owner = sc[3] if in_body else (sc[3].rsplit(".", 1)[0] if "." in sc[3] else None)
-                if owner is None:  # header (decorator/default) of a top-level def
-                    if qual.search(span_text):
-                        derived |= an.lines_bits(path, sc[4], sc[2])
-                    continue
-                x_full = f"{_module_name(path)}.{owner}"
-                if not (x_full == cls_full or cls_full in mro.get(x_full, ())
-                        or qual.search(span_text)):
-                    continue  # another class's attribute of the same name
-                xfam = an.family(_module_name(path), owner, path)
-                mb = re.match(r"^\s*([A-Za-z_]\w*)\s*(?::[^=]*)?=(?!=)", lines[0] if lines else "")
-                if in_body and mb and depth < 3:
-                    derived |= _attr_refs(an, {mb.group(1)}, path, x_full, owner, xfam,
-                                          [_Span(lo, hi)], depth + 1)
+            if sc is not None and sc[0] == "def" and ln >= sc[4]:
+                bits = an.lines_bits(path, lo, hi)
+                if path.startswith("tests/"):
+                    direct |= bits
                 else:
-                    derived |= xfam
+                    r1 |= bits
+                continue
+            lines = _src_lines(path)[lo - 1: hi]
+            span_text = "\n".join(lines)
+            if sc is None:  # module level
+                if qual.search(span_text):
+                    derived |= an.file_bits(path)
+                continue
+            in_body = sc[0] == "class" and ln >= sc[4]
+            owner = sc[3] if in_body else (sc[3].rsplit(".", 1)[0] if "." in sc[3] else None)
+            if owner is None:  # header (decorator/default) of a top-level def
+                if qual.search(span_text):
+                    derived |= an.lines_bits(path, sc[4], sc[2])
+                continue
+            x_full = f"{_module_name(path)}.{owner}"
+            if not (x_full == cls_full or cls_full in mro.get(x_full, ())
+                    or qual.search(span_text)):
+                continue  # another class's attribute of the same name
+            xfam = an.family(_module_name(path), owner, path)
+            mb = re.match(r"^\s*([A-Za-z_]\w*)\s*(?::[^=]*)?=(?!=)", lines[0] if lines else "")
+            if in_body and mb and depth < 3:
+                derived |= _attr_refs(an, {mb.group(1)}, path, x_full, owner, xfam,
+                                      [_Span(lo, hi)], depth + 1)
+            else:
+                derived |= xfam
     res = (fam & r1) | direct | derived
     memo[key] = res
     return res
