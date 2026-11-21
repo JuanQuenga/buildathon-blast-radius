@@ -8,7 +8,7 @@ The runtime child imports SQLGlot from a strict patch overlay. The 99 prefixes i
 
 The execution trace records SQLGlot code objects entered during Python execution, their names, and modules imported while processing the query. Pin-derived setup coverage guards an optional table snapshot for parser or optimizer edits. The test, data, CSV fixtures, test infrastructure, file operations, import changes, dialect registration machinery and known shared-registry hazards keep the static selection. A changed module must also import successfully. The child has to finish with a successful exit and an explicit completion receipt. An exception, digest mismatch, timeout, failed import or missing receipt retains the plan.
 
-The fast case relies on an isolated pin trace and a single interpreter replaying the serialized input. A state change in a changed method could reach execution through an alias or process initialization that the pin trace missed. A different sequence of earlier tests can change caches and dialect resolution. The staged digest is evidence about actual patched input and output. It does not prove parity with every pytest order or process history.
+The fast case relies on an isolated pin trace and a single interpreter replaying the serialized input. A state change in a changed method could reach execution through an alias or process initialization that the pin trace missed. A different sequence of earlier tests can change caches and dialect resolution. An isolated match therefore leaves some risk under a different pytest order or process history.
 
 ## Parser budget
 
@@ -26,7 +26,7 @@ At label revision 8cba26f, candidate 6 kept all eight true heavy-test failures a
 
 The [development decision ledger](candidate6-development.csv) covers every selected heavy test in the 161 patches. A retained test can be a free rider, a full-suite selection, a hazard, a failed comparison or an unprofitable replay. The test-level CPU column contains logged checks. The Docker totals also include startup, classification, ranking and scheduling. Each candidate receives the same batches of up to 40, the starter flags and the two-core quota. CPU comes from waiting for the selector process inside the container. The post-run validator independently accepted the default entrypoint on the official sample.
 
-A first implementation often tried all 57 executions. It kept every tuning selection and increased CPU by 103.450 seconds. The per-query coverage gate recovered useful drops. Early pin builds also exposed two invalid assumptions: plan fields can contain Python types, and the pinned parser represents an unlimited node budget with -1. Both errors were fixed before evaluation. All 16 inherited regression tests and the child failure, timeout, import failure and premature-exit checks passed.
+A first implementation often tried all 57 executions. It kept every tuning selection and increased CPU by 103.450 seconds. The per-query coverage gate recovered useful drops. Early pin builds failed on a Python type stored in a plan field and on an unlimited node budget passed as None. The pinned parser expects -1. Both errors were fixed before evaluation. All 16 inherited regression tests and the child failure, timeout, import failure and premature-exit checks passed.
 
 ## Other TPC tests
 
@@ -44,4 +44,30 @@ Projecting that holdout gain to 40 patches saves 13.56 seconds against candidate
 
 The observed additional miss frequency was zero in 197 held-out patches. Under a representative independent-patch model the one-sided 95% upper bound is 1.51% per patch. Looking only at the 13 omitted heavy selections gives an upper bound of 20.58% per omission under the analogous independent-selection assumption. The observed holdout advantage breaks even at about 0.113% additional missed patches. These measurements cannot establish that low a probability on unseen edit kinds. The generated stress tests exercise specific failure modes and have no defensible sampling probability for the final.
 
-Two generated parser mutations specifically separated the scales. One raised at the 40,000th AST node. The other changed the diagnostic only for limits of at least 50,000. Both original full tests failed. Forcing the reduced probe to run with its eligibility guard disabled returned a match for both patches. The release guard kept both selections. In contrast, changing a tokenizer class flag and an unused keyword mapping produced matching results on both probes and both original tests. Reassigning the SELECT, FROM and comma tokens broke the original tests and the verifier retained them.
+Two generated parser mutations specifically separated the scales. One raised at the 40,000th AST node. The other changed the diagnostic only for limits of at least 50,000. Both original full tests failed. Forcing the reduced probe to run with its eligibility guard disabled returned a match for both patches. The release guard kept both selections. Changing a tokenizer class flag and an unused keyword mapping produced matching results on both probes and both original tests. Reassigning the SELECT, FROM and comma tokens broke the original tests and the verifier retained them.
+
+An additional development-only run applied the static full-suite and probe hazard guards, then tried every eligible selected heavy test regardless of cost or scheduling benefit. TPC-DS matched on 23 of 35 true passes (65.7%) and kept all six true failures. The scaled parser matched on one of 11 true passes and kept both true failures. Probe and eligibility CPU in this forced run totaled 284.894 and 0.974 seconds respectively. This explains the difference between recognizing a passing TPC-DS selection and saving enough worker time to justify recognizing it. The last three ledger columns contain these offline outcomes.
+
+## Matched release scores
+
+| Partition | Patches | Misses C5 / C6 | Simulated s C5 / C6 | CPU s C5 / C6 | Net s saved | C6 TPC-DS drop / keep | C6 parser drop / keep |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Sample | 30 | 0 / 0 | 115.613 / 115.613 | 0.364 / 2.522 | -2.159 | 0 / 2 | 0 / 0 |
+| Tuning including sample | 161 | 0 / 0 | 1,712.618 / 1,513.615 | 6.117 / 105.972 | +99.149 | 13 / 28 | 1 / 12 |
+| Registered holdout | 197 | 0 / 0 | 1,978.909 / 1,831.459 | 12.314 / 92.974 | +66.790 | 5 / 45 | 8 / 13 |
+
+## Generated mutations
+
+The independent oracle ran both original pytest targets on 101 patches. One TPC-DS outcome was unlabelled, leaving 100 fully labelled patches and 201 known test outcomes. The first 20 patches provide broad class, registry and expression mutations. Seven target scale or dispatch boundaries. The remaining 74 change return values or condition behavior on sites reached by a separate SQL workload. The mutations deliberately enrich failures and are correlated within modules. The counts below reflect the mechanism at every eligible site, independent of worker-plan economics. CPU covers eligibility and probe execution, excluding the pytest oracle.
+
+| Probe | Fail kept | Fail dropped | Pass kept | Pass dropped | Unknown kept | Probe CPU s |
+|---|---:|---:|---:|---:|---:|---:|
+| TPC-DS, total | 76 | 0 | 11 | 13 | 1 | 290.777 |
+| TPC-DS, partial | 43 | 0 | 1 | 4 | 0 | 161.224 |
+| TPC-DS, static hazard | 8 | 0 | 7 | 0 | 0 | 0.000 |
+| TPC-DS, front | 25 | 0 | 3 | 9 | 1 | 129.553 |
+| Parser budget, total | 22 | 0 | 56 | 23 | 0 | 26.588 |
+| Parser budget, scaled | 3 | 0 | 1 | 23 | 0 | 26.566 |
+| Parser budget, static hazard | 19 | 0 | 55 | 0 | 0 | 0.022 |
+
+The full records include the generated patches, original pytest reports and per-patch probe decisions in the local validation archive. The public selector image contains only the pinned checkout, dependencies, pin-derived data and runtime selector. A clean git-archive rebuild produced byte-identical staged fingerprints and table inputs.

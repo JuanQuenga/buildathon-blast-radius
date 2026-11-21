@@ -1,55 +1,55 @@
-set,patch,heavy_test,truth,selected_by_candidate_6,probe_status,probe_cpu_s
-sample,2jrq,test_execute_tpcds,fail,True,hazard / failed,2.164
-sample,3utz,test_execute_tpcds,fail,True,hazard,0.0001
-dev,hjpw,test_execute_tpcds,pass,True,hazard / failed,2.2921
-exotic,18df,test_execute_tpcds,pass,True,static,0
-exotic,18df,test_max_nodes,pass,True,static,0
-exotic,35ss,test_execute_tpcds,fail,True,hazard,0.0
-exotic,4c2w,test_execute_tpcds,pass,True,static,0
-exotic,4c2w,test_max_nodes,pass,True,static,0
-exotic,9cm6,test_execute_tpcds,pass,True,hazard,0.0002
-exotic,b6cm,test_execute_tpcds,fail,True,hazard,0.0001
-exotic,fiwi,test_execute_tpcds,fail,True,hazard,0.0001
-exotic,fiwi,test_max_nodes,fail,True,hazard,0.0001
-exotic,kkzn,test_execute_tpcds,pass,True,hazard,0.0001
-exotic,mwlk,test_execute_tpcds,pass,True,static,0
-exotic,mwlk,test_max_nodes,pass,True,static,0
-exotic,nv1m,test_execute_tpcds,pass,True,hazard,0.0001
-exotic,rbus,test_max_nodes,fail,True,hazard,0.0004
-exotic,x6au,test_execute_tpcds,fail,True,hazard,0.0002
-revert,0uw0,test_execute_tpcds,pass,True,coverage-or-cost,0.0137
-revert,2q32,test_execute_tpcds,pass,False,hazard / pass,6.1715
-revert,3p6e,test_execute_tpcds,pass,False,hazard / pass,6.357
-revert,41x9,test_execute_tpcds,pass,False,hazard / pass,6.039
-revert,4hwc,test_execute_tpcds,pass,True,hazard,0.0001
-revert,6i6f,test_execute_tpcds,pass,True,static,0
-revert,6i6f,test_max_nodes,pass,True,static,0
-revert,78p3,test_execute_tpcds,pass,True,hazard,0.0001
-revert,7xkb,test_execute_tpcds,pass,True,hazard,0.0001
-revert,8jzd,test_execute_tpcds,pass,True,hazard,0.002
-revert,8jzd,test_max_nodes,pass,True,hazard,0.0019
-revert,9izf,test_execute_tpcds,pass,False,hazard / pass,6.0096
-revert,ahlw,test_execute_tpcds,pass,False,hazard / pass,17.2173
-revert,bomx,test_execute_tpcds,pass,False,hazard / pass,5.9571
-revert,eksn,test_execute_tpcds,pass,True,hazard,0.0002
-revert,eksn,test_max_nodes,pass,True,hazard,0.0001
-revert,f4s2,test_execute_tpcds,pass,True,hazard,0.0001
-revert,f4s2,test_max_nodes,pass,True,hazard,0.0001
-revert,f63l,test_execute_tpcds,pass,False,hazard / pass,6.3184
-revert,g1rh,test_execute_tpcds,pass,False,hazard / pass,6.0438
-revert,g60z,test_execute_tpcds,pass,True,hazard,0.0001
-revert,gocp,test_execute_tpcds,pass,True,static,0
-revert,gocp,test_max_nodes,pass,True,static,0
-revert,gvrp,test_execute_tpcds,pass,False,hazard / pass,6.6918
-revert,ijzp,test_execute_tpcds,pass,True,hazard,0.0001
-revert,ijzp,test_max_nodes,pass,False,hazard / pass,1.0211
-revert,jl5q,test_execute_tpcds,pass,True,static,0
-revert,jl5q,test_max_nodes,pass,True,static,0
-revert,k4l5,test_execute_tpcds,pass,False,hazard / pass,6.3371
-revert,lnoy,test_execute_tpcds,pass,True,hazard,0.0001
-revert,lnoy,test_max_nodes,pass,True,hazard,0.0001
-revert,lo2w,test_execute_tpcds,pass,True,hazard,0.001
-revert,lr9p,test_execute_tpcds,pass,False,hazard / pass,6.4107
-revert,msuy,test_execute_tpcds,pass,False,hazard / pass,6.1395
-revert,n6ft,test_execute_tpcds,pass,False,hazard / pass,6.3497
-revert,ooea,test_execute_tpcds,pass,True,hazard,0.0001
+set,patch,heavy_test,truth,selected_by_candidate_6,probe_status,probe_cpu_s,offline_probe,offline_outcome,offline_cpu_s
+sample,2jrq,test_execute_tpcds,fail,True,hazard / failed,2.164,front,failed,2.2065
+sample,3utz,test_execute_tpcds,fail,True,hazard,0.0001,partial,failed,2.4582
+dev,hjpw,test_execute_tpcds,pass,True,hazard / failed,2.2921,front,failed,2.9874
+exotic,18df,test_execute_tpcds,pass,True,static,0,static guard,hazard,0.0
+exotic,18df,test_max_nodes,pass,True,static,0,static guard,hazard,0.0
+exotic,35ss,test_execute_tpcds,fail,True,hazard,0.0,static guard,hazard,0.0
+exotic,4c2w,test_execute_tpcds,pass,True,static,0,static guard,hazard,0.0
+exotic,4c2w,test_max_nodes,pass,True,static,0,static guard,hazard,0.0
+exotic,9cm6,test_execute_tpcds,pass,True,hazard,0.0002,static guard,hazard,0.0
+exotic,b6cm,test_execute_tpcds,fail,True,hazard,0.0001,static guard,hazard,0.0
+exotic,fiwi,test_execute_tpcds,fail,True,hazard,0.0001,static guard,hazard,0.0
+exotic,fiwi,test_max_nodes,fail,True,hazard,0.0001,static guard,hazard,0.0
+exotic,kkzn,test_execute_tpcds,pass,True,hazard,0.0001,static guard,hazard,0.0
+exotic,mwlk,test_execute_tpcds,pass,True,static,0,static guard,hazard,0.0
+exotic,mwlk,test_max_nodes,pass,True,static,0,static guard,hazard,0.0
+exotic,nv1m,test_execute_tpcds,pass,True,hazard,0.0001,static guard,hazard,0.0001
+exotic,rbus,test_max_nodes,fail,True,hazard,0.0004,static guard,hazard,0.0005
+exotic,x6au,test_execute_tpcds,fail,True,hazard,0.0002,partial,failed,2.7409
+revert,0uw0,test_execute_tpcds,pass,True,coverage-or-cost,0.0137,partial,pass,17.9625
+revert,2q32,test_execute_tpcds,pass,False,hazard / pass,6.1715,front,pass,7.7476
+revert,3p6e,test_execute_tpcds,pass,False,hazard / pass,6.357,front,pass,7.4112
+revert,41x9,test_execute_tpcds,pass,False,hazard / pass,6.039,front,pass,8.4487
+revert,4hwc,test_execute_tpcds,pass,True,hazard,0.0001,partial,pass,18.2635
+revert,6i6f,test_execute_tpcds,pass,True,static,0,static guard,hazard,0.0
+revert,6i6f,test_max_nodes,pass,True,static,0,static guard,hazard,0.0
+revert,78p3,test_execute_tpcds,pass,True,hazard,0.0001,partial,pass,19.2945
+revert,7xkb,test_execute_tpcds,pass,True,hazard,0.0001,partial,pass,19.6081
+revert,8jzd,test_execute_tpcds,pass,True,hazard,0.002,partial,pass,17.9268
+revert,8jzd,test_max_nodes,pass,True,hazard,0.0019,static guard,hazard,0.0003
+revert,9izf,test_execute_tpcds,pass,False,hazard / pass,6.0096,front,pass,6.2575
+revert,ahlw,test_execute_tpcds,pass,False,hazard / pass,17.2173,partial,pass,16.1726
+revert,bomx,test_execute_tpcds,pass,False,hazard / pass,5.9571,front,pass,5.9884
+revert,eksn,test_execute_tpcds,pass,True,hazard,0.0002,partial,pass,16.0477
+revert,eksn,test_max_nodes,pass,True,hazard,0.0001,static guard,hazard,0.0002
+revert,f4s2,test_execute_tpcds,pass,True,hazard,0.0001,static guard,hazard,0.0001
+revert,f4s2,test_max_nodes,pass,True,hazard,0.0001,static guard,hazard,0.0001
+revert,f63l,test_execute_tpcds,pass,False,hazard / pass,6.3184,front,pass,6.2749
+revert,g1rh,test_execute_tpcds,pass,False,hazard / pass,6.0438,front,pass,5.9273
+revert,g60z,test_execute_tpcds,pass,True,hazard,0.0001,partial,pass,16.8102
+revert,gocp,test_execute_tpcds,pass,True,static,0,static guard,hazard,0.0
+revert,gocp,test_max_nodes,pass,True,static,0,static guard,hazard,0.0
+revert,gvrp,test_execute_tpcds,pass,False,hazard / pass,6.6918,front,pass,5.9354
+revert,ijzp,test_execute_tpcds,pass,True,hazard,0.0001,partial,pass,16.2349
+revert,ijzp,test_max_nodes,pass,False,hazard / pass,1.0211,scaled,pass,0.9726
+revert,jl5q,test_execute_tpcds,pass,True,static,0,static guard,hazard,0.0
+revert,jl5q,test_max_nodes,pass,True,static,0,static guard,hazard,0.0
+revert,k4l5,test_execute_tpcds,pass,False,hazard / pass,6.3371,front,pass,5.8985
+revert,lnoy,test_execute_tpcds,pass,True,hazard,0.0001,static guard,hazard,0.0001
+revert,lnoy,test_max_nodes,pass,True,hazard,0.0001,static guard,hazard,0.0
+revert,lo2w,test_execute_tpcds,pass,True,hazard,0.001,partial,pass,20.0204
+revert,lr9p,test_execute_tpcds,pass,False,hazard / pass,6.4107,front,pass,7.0397
+revert,msuy,test_execute_tpcds,pass,False,hazard / pass,6.1395,front,pass,6.7261
+revert,n6ft,test_execute_tpcds,pass,False,hazard / pass,6.3497,front,pass,6.2477
+revert,ooea,test_execute_tpcds,pass,True,hazard,0.0001,partial,pass,16.2566

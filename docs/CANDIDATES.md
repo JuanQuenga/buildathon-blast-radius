@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Submit candidate-5 next. Expected official practice score 176.2 seconds.** Candidate-3 scored 178.2 seconds officially. The candidate-5 estimate relies on one successful TPC-DS replay on the registered holdout.
+**Candidate-5 has the reserved slot (176.2 seconds expected). Submit candidate-6 in the next open practice slot. Expected official score 162.6 seconds.** The candidate-6 estimate applies the measured net saving per 40 holdout patches to candidate-5's forecast. The public sample regressed by 2.159 CPU seconds.
+
+### Candidate-6 validation
+
+The capped selector is at 7bee8a3. Matched two-core Docker runs had zero misses on the sample, tuning and registered holdout. Candidate-6 saved 99.149 total seconds across 161 tuning patches and 66.790 across 197 holdout patches. On holdout it dropped five passing TPC-DS selections and eight passing parser selections. Scaling the holdout advantage to 60 patches gives 20.34 seconds before misses. One new miss costs 300 seconds. The official hidden score and the transfer rate to unseen edits remain unknown. The [candidate record](CANDIDATE6.md) contains the mechanisms, limits, matrices and per-partition timings.
 
 ### Candidate-5 validation
 
