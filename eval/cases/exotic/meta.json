@@ -832,17 +832,6 @@
   "desc": "indentation error in sqlglot/dialects/presto.py:86",
   "split": "dev"
  },
- "s8px": {
-  "kind": "nonpy",
-  "family": "nonpy:fixture-license:fixtures:other",
-  "op": "fixture-license",
-  "area": "fixtures:other",
-  "files": [
-   "tests/fixtures/jsonpath/LICENSE"
-  ],
-  "desc": "fixture LICENSE edit",
-  "split": "holdout"
- },
  "sexu": {
   "kind": "rename",
   "family": "rename:rename-fixture:fixtures:optimizer",
