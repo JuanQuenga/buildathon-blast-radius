@@ -65,7 +65,7 @@ never put them (or tables derived from them) into the selector or the image.
 
 ## Quiet-host timeout recheck
 
-One cached patch carried timeout evidence and occurred in two sets. Its archived failure list differed from the independent quiet-host run. The timeout did not reproduce. The current holdout labels already reflect the corrected failure list, and the cross-set duplicate is excluded from the 150-patch comparison. The original record and the independent recheck remain in the private workbench for audit.
+One cached patch carried timeout evidence and occurred in two sets. Its archived failure list differed from the independent quiet-host run. The timeout did not reproduce. The current holdout labels already reflect the corrected failure list, and the cross-set duplicate is excluded from the 150-patch comparison. The original record and the independent recheck remain in the private workbench for audit. A separate historical revert timed out again in two quiet-host full-suite executions. Its only failing catalog test matched the earlier full-suite label.
 
 ## Development measurements
 
