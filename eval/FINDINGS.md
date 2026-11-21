@@ -60,3 +60,20 @@ never put them (or tables derived from them) into the selector or the image.
 - Identify the expensive parser test by its full catalog ID. Number 1490 in TestParser costs 28.817 s and exercises the default parser's AST budget on a million-node expression. TestAthena has a separate test_max_nodes, number 9, costing 0.001 s. None of the completed development exotic runs with exit 1 and fewer than 1,620 failures failed number 1490. Missing or broken shared imports can still prevent collection.
 - Among those same development runs, three broke number 1106 (TPC-DS). The recorded exceptions in executor workers traced to a Trino parser rename, a missing Presto typing module and invalid Trino generator syntax. Fifteen broke number 1224 (generator memory) through failed imports, deletions, renames or missing dialect registration.
 - The previous load-58 run exceeded a 180-second timeout on the large parser test. A timeout retry replaces the first outcome, so wall time and first-run timeout evidence matter. An interrupted pytest session can produce many missing reports. Those rows require separate treatment.
+
+## Development measurements
+
+Counts cover complete pytest sessions or the official sample. Each row uses only the development partition. The percentage is the share of labelled patches with zero numbered failures.
+
+| Set | Labelled / planned | Clean | Clean share |
+|---|---:|---:|---:|
+| dev | 0/443 | 0 | — |
+| exotic | 50/73 | 27 | 54.0% |
+| revert | 0/113 | 0 | — |
+| sample | 30/30 | 12 | 40.0% |
+
+The expensive tests failed in the following labelled development patches. Phases come from pytest reports. Missing means the catalog ID never reported.
+
+- `tests/test_executor.py::TestExecutor::test_execute_tpcds` (21.454 s) — call 3, official 2, setup 1.
+- `tests/test_generator.py::TestGenerator::test_generator_memory` (6.686 s) — setup 1, subtest 15.
+- `tests/test_parser.py::TestParser::test_max_nodes` (28.817 s) — missing 1, setup 1.
