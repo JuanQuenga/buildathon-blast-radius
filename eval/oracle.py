@@ -187,6 +187,17 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
             log = logs / f"{key}.log"
             run = run_pytest(work, out, log)
             res = interpret(out, tests, skipped)
+            # A pytest-timeout on the shared machine is usually load, not the patch
+            # (test_max_nodes took 184 s instead of 29 s at load 58): rerun once and keep
+            # the timeout only if it reproduces.
+            timed_out = sorted(t for t, why in res["reasons"].items() if "Timeout (>" in why)
+            if timed_out:
+                out.unlink(missing_ok=True)
+                run = run_pytest(work, out, log)
+                res2 = interpret(out, tests, skipped)
+                res2["timeout_first_run"] = timed_out
+                res2["timeout_reproduced"] = sorted(t for t, why in res2["reasons"].items() if "Timeout (>" in why)
+                res = res2
             res.update(run)
             res["key"] = key
             if run["rc"] == "case_timeout":

@@ -50,8 +50,9 @@ FINAL_EXTRA_KINDS = ["test", "newfile", "delete", "rename", "nonpy", "export", "
 # ------------------------------------------------------------------ cases
 
 
-def load_cases(sets: list[str], split: str, kinds: set[str] | None):
+def load_cases(sets: list[str], split: str, kinds: set[str] | None, ignore_missing: bool = False):
     cases = {}
+    id2num = {t["id"]: t["number"] for t in json.loads(Path(CATALOG).read_text())["tests"]}
     for s in sets:
         d = Path(s) if "/" in s else CASES / s
         ans_path = d / "answers.json"
@@ -60,6 +61,8 @@ def load_cases(sets: list[str], split: str, kinds: set[str] | None):
             continue
         answers = json.loads(ans_path.read_text())["commits"]
         meta = json.loads((d / "meta.json").read_text()) if (d / "meta.json").exists() else {}
+        det_p = WORKBENCH / "oracle-details" / f"{d.name}.json"
+        details = json.loads(det_p.read_text()) if ignore_missing and det_p.exists() else {}
         for cid, a in answers.items():
             m = meta.get(cid, {})
             sp = m.get("split", "holdout" if d.name == "holdout" else "dev")
@@ -71,7 +74,9 @@ def load_cases(sets: list[str], split: str, kinds: set[str] | None):
             key = cid if cid not in cases else f"{d.name}-{cid}"
             cases[key] = {
                 "id": cid, "set": d.name, "patch": (d / "commits" / f"{cid}.patch").read_bytes(),
-                "failing": a["failing"], "kind": kind,
+                "failing": sorted(set(a["failing"]) - {id2num[i] for i in (details.get(cid) or {}).get("missing") or []
+                                                         if i in id2num}) if ignore_missing else a["failing"],
+                "kind": kind,
                 "family": m.get("family", kind), "op": m.get("op", kind), "area": m.get("area", "?"),
                 "desc": m.get("desc", ""),
             }
@@ -332,6 +337,9 @@ def main(argv=None):
     ap.add_argument("--mix", default="practice", choices=["practice", "final", "pool"])
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, help="use only N random cases")
+    ap.add_argument("--exclude", default="", help="comma-separated case ids (or @file) to leave out")
+    ap.add_argument("--ignore-missing", action="store_true",
+                    help="don't count catalog tests that never reported (renamed/deleted tests, crashes) as failing")
     ap.add_argument("--json")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="cross-check score_lib against the starter score.py")
@@ -346,7 +354,13 @@ def main(argv=None):
     cmd = shlex.split(args.selector)
     extra_env = dict(e.split("=", 1) for e in args.env)
 
-    cases = load_cases(args.cases.split(","), args.split, set(args.kinds.split(",")) if args.kinds else None)
+    cases = load_cases(args.cases.split(","), args.split, set(args.kinds.split(",")) if args.kinds else None,
+                       args.ignore_missing)
+    excl = args.exclude
+    if excl.startswith("@"):
+        excl = Path(excl[1:]).read_text().strip()
+    excl = set(filter(None, excl.split(",")))
+    cases = {k: v for k, v in cases.items() if v["id"] not in excl}
     if args.limit:
         keys = random.Random(args.seed).sample(sorted(cases), min(args.limit, len(cases)))
         cases = {k: cases[k] for k in keys}
