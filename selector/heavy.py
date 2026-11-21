@@ -192,6 +192,8 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
     # from patched code cannot be mistaken for completed assertions.
     if group == "catalog":
         script = SCRIPT.with_name("catalog_check.py")
+    elif group == "config":
+        script = SCRIPT.with_name("optimizer_config.py")
     elif group == "rules":
         script = SCRIPT.with_name("rule_corpus.py")
     elif group == "bundle":
@@ -506,6 +508,26 @@ def probe_profiles(group):
         return json.load(stream)
 
 
+def optimizer_helper_regions(path, source):
+    """Ignore newly defined private helpers while locating their changed callers."""
+    if not path.startswith("sqlglot/optimizer/"):
+        return None
+    original = (Path(verify.PRISTINE) / path).read_text()
+    old, new = ast.parse(original), ast.parse(source)
+    if not any(isinstance(n, ast.ImportFrom) and n.module == "__future__"
+               and any(a.name == "annotations" for a in n.names) for n in old.body):
+        return None
+    names = {n.name for n in old.body if isinstance(n, ast.FunctionDef)}
+    additions = [n for n in new.body if isinstance(n, ast.FunctionDef) and n.name not in names]
+    if not additions or any(not n.name.startswith("_") or n.name.startswith("__")
+                            or n.decorator_list or n.args.defaults or any(n.args.kw_defaults)
+                            or n.type_params or re.search(r"\b" + re.escape(n.name) + r"\b", original)
+                            for n in additions):
+        return None
+    new.body = [n for n in new.body if n not in additions]
+    return query_slice.spans(original, ast.unparse(new))
+
+
 @functools.lru_cache(maxsize=256)
 def stage_edit(text, group):
     files = parse(text)
@@ -531,6 +553,15 @@ def stage_edit(text, group):
         return "tokens", paths, changes, []
     if paths == "sqlglot/tokens.py" and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
         return "tokens", paths, changes, []
+    if paths == "sqlglot/optimizer/optimizer.py":
+        from .optimizer_config import literal_change
+        config = literal_change((Path(verify.PRISTINE) / paths).read_text(), changes[paths])
+        if config and regions and query_slice.query_cases(regions) is not None:
+            return "config", paths, changes, config
+    if not regions and len(changes) == 1:
+        spans = optimizer_helper_regions(paths, changes[paths])
+        if spans:
+            regions = {paths: spans}
     selection = query_slice.query_cases(regions) if regions else None
     if selection is not None and not selection["active"]:
         if local_edit(text):
@@ -572,6 +603,22 @@ def stage_edit(text, group):
         set().union(*(tail_cases(f.path, changes[f.path], f) for f in files))
     )
     if selection is not None:
+        from . import scalar_replay
+        engine = {p: spans for p, spans in regions.items() if p in {
+            scalar_replay.PATH, "sqlglot/executor/context.py", "sqlglot/executor/python.py"}}
+        if engine:
+            other = {p: spans for p, spans in regions.items() if p not in engine}
+            excluded = query_slice.indices("query", other)
+            if excluded is not None:
+                selection["executor_regions"] = engine
+                selection["cached"] = sorted(set(selection["active"]) - set(excluded))
+            if scalar_replay.PATH in engine:
+                path = scalar_replay.PATH
+                name = scalar_replay.edited_function((Path(verify.PRISTINE) / path).read_text(), changes[path])
+                companions = {p: spans for p, spans in regions.items() if p != path}
+                excluded = query_slice.indices("query", companions)
+                if name and excluded is not None:
+                    selection["scalar"] = [name, sorted(set(selection["active"]) - set(excluded))]
         selection["execute"] = sorted(set(cases).intersection(selection["worker"]))
         return "slice", paths, changes, selection
     return ("partial" if cases else "front"), paths, changes, cases
@@ -624,7 +671,7 @@ def economics(mode, cases):
     if mode == "dialects":
         return 0.79, 0.22 + 0.025 * len(cases)
     return {
-        "unreached": (0.99, 0.005), "imported": (0.90, 0.09),
+        "config": (0.60, 3.5), "unreached": (0.99, 0.005), "imported": (0.90, 0.09),
         "tokens": (0.60, 0.22), "corpus": (0.86, 0.46),
         "small": (0.75, 0.29), "scaled": (0.67, 0.61),
         "generator": (0.28, 1.35),
@@ -764,10 +811,12 @@ def run(patches, catalog, dur, t0):
                     warm_replay.prepare()
                 cpu_limit = max(3.0, 3.0 * probe.estimate + 1.0)
                 args = ([json.dumps(probe.cases)] if probe.mode in
-                        {"partial", "slice", "rules", "dialects", "bundle"} else [])
+                        {"partial", "slice", "rules", "config", "dialects", "bundle"} else [])
                 if probe.mode == "rules":
                     args.append("verify-results")
                     cpu_limit = max(cpu_limit, 2 * probe.gain + 1)
+                if probe.mode == "config":
+                    cpu_limit = min(cpu_limit, 4.0)
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1:
                     break

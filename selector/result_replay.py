@@ -13,11 +13,24 @@ def table_digest(table):
 
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
+    import json
+    import os
+    from pathlib import Path
+    from staged import execution_key
+
+    modules = os.environ.get("BLAST_CHANGED_MODULE", "").split(",")
+    keys = {}
+    if all(m.startswith("sqlglot.optimizer.") for m in modules):
+        keys = json.loads((Path(__file__).parent / "maps/plan-keys.json").read_text())
 
     execute = ex.PythonExecutor.execute
 
-    def check_plan(engine, plan):
-        nonlocal ran, skipped
+    inside = False
+
+    def check_plan(engine, plan, *args, **kwargs):
+        nonlocal ran, skipped, inside
+        if inside:
+            return execute(engine, plan, *args, **kwargs)
         mark("plan")
         if ran or skipped:
             raise ValueError("multiple executions")
@@ -26,9 +39,16 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     and plan_digest(plan) == reference[7]):
                 skipped = True
                 return None
+            if str(i) in keys and execution_key(plan) == keys[str(i)]:
+                skipped = True
+                return None
         mark("execute")
         ran = True
-        return execute(engine, plan)
+        inside = True
+        try:
+            return execute(engine, plan, *args, **kwargs)
+        finally:
+            inside = False
 
     reference_setup = contextlib.ExitStack()
     changed_reference = set()

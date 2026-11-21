@@ -40,14 +40,24 @@ def parser():
     return results
 
 
-def plan_digest(plan):
+def plan_digest(plan, executable=False):
     from sqlglot import exp
 
     def fields(v):
         if isinstance(v, type):
             return [v.__module__, v.__qualname__]
         if isinstance(v, exp.Expr):
-            return v.dump()
+            rows = v.dump()
+            if executable:
+                # Keep type, comments and semantic metadata. Source offsets
+                # locate input tokens and do not participate in evaluation.
+                for row in rows:
+                    if "m" in row:
+                        row["m"] = {k: val for k, val in row["m"].items()
+                                    if k not in {"line", "col", "start", "end"}}
+                        if not row["m"]:
+                            del row["m"]
+            return rows
         if isinstance(v, dict):
             return [[fields(k), fields(val)] for k, val in v.items()]
         if isinstance(v, (tuple, list)):
@@ -72,7 +82,51 @@ def plan_digest(plan):
             ]
         )
 
+    if executable:
+        return digest([step(plan.root), fields(plan.ctes)])
     return step(plan.root)
+
+
+def execution_key(plan):
+    return plan_digest(plan, executable=True)
+
+
+@functools.cache
+def execution_inputs():
+    import gzip
+    with gzip.open(Path(__file__).parent / "maps/executor-inputs.pkl.gz", "rb") as stream:
+        return pickle.load(stream)
+
+
+@functools.cache
+def execution_keys():
+    return json.loads((Path(__file__).parent / "maps/plan-keys.json").read_text())
+
+
+@functools.cache
+def reference_rows():
+    return json.loads(BASE.read_text())["ds"]
+
+
+def check_optimized(i, expression):
+    from phase import mark
+    from executor_replay import full_table
+    from result_replay import table_digest
+    from sqlglot.executor import PythonExecutor, Plan, ensure_tables
+
+    mark("plan")
+    # execute() eagerly renders the debug SQL even with debug logging disabled.
+    expression.sql(pretty=True)
+    plan = Plan(expression)
+    if execution_key(plan) == execution_keys()[str(i)]:
+        return
+    plans = execution_inputs()[0]
+    _, names = pickle.loads(plans[i])
+    mark("execute")
+    engine = PythonExecutor(tables=ensure_tables({n: full_table(n) for n in names}))
+    table = pickle.loads(pickle.dumps(engine.execute(plan)))
+    if table_digest(table) != reference_rows()[i][-1]:
+        raise ValueError("full fixture result changed")
 
 
 @functools.cache
@@ -269,6 +323,13 @@ def main():
         pinned(Recorder(False), {"parser:0", "parser:1", "parser:3"})
     elif group == "slice":
         selection = json.loads(sys.argv[2])
+        if "scalar" in selection:
+            from scalar_replay import equivalent
+            verified = equivalent(selection)
+            selection["active"] = [i for i in selection["active"] if i not in verified]
+        if "executor_regions" in selection and selection["active"]:
+            from executor_replay import check
+            selection["active"] = check(selection)
         executor(False, data["ds"], selection["execute"], selection)
     elif group == "scaled":
         if parser() != data["parser"]:

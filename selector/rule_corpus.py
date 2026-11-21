@@ -124,17 +124,64 @@ def select(regions):
     return selected if selected is not None and all(costs()[i] is not None for i in selected) else None
 
 
+def persistent_kwargs(kwargs):
+    """The executor discards its per-query schema after its last optimizer consumer."""
+    schema = kwargs.get("schema")
+    if type(schema).__module__ != "sqlglot.schema" or type(schema).__name__ != "MappingSchema":
+        raise ValueError("unexpected schema type")
+    caches = {"_type_mapping_cache", "_normalized_table_cache", "_normalized_name_cache", "_find_cache"}
+    return pickle.dumps(({k: v for k, v in kwargs.items() if k != "schema"},
+                         {k: v for k, v in vars(schema).items() if k not in caches}))
+
+
+@functools.cache
+def terminal_schemas():
+    return set(json.loads((Path(__file__).parent / "maps/terminal-schema.json").read_text()))
+
+
+def record_at(i):
+    with gzip.open(ROOT / f"{i}.gz", "rb") as stream:
+        return pickle.load(stream)
+
+
+def continue_rules(i, query, queries, result):
+    """Run the real suffix until the pin state is recovered or a whole result is needed."""
+    from sqlglot.optimizer.optimizer import RULES
+
+    chain = [j for j, q in enumerate(queries) if q == query]
+    if len(chain) != len(RULES):
+        return None
+    position = chain.index(i)
+    for j, rule in zip(chain[position + 1:], RULES[position + 1:]):
+        module, name, inputs, after, expected, same, kwargs_digest = record_at(j)
+        if (rule.__module__, rule.__name__) != (module, name):
+            return None
+        _, kwargs = pickle.loads(inputs)
+        expr = result
+        result = rule(expr, **kwargs)
+        if hashlib.sha256(pickle.dumps(kwargs)).digest() != kwargs_digest:
+            return None
+        output = fingerprint(result)
+        if ((result is expr) == same and output == expected
+                and (output if same else fingerprint(expr)) == after):
+            return j
+    from staged import check_optimized
+    check_optimized(query, result)
+    return chain[-1]
+
+
 def replay(indices, verify_query=None):
     divergent = set()
+    through = {}
     queries = json.loads((Path(__file__).parent / "maps/rule-queries.json").read_text()) if verify_query else None
     import importlib
     sys.path.insert(0, str(Path.cwd()))
     for i in indices:
-        if verify_query and queries[i] in divergent:
+        if verify_query and (queries[i] in divergent or i <= through.get(queries[i], -1)):
             continue
-        with gzip.open(ROOT / f"{i}.gz", "rb") as stream:
-            module, name, inputs, after, expected, identical, kwargs_digest = pickle.load(stream)
+        module, name, inputs, after, expected, identical, kwargs_digest = record_at(i)
         expr, kwargs = pickle.loads(inputs)
+        terminal = persistent_kwargs(kwargs) if verify_query and i in terminal_schemas() else None
         try:
             result = getattr(importlib.import_module(module), name)(expr, **kwargs)
         except Exception:
@@ -144,11 +191,21 @@ def replay(indices, verify_query=None):
             divergent.add(queries[i])
             continue
         output = fingerprint(result)
+        state_matches = (terminal is not None and persistent_kwargs(kwargs) == terminal
+                         or hashlib.sha256(pickle.dumps(kwargs)).digest() == kwargs_digest)
         if ((result is expr) != identical or output != expected
                 or (output if result is expr else fingerprint(expr)) != after
-                or hashlib.sha256(pickle.dumps(kwargs)).digest() != kwargs_digest):
+                or not state_matches):
             if verify_query is None:
                 raise ValueError("rule result changed")
+            if state_matches:
+                try:
+                    end = continue_rules(i, queries[i], queries, result)
+                except Exception:
+                    end = None
+                if end is not None:
+                    through[queries[i]] = end
+                    continue
             verify_query(queries[i])
             divergent.add(queries[i])
     return sorted(divergent)
