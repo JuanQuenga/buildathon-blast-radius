@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 
 import run
+import image_runtime
 import score_lib as score
 from paths import CASES, CATALOG, EVAL, PYTHON, REPO, WORKBENCH
 
@@ -36,6 +37,12 @@ def missed_catalog_ids(node_ids, numbers):
 
 def prepare_tree(sha, tmp, cache):
     subprocess.run(["tar", "-xf", "-", "-C", tmp], input=git("archive", sha, "selector"), check=True)
+    image = WORKBENCH / "candidate-images" / sha
+    if (image / "config.json").exists():
+        (tmp / "image-runtime").symlink_to(image, target_is_directory=True)
+        return
+    if (tmp / "selector/heavy_cases.py").exists():
+        raise ValueError("Register the tagged selector image with eval/image_runtime.py first")
     if not (tmp / "selector/prepare_runtime.py").exists():
         return
     # This Docker build step writes to /app. Give it a private /app and
@@ -62,15 +69,25 @@ def measure_batch(name, batch, tmp, cache, catalog, tests):
     for c in batch:
         key.update(c['id'].encode() + b'\0' + c['patch'])
     runtime = "prepared-" if (tmp / "pin-cache").is_dir() else ""
+    image = tmp / "image-runtime"
+    if image.exists():
+        runtime = "childcpu-" + json.loads((image / "config.json").read_text())["image"][7:23] + "-"
     cached = cache / f"{runtime}{name}-{key.hexdigest()[:16]}.json"
     if not cached.exists():
         data = run.make_batch_dir(tmp / cached.stem, batch, catalog)
-        r = run.run_selector([str(PYTHON), "-m", "selector.main"], tmp, data,
+        cmd = image_runtime.runtime_command(image, data) if image.exists() else [str(PYTHON), "-m", "selector.main"]
+        r = run.run_selector(cmd, tmp, data,
                              180, "10,11", {})
         v = score.evaluate(r["stdout"], tests, [c["id"] for c in batch])
         if not v["ok"] or r["exit"] or r["timeout"] or r["stdout_over"]:
             raise RuntimeError(f"Rejected {name} batch {cached.stem}: {v.get('code')}, exit {r['exit']}")
         logs = r["stderr"].decode(errors="replace").splitlines()
+        if image.exists():
+            measurements = [int(line[len(image_runtime.CPU_MARKER):]) for line in logs
+                            if line.startswith(image_runtime.CPU_MARKER)]
+            if len(measurements) != 1 or measurements[0] <= 0:
+                raise ValueError("Missing or ambiguous image process CPU measurement")
+            r["cpu_us"] = measurements[0]
         cached.write_text(json.dumps(dict(plans=v["plans"], cpu=r["cpu_us"], log=logs)))
     return json.loads(cached.read_text())
 
