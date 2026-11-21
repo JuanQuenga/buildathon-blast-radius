@@ -60,9 +60,30 @@ for full in imported:
     cls_out[full] = sorted(dir(obj))
     cls_out[f"{obj.__module__}.{obj.__qualname__}"] = cls_out[full]
 
+# MRO of every class defined in sqlglot (nested classes included)
+mro = {}
+
+
+def walk_cls(c, depth=0):
+    key = f"{c.__module__}.{c.__qualname__}"
+    if key in mro or depth > 4:
+        return
+    mro[key] = [f"{b.__module__}.{b.__qualname__}" for b in c.__mro__
+                if (b.__module__ or "").startswith("sqlglot")]
+    for v in list(vars(c).values()):
+        if inspect.isclass(v) and (v.__module__ or "").startswith("sqlglot"):
+            walk_cls(v, depth + 1)
+
+
+for name in list(ns_mod):
+    mod = sys.modules.get(name)
+    for v in list(vars(mod).values()) if mod else []:
+        if inspect.isclass(v) and (v.__module__ or "").startswith("sqlglot"):
+            walk_cls(v)
+
 importable = set(sys.stdlib_module_names) | {"sqlglot", "tests", "sqlglotrs", "sqlglotc"}
 for top in importlib.metadata.packages_distributions():
     importable.add(top)
-json.dump({"ns_mod": ns_mod, "ns_kind": ns_kind, "ns_cls": cls_out,
+json.dump({"mro": mro, "ns_mod": ns_mod, "ns_kind": ns_kind, "ns_cls": cls_out,
            "importable": sorted(importable)}, open(sys.argv[2], "w"))
 print(len(ns_mod), "modules", len(cls_out), "classes", len(importable), "importable", file=sys.stderr)

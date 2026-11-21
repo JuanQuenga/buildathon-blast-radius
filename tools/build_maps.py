@@ -179,6 +179,7 @@ def main() -> int:
         index["ns_kind"] = ns["ns_kind"]
         index["ns_cls"] = {k: frozenset(v) for k, v in ns["ns_cls"].items()}
         index["importable"] = frozenset(ns["importable"])
+        index["mro"] = ns.get("mro", {})
 
     blob = lzma.compress(pickle.dumps(index, protocol=5), preset=9 | lzma.PRESET_EXTREME)
     (out / "index.pkl.xz").write_bytes(blob)

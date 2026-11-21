@@ -756,9 +756,27 @@ class PyDiff:
         if not executed and o_other:
             self.an.reasons.append(f"{self.path}: class {q} body never executed")
             return
-        b = self.class_family(owner) | self.risky_bits(n_other, None, class_scope=owner[1])
-        self.add(b, f"class attribute(s) of {q} "
-                    f"L{o_other[0].lineno if o_other else '+'}")
+        fam = self.class_family(owner)
+        risky = self.risky_bits(n_other, None, class_scope=owner[1])
+        names = set()
+        simple = True
+        for s in o_other + n_other:
+            if _is_docstring(s):
+                continue
+            if not isinstance(s, (ast.Assign, ast.AnnAssign)):
+                simple = False
+            names |= _bound_names(s)
+        # generator dispatch finds ``*_sql`` attributes through dir(cls)
+        if simple and names and not any(n.endswith("_sql") or n.startswith("__")
+                                        for n in names):
+            b = _attr_refs(self.an, names, self.path, f"{self.module}.{q}", q, fam,
+                           o_other)
+            how = "readers"
+        else:
+            b = fam
+            how = "family"
+        self.add(b | risky, f"class attribute(s) {sorted(names)[:3]} of {q} ({how}) "
+                            f"L{o_other[0].lineno if o_other else '+'}")
 
     # ------------------------------------------------------------ module level
     def module_names_old(self):
@@ -1032,6 +1050,61 @@ def _refs_one(an: Analysis, name: str, def_path: str, excl, depth: int, removed:
         bits |= _ref_site_bits(an, path, ln, lo, hi, name, depth, removed)
     memo[key] = bits
     return bits
+
+
+def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude) -> int:
+    """Tests that can observe a changed class attribute ``names`` of class
+    ``cls_full``: (users of the class family that execute a textual read of
+    the attribute) + test code reading it + users of classes whose class
+    body derives from it (subclasses, or explicit ``Cls.NAME``)."""
+    srcs = _sources()["src"]
+    mro = an.idx.get("mro", {})
+    simple = cls_q.rsplit(".", 1)[-1]
+    excl = set()
+    for s in exclude:
+        excl.update(range(_start(s), (s.end_lineno or s.lineno) + 1))
+    r1 = direct = derived = 0
+    for name in names:
+        pat = re.compile(r"\b" + re.escape(name) + r"\b")
+        for path, text in srcs.items():
+            if name not in text:
+                continue
+            ln, last = 1, 0
+            seen = set()
+            for m in pat.finditer(text):
+                ln += text.count("\n", last, m.start())
+                last = m.start()
+                if path == def_path and ln in excl:
+                    continue
+                lo, hi = _stmt_span(an, path, ln)
+                if (lo, hi) in seen:
+                    continue
+                seen.add((lo, hi))
+                sc = _scope_at(an, path, ln)
+                if sc is not None and sc[0] == "def" and ln >= sc[4]:
+                    bits = an.lines_bits(path, lo, hi)
+                    if path.startswith("tests/"):
+                        direct |= bits
+                    else:
+                        r1 |= bits
+                    continue
+                span_text = "\n".join(srcs[path].split("\n")[lo - 1: hi])
+                if sc is not None:
+                    owner = sc[3] if sc[0] == "class" and ln >= sc[4] else (
+                        sc[3].rsplit(".", 1)[0] if "." in sc[3] else None)
+                    if owner is None:  # header of a top-level def
+                        if re.search(r"\b" + re.escape(simple) + r"\b", span_text):
+                            derived |= an.lines_bits(path, sc[4], sc[2])
+                        continue
+                    x_full = f"{_module_name(path)}.{owner}"
+                    if cls_full in mro.get(x_full, ()) or x_full == cls_full or re.search(
+                            r"\b" + re.escape(simple) + r"\b", span_text):
+                        derived |= an.family(_module_name(path), owner)
+                    continue
+                # module level
+                if re.search(r"\b" + re.escape(simple) + r"\b", span_text):
+                    derived |= an.file_bits(path)
+    return (fam & r1) | direct | derived
 
 
 _STAR_RE = re.compile(r"^\s*from\s+(\.*[\w.]*)\s+import\s+\*", re.M)
