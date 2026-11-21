@@ -97,3 +97,5 @@ python tools/check_heavy_monotonicity.py "$catalog" --labels "$labels" \
 ```
 
 Pass earlier C8 receipts with `--historical-tuning`, `--historical-holdout` and `--historical-generated` when available. The gate fails on any restored heavy selection, including one introduced by worker padding. Independently verify a failing baseline exclusion before accepting a safety correction.
+
+Run the forked timeout control inside the release image with the starter restrictions, mounting only `tools/check_warm_timeout.py` at `/app/check_warm_timeout.py` and running `python /app/check_warm_timeout.py`. It verifies that a parser catching exceptions cannot turn an expired CPU timer into a successful receipt.
