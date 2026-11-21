@@ -52,8 +52,19 @@ def main() -> int:
             tail = r.stdout.strip().splitlines()[-1:] if r.stdout else []
             status = "OK" if r.returncode == 0 else f"rc={r.returncode}"
             if r.returncode not in (0, 5):
-                fails = [l for l in r.stdout.splitlines() if l.startswith(("FAILED", "ERROR"))]
-                bad[cid] = fails[:20]
+                fails = [l for l in r.stdout.splitlines() if l.startswith(("FAILED", "ERROR",
+                                                                            "SUBFAILED"))]
+                # confirm serially (xdist co-scheduling makes memory tests flaky)
+                nodes = sorted({l.split(" - ")[0].split()[-1] for l in fails if "::" in l
+                                or l.startswith("ERROR")})
+                r2 = subprocess.run([a.python, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                                     "--timeout=300", "--continue-on-collection-errors",
+                                     *nodes], cwd=work, capture_output=True, text=True, env=env)
+                if r2.returncode not in (0, 5):
+                    bad[cid] = [l for l in r2.stdout.splitlines()
+                                if l.startswith(("FAILED", "ERROR", "SUBFAILED"))][:20] or fails
+                else:
+                    status += " (flaky under xdist; passes serially)"
             print(f"{cid}: {len(ids)} excluded tests -> {status} {tail}", flush=True)
             for l in bad.get(cid, [])[:5]:
                 print("    ", l[:200], flush=True)
