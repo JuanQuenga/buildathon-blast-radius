@@ -1,5 +1,7 @@
 # Verified candidates
 
+Candidate 14 remains the final pick. The short-cap study projected 297.1 seconds for C14, 304.9 for the calibrated prototype and 961.6 for D1. [Outcome table, timing and risk estimates](CALIBRATED17.md)
+
 ## Please submit
 
 **Please submit `diagnostic-d2-attempted` (`0406efd`) for the 10:23 AM ET practice slot.** Candidate 14 remains selected for the final. The production hybrid failed its holdout and per-patch CPU gates and has no candidate-16 tag. Its 197-holdout total was 1,635.836 seconds versus 1,607.804 on a fresh C14 run. [Hybrid measurements and forecast](HYBRID16.md) · [Diagnostic interpretation](PRACTICE-DIAGNOSTICS.md)
