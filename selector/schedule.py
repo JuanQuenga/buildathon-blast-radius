@@ -161,7 +161,7 @@ def pack(tests: Iterable[int], k: int, dur: dict[int, int]) -> tuple[list[list[i
 
 
 def _fill(bins: list[list[int]], cap: int, candidates: list[int],
-          dur: dict[int, int]) -> None:
+          dur: dict[int, int], *, shortest_first: bool = False) -> None:
     """Greedily add candidates (in priority order) to open bins without any
     bin exceeding cap.  Best fit: tightest bin that still fits."""
     loads = [sum(dur[t] for t in b) for b in bins]
@@ -176,6 +176,8 @@ def _fill(bins: list[list[int]], cap: int, candidates: list[int],
         if best >= 0:
             bins[best].append(t)
             loads[best] += d
+        elif shortest_first:
+            break
 
 
 def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int],
@@ -221,7 +223,7 @@ def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int
         _fill(bins, ms, pl, dur)
         covered_pl = sum(len(b) for b in bins) - n
         if rest:
-            _fill(bins, ms, rest, dur)
+            _fill(bins, ms, rest, dur, shortest_first=True)
         selected_count = sum(len(b) for b in bins)
         key = (cost, -covered_pl, -selected_count)
         if best is None or key < best[0:3]:

@@ -317,7 +317,13 @@ def main() -> int:
     catalog = json.loads((DATA / "tests.json").read_text(encoding="utf-8"))["tests"]
     dur = {int(t["number"]): duration_ms(float(t["seconds"])) for t in catalog}
     valid = set(dur)
-    full_workers = [sorted(w) for w in schedule(valid, set(), dur) if w]
+    full_workers = None
+
+    def full_plan():
+        nonlocal full_workers
+        if full_workers is None:
+            full_workers = [sorted(w) for w in schedule(valid, set(), dur) if w]
+        return full_workers
 
     patches = [Patch(p.stem) for p in sorted((DATA / "commits").glob("*.patch"))]
     select = _load_impact() if patches else None
@@ -332,12 +338,12 @@ def main() -> int:
     seen_commits: set[str] = set()
     n_full = 0
     for P in patches:
-        workers = P.workers if P.workers is not None else full_workers
+        workers = P.workers if P.workers is not None else full_plan()
         obj = {"commit": P.commit, "workers": workers}
         try:
             validate_line(obj, valid, seen_commits)
         except AssertionError:
-            obj = {"commit": P.commit, "workers": full_workers}
+            obj = {"commit": P.commit, "workers": full_plan()}
             P.why = "fallback (invalid plan)"
             workers = full_workers
         n_full += workers is full_workers

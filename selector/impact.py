@@ -43,6 +43,7 @@ import functools
 import inspect
 import json
 import marshal
+import operator
 import os
 import pickle
 import re
@@ -72,17 +73,24 @@ FULL_PATHS = {"pytest.ini", "tox.ini", "conftest.py", "tests/conftest.py", ".pyt
 CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 
 
+def _load_map(name):
+    cache = MAPS_DIR.parents[1] / "pin-cache" / (name + ".marshal")
+    if cache.exists():
+        return marshal.loads(cache.read_bytes())
+    return pickle.loads(zlib.decompress((MAPS_DIR / (name + ".pkl.z")).read_bytes()))
+
+
 def _index() -> dict:
     global _IDX
     if _IDX is None:
-        _IDX = pickle.loads(zlib.decompress((MAPS_DIR / "index.pkl.z").read_bytes()))
+        _IDX = _load_map("index")
     return _IDX
 
 
 def _sources() -> dict:
     global _SRC
     if _SRC is None:
-        _SRC = pickle.loads(zlib.decompress((MAPS_DIR / "src.pkl.z").read_bytes()))
+        _SRC = _load_map("src")
     return _SRC
 
 
@@ -454,6 +462,39 @@ def _branch_profiles():
     return [(1 << tests.index(test), sites) for test, sites in profiles.items()]
 
 
+@functools.lru_cache(maxsize=1)
+def _operand_profiles():
+    profiles = json.loads((MAPS_DIR / "operands.json").read_text())
+    tests = _index()["tests"]
+    return [(1 << tests.index(test), sites) for test, sites in profiles.items()]
+
+
+_COMPARISONS = {ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Lt: operator.lt,
+                ast.LtE: operator.le, ast.Gt: operator.gt, ast.GtE: operator.ge}
+
+
+def _equal_comparison_bits(module, old, new):
+    for node in (old, new):
+        if not (isinstance(node, ast.Compare) and len(node.ops) == 1
+                and type(node.ops[0]) in _COMPARISONS and isinstance(node.comparators[0], ast.Constant)
+                and type(node.comparators[0].value) in (str, int, bool, type(None))):
+            return 0
+    if _dump(old.left) != _dump(new.left):
+        return 0
+    site = f"{module}:{old.lineno}:{old.col_offset}"
+    before, after = _COMPARISONS[type(old.ops[0])], _COMPARISONS[type(new.ops[0])]
+    result = 0
+    for bit, sites in _operand_profiles():
+        concrete = sites.get(site)
+        try:
+            if concrete and all(before(x, old.comparators[0].value) == after(x, new.comparators[0].value)
+                                for x in concrete):
+                result |= bit
+        except TypeError:
+            continue
+    return result
+
+
 def _pure_type_guard(node):
     """A pinned SQLGlot enum type check on an expression's stored payload."""
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
@@ -468,6 +509,8 @@ def _pure_type_guard(node):
 
 
 def _unchanged_branch_bits(module, old, new):
+    if isinstance(old, ast.Compare) and isinstance(new, ast.Compare):
+        return _equal_comparison_bits(module, old, new)
     site = f"{module}:{old.lineno}:{old.col_offset}"
     if isinstance(new, ast.BoolOp) and len(new.values) == 2:
         # If the unchanged prefix always short-circuits, the added operand
@@ -1028,6 +1071,8 @@ class PyDiff:
                         self.add(hb, f"except clause L{ho.lineno}")
                     self.block(ho.body, hn.body, hb, "func", None)
             return
+        if self.an.single_file and isinstance(o, ast.Return):
+            hb &= ~_equal_comparison_bits(self.module, o.value, n.value)
         self.add(hb, f"statement L{o.lineno}")
 
     # ------------------------------------------------------- class / module bodies
