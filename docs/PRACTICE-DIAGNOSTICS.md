@@ -1,6 +1,6 @@
 # Practice diagnostics
 
-Use these tags only for hourly practice measurements. All five start from candidate 14, use the same diagnostic implementation, and differ in the default mode embedded in the image. Candidate 14's official baseline was 150.503 simulated seconds and zero missed commits.
+Use these tags only for hourly practice measurements. Explicitly select the production final entry before the cutoff, since the organizer otherwise advances the best practice entry. [Official track](https://www.joinbuilders.org/buildathon/tracks/blast-radius) All five start from candidate 14, use the same diagnostic implementation, and differ in the default mode embedded in the image. Candidate 14's official baseline was 150.503 simulated seconds and zero missed commits.
 
 | Order | Tag | Commit | Change to the candidate-14 plan |
 |---|---|---|---|
@@ -26,6 +26,8 @@ Two-CPU Docker runs with the starter limits. Only patch bytes and the catalog en
 | D4 full | 95.064 | 1.51 | 0 | 449.576 | 0 |
 
 D1 kept the genuine frame difference on sample patch `2jrq`. The `3utz` probe failed during parsing and D1 removed TPC-DS, giving 380.116 penalized simulated seconds. D1 produced byte-identical plans on repeats of both batches. D1's tagged checkout was 9,481,442 bytes. Its four-CPU, 8 GiB clean build and load took 137 seconds. D2 through D4 used the shared image with each tag's mode selected at runtime for local comparisons.
+
+An additional control introduced a failing root collection hook. D4-full removed its 36.817-second full-suite fallback. D1 kept TPC-DS for a directly edited test body. On that five-patch control batch, D2 and D3 removed disjoint TPC-DS selections whose union matched D1.
 
 ### Reading the official feedback
 
