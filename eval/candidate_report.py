@@ -64,8 +64,14 @@ def matched_report(current_ref, previous_ref, records, catalog, tests, durations
         with tempfile.TemporaryDirectory(dir=cache) as tmp:
             tmp = Path(tmp)
             subprocess.run(["tar", "-xf", "-", "-C", tmp], input=git("archive", sha, "selector"), check=True)
-            for split in ("dev", "holdout"):
-                cases = [r for r in records if r["split"] == split]
+            cohorts = {
+                "Tuning": [r for r in records if r["split"] == "dev"],
+                "Registered holdout": [r for r in records if r["split"] == "holdout"],
+                "Holdout excluding historical exotic runs": [
+                    r for r in records if r["split"] == "holdout" and r["set"] != "exotic"
+                ],
+            }
+            for label, cases in cohorts.items():
                 sim = misses = full = changed = changed_selection = cpu = 0
                 for name in SETS:
                     group = [r for r in cases if r["set"] == name]
@@ -87,7 +93,6 @@ def matched_report(current_ref, previous_ref, records, catalog, tests, durations
                             else:
                                 changed += normalized != prior[key][0]
                                 changed_selection += selected != prior[key][1]
-                label = "Tuning" if split == "dev" else "Holdout"
                 diffs = f"{changed} | {changed_selection}" if ref == current_ref else "— | —"
                 lines.append(f"| {label} | {ref} | {len(cases)} | {misses} | {sim/1000:.3f} | {cpu/1e6:.3f} | {full} | {diffs} |")
     return lines
@@ -204,12 +209,12 @@ def measure(ref, labels_ref=None):
                f"({300*rescued} simulated seconds) across the measured sets. "
                "The group schedules and CPU stay the same under either convention."]
     output += ["", "## Batch scenarios", "",
-               "Each reference uses the official 16/8/3/3 weights. Held-out mutation scenarios require all four original kinds to have labels. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
+               "Each reference uses the official 16/8/3/3 weights. Held-out mutation scenarios require all four original kinds to have labels. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. The unseen pool excludes the exotic set because its nominal holdout was used in earlier mixed runs. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
                "", "| N | Unseen share | P10 s | Median s | P90 s | Mean misses |", "|---:|---:|---:|---:|---:|---:|"]
     official = [r for r in records if r['set']=='sample']
     unseen = defaultdict(list)
     for r in records:
-        if r['split']=='holdout' and r['kind'] not in run.PRACTICE_KINDS:
+        if r['split']=='holdout' and r['set'] != 'exotic' and r['kind'] not in run.PRACTICE_KINDS:
             unseen[r['kind']].append(r)
     references = {"Official sample": official, "Held-out mutations": [
         r for r in records if r["split"] == "holdout" and r["kind"] in run.PRACTICE_KINDS
