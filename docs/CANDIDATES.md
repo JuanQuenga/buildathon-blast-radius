@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Please submit candidate-11 at the 4:33 AM ET practice slot.** The forecast is **146.1 simulated + 4.6 CPU = 150.7 seconds**, conditional on zero misses. Candidate 10 was rejected at the rule-corpus build step. Candidate 8 remains the official best at 174.6 seconds. Candidate 11 builds from committed pin recordings and uses the per-file collection result and profiled date-unit lookups. Its registered holdout saved 25.250 total seconds versus candidate 10, with a 29.156-second tuning regression. The [candidate record](CANDIDATE11.md) includes the clean-build gate, full-plan audit and validation. The [final-entry comparison](FINAL.md) gives the score scenarios, miss break-even and wall-time limits.
+**Please submit candidate-12 at the 5:33 AM ET practice slot after candidate-11.** The pre-official forecast is **117.8 simulated + 15.6 CPU = 133.4 seconds**, conditional on zero misses. Candidate 12 scored 95.064 simulated + 1.303 CPU on the public sample and removed 14 passing TPC-DS selections on the registered holdout. Its clean four-CPU, 8 GiB build took 59 seconds. The coordinator handles submission. [Candidate record](CANDIDATE12.md) · [Final-entry comparison](FINAL.md)
+
+### Candidate-11 validation
+
+Candidate 11 was queued for the 4:33 AM ET slot. Its local forecast was 146.1 simulated + 4.6 CPU = 150.7 seconds. [Candidate record](CANDIDATE11.md)
 
 ### Candidate-10 build rejection
 

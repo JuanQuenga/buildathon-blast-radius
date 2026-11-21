@@ -21,7 +21,7 @@ them across up to eight simulated workers.
   then fills the slack under the makespan with plausible tests and then any other
   test ("free riders"). The extra tests cost nothing and reduce the chance of a miss.
 - `selector/patch.py`: dependency-free unified-diff parser (`-p1` like `git apply`).
-- `selector/heavy.py` and `selector/heavy_cases.py` replay eligible TPC-DS queries and parser budget assertions in patched overlays. The image builds coverage from the pinned tests. The [candidate-5 measurements](docs/CANDIDATE5.md) describe eligibility, CPU costs and limitations.
+- `selector/heavy.py` prices a possible test removal using the change in the complete worker plan. Eligible checks apply the patch to the pinned checkout. For TPC-DS, the verifier can follow a divergent optimizer rule to its query and compare the ordered result. The build restores compressed clean-pin recordings and indexes them by source line. [Candidate measurements and hazards](docs/CANDIDATE12.md)
 - `selector/verify.py`: optional whole-test runtime verification. It applies the patch into
   a `/tmp` overlay and runs candidate tests in a forked child. **Off by default.**
   See [docs/verification.md](docs/verification.md) for the measurements and why.
