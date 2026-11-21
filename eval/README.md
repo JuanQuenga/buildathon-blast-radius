@@ -54,7 +54,7 @@ git clone blast-radius/sqlglot $WB/base && git -C $WB/base checkout eb11aec4be8c
 ```
 
 Env overrides: `BR_WORKBENCH`, `BR_BASE`, `BR_PYTHON`, `BR_STARTER`, `BR_CATALOG`,
-`BR_ORACLE_CORES` (taskset range for oracle pytest runs, default `10-15`),
+`BR_ORACLE_CORES` (taskset range for oracle pytest runs, default `10-13`),
 `BR_RUN_CORES` (2 cores for the selector, default `8,9`), `BR_TEST_TIMEOUT` (per-test
 pytest-timeout, default 300 s; raised from 180 because the shared machine hit load 58).
 
@@ -74,7 +74,7 @@ python3 eval/run.py --cases sample --selector "$WB/venv/bin/python eval/baseline
 
 # label new cases
 python3 eval/gen/build.py --set mynew --seed 7 --code 50 --fixture 10
-python3 eval/oracle.py label-dir eval/cases/mynew -j 6
+python3 eval/oracle.py label-dir eval/cases/mynew -j 2
 python3 eval/oracle.py label some.patch          # one-off, prints failing tests + reasons
 ```
 
@@ -111,3 +111,6 @@ For a test rename or deletion, primary evaluation uses the fixed catalog and cou
 Selector comparisons on holdout may disclose only aggregates. The development-only miss traces in the reports include the selector's logged decision and the omitted tests. Per-patch CPU is unavailable, so subgroup CPU is a share of the measured batch total.
 
 Use `--labels-ref COMMIT` to compare candidates against the same committed, audited label snapshot. These reports replay each row's patches as a group to measure its local CPU time, including process startup. The main simulation and bootstraps continue to use the shuffled batches. The committed labels may also record the numbers of missing catalog tests for the alternate-convention calculation.
+
+
+The shared host budget for the complete benchmark is four CPU-bound processes and 4 GB of memory. The active queue runs at nice 10 inside one cgroup with a 3.5-CPU quota, a 4,000,000,000-byte memory cap and swap disabled. It runs two pytest parents. Python 3.13's PYTHON_CPU_COUNT=1 limits the implicit ProcessPoolExecutor in each parent to one worker. BLAS, OpenMP and NumExpr also receive a one-thread setting. Run timeout_audit.py within the same service after labelling to repeat timeout-affected patches serially once host load, memory pressure and paging settle.
