@@ -38,9 +38,11 @@ import ast
 import bisect
 import builtins
 import difflib
+import dis
 import functools
 import inspect
 import json
+import marshal
 import os
 import pickle
 import re
@@ -384,6 +386,9 @@ def _code_scopes(code):
 
 @functools.lru_cache(maxsize=12)
 def _pinned_scopes(path):
+    cache = MAPS_DIR.parents[1] / "pin-cache" / (path + ".marshal")
+    if cache.exists():
+        return _code_scopes(marshal.loads(cache.read_bytes()))
     source = _sources()["src"][path]
     return _code_scopes(compile(source.encode(), path, "exec", dont_inherit=True))
 
@@ -401,8 +406,14 @@ def _changed_call_semantics(path, patched_code):
                 return True
             if old.co_freevars != new.co_freevars or old.co_cellvars != new.co_cellvars:
                 return True
-            if (set(old.co_varnames) ^ set(new.co_varnames)) & (set(old.co_names) | set(new.co_names)):
-                return True
+            candidates = (set(old.co_varnames) ^ set(new.co_varnames)) & (set(old.co_names) | set(new.co_names))
+            if candidates:
+                # LOAD_ATTR and LOAD_METHOD use co_names too. Neither reads a
+                # variable binding, even when its spelling matches a new local.
+                for code in (old, new):
+                    if any(i.opname.endswith(("_GLOBAL", "_NAME", "_GLOBALS"))
+                           and i.argval in candidates for i in dis.get_instructions(code)):
+                        return True
     return False
 
 
@@ -434,6 +445,72 @@ def _same_observed_comparison(path, old, new):
         finally:
             b.ops = saved
     return False
+
+
+@functools.lru_cache(maxsize=1)
+def _branch_profiles():
+    profiles = json.loads((MAPS_DIR / "branches.json").read_text())
+    tests = _index()["tests"]
+    return [(1 << tests.index(test), sites) for test, sites in profiles.items()]
+
+
+def _pure_type_guard(node):
+    """A pinned SQLGlot enum type check on an expression's stored payload."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        node = node.operand
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == "isinstance" and len(node.args) == 2 and not node.keywords):
+        return False
+    value, typ = node.args
+    return (isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name)
+            and value.attr == "this" and isinstance(typ, ast.Attribute)
+            and isinstance(typ.value, ast.Name) and typ.value.id == "exp" and typ.attr == "DType")
+
+
+def _unchanged_branch_bits(module, old, new):
+    site = f"{module}:{old.lineno}:{old.col_offset}"
+    if isinstance(new, ast.BoolOp) and len(new.values) == 2:
+        # If the unchanged prefix always short-circuits, the added operand
+        # cannot run. This holds regardless of its calls or side effects.
+        if _dump(new.values[0]) == _dump(old):
+            stop = int(isinstance(new.op, ast.Or))
+            return sum(bit for bit, sites in _branch_profiles() if sites.get(site) == stop)
+        if (isinstance(old, ast.BoolOp) and type(old.op) is type(new.op)
+                and len(old.values) == 2 and _dump(old.values[0]) == _dump(new.values[0])):
+            stop = int(isinstance(new.op, ast.Or))
+            return sum(bit for bit, sites in _branch_profiles()
+                       if sites.get(site) == stop and site + ":tail" not in sites)
+    if not isinstance(old, ast.BoolOp) or len(old.values) != 2:
+        return 0
+    if _dump(old.values[0]) != _dump(new) or not _pure_type_guard(old.values[1]):
+        return 0
+    site = f"{module}:{old.lineno}:{old.col_offset}:tail"
+    neutral = int(isinstance(old.op, ast.And))
+    result = 0
+    for bit, sites in _branch_profiles():
+        if sites.get(site) == neutral:
+            result |= bit
+    return result
+
+
+def _local_raising_fixtures(body):
+    if not body or not isinstance(body[0], ast.Import) or _dump(body[0]) != _dump(ast.parse("import pytest").body[0]):
+        return False
+    decorator = _dump(ast.parse("pytest.fixture(autouse=True)", mode="eval").body)
+    for fn in body[1:]:
+        if not (isinstance(fn, ast.FunctionDef) and fn.name.startswith("_") and not fn.name.startswith("__")
+                and len(fn.decorator_list) == 1 and _dump(fn.decorator_list[0]) == decorator
+                and not fn.args.defaults and not fn.args.kw_defaults and not fn.returns
+                and not getattr(fn, "type_params", []) and not any(ast.iter_child_nodes(fn.args))
+                and len(fn.body) == 1 and isinstance(fn.body[0], ast.Raise)):
+            return False
+        error = fn.body[0].exc
+        if not (isinstance(error, ast.Call) and isinstance(error.func, ast.Name)
+                and error.func.id in {"RuntimeError", "ValueError", "AssertionError"}
+                and all(isinstance(arg, ast.Constant) for arg in error.args)
+                and not error.keywords and fn.body[0].cause is None):
+            return False
+    return True
 
 
 class Analysis:
@@ -550,7 +627,15 @@ class Analysis:
             if filename == "conftest.py":
                 # Even comments can specify a broken Python source encoding.
                 compile(source.encode(), newp, "exec", dont_inherit=True)
-                if not ast.parse(source).body:
+                body = ast.parse(source).body
+                if (self.single_file and newp.startswith("tests/") and _local_raising_fixtures(body)
+                        and newp not in _sources()["files"]):
+                    directory = newp.rsplit("/", 1)[0] + "/"
+                    bits = sum(1 << i for i, test in enumerate(self.idx["tests"])
+                               if test.startswith(directory))
+                    self.add(bits, f"autouse fixture applies below {directory}")
+                    return
+                if not body:
                     return
             if filename == "__init__.py" or "/" not in newp:
                 raise Unsupported(f"new package or top-level module {newp} may change imports")
@@ -679,14 +764,12 @@ class Analysis:
             self.add(self.import_break(oldp, "function protocol or variable binding changed"),
                      f"{oldp} changed function call semantics")
             return
+        identity_edit = False
         if self.single_file and len(placed) == 1:
             changed = [(tag, text) for tag, text in placed[0][0].lines if tag in ("+", "-")]
-            if len(changed) == 2 and " is " in changed[0][1] and (
-                "==" in changed[1][1] or "!=" in changed[1][1]
-            ) and _same_observed_comparison(oldp, ast.parse(old_src), ast.parse(new_src)):
-                self.reasons.append(f"{oldp}: identity and equality agreed on pinned operands")
-                return
-        if self.fast_function_path(oldp, old_src, new_src, placed):
+            identity_edit = (len(changed) == 2 and " is " in changed[0][1]
+                             and ("==" in changed[1][1] or "!=" in changed[1][1]))
+        if self.fast_function_path(oldp, old_src, new_src, placed, identity_edit):
             return
         try:
             old_tree = ast.parse(old_src)
@@ -698,9 +781,12 @@ class Analysis:
             self.add(self.import_break(oldp, f"no longer compiles ({type(e).__name__})"),
                      f"{oldp} no longer compiles")
             return
+        if identity_edit and _same_observed_comparison(oldp, old_tree, new_tree):
+            self.reasons.append(f"{oldp}: identity and equality agreed on pinned operands")
+            return
         PyDiff(self, oldp, old_tree, new_tree, old_src, new_src).run()
 
-    def fast_function_path(self, path, old_src, new_src, placed) -> bool:
+    def fast_function_path(self, path, old_src, new_src, placed, identity_edit=False) -> bool:
         """All hunks strictly inside one function body: parse just that
         function (old and new) instead of the whole module."""
         sc = self.idx.get("scopes", {}).get(path)
@@ -768,6 +854,9 @@ class Analysis:
             return False
         if o.end_lineno != d_end or (n.end_lineno or 0) != d_end + delta:
             return False  # the segment is not exactly the function
+        if identity_edit and _same_observed_comparison(path, o, n):
+            self.reasons.append(f"{path}: identity and equality agreed on pinned operands")
+            return True
         pd = PyDiff(self, path, None, None, old_src, new_src)
         first = next((x for x in o.body if not _is_docstring(x)), None)
         entry = pd.stmt_bits(first) if first is not None else pd.lb(body_start, d_end)
@@ -906,7 +995,10 @@ class PyDiff:
             return
         if isinstance(o, (ast.If, ast.While)):
             if _dump(o.test) != _dump(n.test):
-                self.add(hb, f"condition L{o.lineno}")
+                condition_bits = hb
+                if self.an.single_file:
+                    condition_bits &= ~_unchanged_branch_bits(self.module, o.test, n.test)
+                self.add(condition_bits, f"condition L{o.lineno}")
             self.block(o.body, n.body, hb, "func", None)
             self.block(o.orelse, n.orelse, hb, "func", None)
             return
@@ -1590,22 +1682,41 @@ def _src_lines(path: str) -> list:
     return cache[path]
 
 
+def _matching_lines(text, pattern):
+    line, previous = 1, 0
+    for match in pattern.finditer(text):
+        line += text.count("\n", previous, match.start())
+        previous = match.start()
+        yield line
+
+
+@functools.lru_cache(maxsize=1)
+def _name_index():
+    path = MAPS_DIR.parents[1] / "pin-cache" / "names.db"
+    if path.exists():
+        import sqlite3
+        return sqlite3.connect(f"file:{path}?immutable=1", uri=True)
+    return None
+
+
 def _name_sites(an: "Analysis", name: str) -> list:
     """Every whole-word occurrence of ``name`` in the pinned sources, one per
     statement span: (path, line, span_lo, span_hi, scope)."""
     cache = _sources().setdefault("_sites", {})
     if name in cache:
         return cache[name]
-    pat = re.compile(r"\b" + re.escape(name) + r"\b")
+    db = _name_index()
+    if db is None:
+        pat = re.compile(r"\b" + re.escape(name) + r"\b")
+        rows = ((path, _matching_lines(text, pat))
+                for path, text in _sources()["src"].items() if name in text)
+    else:
+        rows = ((path, marshal.loads(lines)) for path, lines in db.execute(
+            "SELECT path,rows FROM sites WHERE name=?", (name,)))
     out = []
-    for path, text in _sources()["src"].items():
-        if name not in text:
-            continue
-        ln, last = 1, 0
+    for path, lines in rows:
         seen = set()
-        for m in pat.finditer(text):
-            ln += text.count("\n", last, m.start())
-            last = m.start()
+        for ln in lines:
             lo, hi = _stmt_span(an, path, ln)
             if (lo, hi) in seen:
                 continue
