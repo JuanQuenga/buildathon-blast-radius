@@ -21,3 +21,11 @@ The inherited cache version stayed at v1 across changes to pytest collection and
 The starter validator and score use integer milliseconds. Full-suite LPT with four workers costs 36.817 seconds per patch. The three-worker starter costs 40.349. Local selector CPU and scenario quantiles require separate reporting from exact simulated seconds. The host harness lacks the image resource limits.
 
 Sources include the [track](https://www.joinbuilders.org/buildathon/tracks/blast-radius), its locally archived HTML and sample kit, and the [scoring contract](https://www.joinbuilders.org/buildathon/tracks/blast-radius/files/SCORING.md).
+
+### Split audit
+
+Across all splits, five held-out patches have exact development copies. The mechanical holdout shares 59 of its 79 family names with dev. The new transfer set adds encoding declarations, docstring escapes, SQL fixture metadata and whitespace in expected SQL output. It contributes four small cases and cannot establish a population frequency for any of them.
+
+The selector team recorded one aggregate evaluation of candidate-2 on 18 mechanical and 22 audited exotic holdout patches. Future candidate comparisons therefore reuse a validation set. The remaining blind evidence comes from newly labelled cases and the separately frozen transfer set. [Team request log](../docs/REQUESTS.md)
+
+The downloaded scoring rules (including the inline version) and starter archive matched the archived local bytes during this review. On the 30 official patches, full-suite LPT scored 1,104.510 seconds in both the local harness and the organizer's scorer. The oracle lower bound of 94.351 seconds is attainable on every official patch.
