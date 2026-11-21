@@ -6,8 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=0
 
 WORKDIR /app
-COPY selector/requirements.lock /tmp/requirements.lock
-RUN pip install --no-cache-dir -r /tmp/requirements.lock
+COPY selector/requirements.lock selector/wheels.lock /tmp/
+RUN pip install --disable-pip-version-check --no-cache-dir --no-deps -c /tmp/requirements.lock -r /tmp/wheels.lock
 ADD https://codeload.github.com/tobymao/sqlglot/tar.gz/eb11aec4be8cb2122afe713a4816662c3f0fb2fa /tmp/pin.tar.gz
 RUN mkdir /app/sqlglot && tar xzf /tmp/pin.tar.gz --strip-components=1 -C /app/sqlglot && rm /tmp/pin.tar.gz
 ENV OPENBLAS_NUM_THREADS=1 PYTHON_CPU_COUNT=1 SKIP_INTEGRATION=0

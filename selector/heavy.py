@@ -693,6 +693,7 @@ def run(patches, catalog, dur, t0):
     ids = {t["number"]: t["id"] for t in catalog}
     queue = []
     attempted = set()
+    mode_counts = {}
     bundle_wins = bundle_tries = 0
     session = None
 
@@ -721,8 +722,9 @@ def run(patches, catalog, dur, t0):
                 if probability * probe.gain < probe.estimate:
                     continue
             patch = probe.patch
-            if probe.estimate > allowance:
+            if probe.estimate > allowance or mode_counts.get(probe.mode, 0) >= 12:
                 continue
+            mode_counts[probe.mode] = mode_counts.get(probe.mode, 0) + 1
             allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
             phase = probe.mode
