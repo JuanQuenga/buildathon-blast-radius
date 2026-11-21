@@ -101,3 +101,11 @@ that file), or when it never reported at all (`missing`: crash, deleted or
 renamed test). The last rule is our conservative guess; the official handling
 of renamed/deleted catalog tests is unpublished — `oracle-details/<set>.json`
 lists such tests under `missing` so they can be excluded.
+
+## Comparing frozen selector commits
+
+Run `python3 eval/candidate_report.py candidate-1` to measure the tagged selector tree and write its report under `eval/REPORTS/`. The script snapshots labels at startup and reuses measured plans for the same tree, catalog and batch. Rerun it after a labelling checkpoint. Reports disclose the number of unavailable labels and exclude exact copies of development patches from held-out measurements. The four fresh transfer cases are held out. Archived selector output and timings stay in the workbench. This host runner assumes the image starts Python with the selector module and default settings.
+
+For a test rename or deletion, primary evaluation uses the fixed catalog and counts a missing ID as failing. `run.py --ignore-missing` gives the alternate convention when oracle details are available. For a root conftest import error before pytest has collected any tests, the label file marks the all-catalog interpretation as inferred. Candidate reports omit that case. Whole-job timeouts, crashes and interrupted collection require a successful rerun. The per-test timeout currently defaults to 300 seconds.
+
+Selector comparisons on holdout may disclose only aggregates. The development-only miss traces in the reports include the selector's logged decision and the omitted tests. Per-patch CPU is unavailable, so subgroup CPU is a share of the measured batch total.

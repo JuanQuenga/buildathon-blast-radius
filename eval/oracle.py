@@ -202,6 +202,12 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
             res["key"] = key
             if run["rc"] == "case_timeout":
                 res["status"] = "case_timeout"
+            elif (run["rc"] == 4 and not res["ended"]
+                  and log.read_text(errors="replace").splitlines()[:1] ==
+                      [f"ImportError while loading conftest '{work}/tests/conftest.py'."]):
+                # Pytest stops before loading the plugin. The affected scope is
+                # all catalog files; this label remains an explicit convention.
+                res["status"] = "root_conftest_inferred"
             elif not res["ended"]:
                 res["status"] = "crash"
             else:
@@ -262,13 +268,16 @@ def _cmd_label_dir(a):
 
     def write(res):
         for cid, r in res.items():
-            if r.get("status") != "ok" or r.get("rc") not in (0, 1, 5):
+            inferred = r.get("status") == "root_conftest_inferred"
+            if not inferred and (r.get("status") != "ok" or r.get("rc") not in (0, 1, 5)):
                 bad[cid] = r["status"]
                 answers.pop(cid, None)
                 oracle.pop(cid, None)
                 continue
             m = meta.get(cid, {})
             answers[cid] = {"failing": r["failing"], "kind": m.get("kind", "unknown")}
+            if inferred:
+                answers[cid]["basis"] = "root_conftest_inferred"
             oracle[cid] = {k: r.get(k) for k in ("status", "key", "missing", "collect_errors", "rc", "wall", "slow")}
             oracle[cid]["reasons"] = r.get("reasons", {})
         # answers.json is written atomically so readers never see a partial file
