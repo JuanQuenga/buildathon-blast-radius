@@ -1,6 +1,9 @@
 """Repeat timeout-affected patches serially after host load and swapping settle."""
 import json
 import os
+import subprocess
+import sys
+from collections import defaultdict
 from pathlib import Path
 import time
 
@@ -32,14 +35,14 @@ def main():
         if (x.get("status") == "case_timeout" or x.get("timeout_first_run")
                 or any("Timeout (>" in r for r in x.get("reasons", {}).values())):
             pending.add(p.stem)
-    touched = set()
+    touched = defaultdict(list)
     results = {}
     for p in sorted((oracle.EVAL / "cases").glob("*/commits/*.patch")):
         patch = p.read_bytes()
         key = oracle.patch_key(patch)
         if key not in pending:
             continue
-        touched.add(p.parents[1])
+        touched[p.parents[1]].append(p.stem)
         if key in results:
             continue
         wait_for_quiet()
@@ -48,12 +51,10 @@ def main():
             raise RuntimeError(f"Quiet rerun incomplete: {measured['status']}")
         results[key] = {"failing": measured["failing"],
                         "timeout_reproduced": measured.get("timeout_reproduced", [])}
-    for directory in sorted(touched):
+    for directory, ids in sorted(touched.items()):
         if directory.name != "sample":
-            import subprocess
-            import sys
             subprocess.run([sys.executable, str(oracle.EVAL / "oracle.py"), "label-dir",
-                            str(directory), "-j", "1"], check=True)
+                            str(directory), "-j", "1", "--only", ",".join(ids)], check=True)
     (oracle.WORKBENCH / "quiet-timeout-rechecks.json").write_text(json.dumps(results))
     print(f"Completed {len(results)} quiet-timeout rechecks", flush=True)
 
