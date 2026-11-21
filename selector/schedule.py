@@ -228,4 +228,14 @@ def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int
         key = (cost, -covered_pl, -selected_count)
         if best is None or key < best[0:3]:
             best = (cost, -covered_pl, -selected_count, k, bins)
-    return best[4]
+    bins = best[4]
+    # LPT and the bounded search can miss a packing. The two lightest
+    # occupied workers give the cheapest possible single merge.
+    while len(bins) > 1:
+        loads = [sum(dur[t] for t in worker) for worker in bins]
+        a, b = sorted(range(len(bins)), key=loads.__getitem__)[:2]
+        if loads[a] + loads[b] > max(loads) + SETUP_MS:
+            break
+        bins[a].extend(bins[b])
+        del bins[b]
+    return bins

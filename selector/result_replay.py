@@ -13,11 +13,14 @@ def table_digest(table):
 
 
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
+    from phase import mark
+
     execute = ex.PythonExecutor.execute
     extra_cpu = 3.0 if full else 0.6
 
     def check_plan(engine, plan):
         nonlocal extra_cpu, ran, skipped
+        mark("plan")
         if ran or skipped:
             raise ValueError("multiple executions")
         if not required:
@@ -32,6 +35,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             signal.setitimer(signal.ITIMER_PROF, extra_cpu)
         start = time.process_time()
         try:
+            mark("execute")
             ran = True
             return execute(engine, plan)
         finally:
@@ -43,17 +47,33 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     try:
         if len(test.tpcds_sqls) != len(expected) or len(expected) != 99:
             raise ValueError("incomplete fixtures")
-        for i, (meta, sql, _) in enumerate(test.tpcds_sqls):
-            if selection is not None and i not in selection["active"]:
-                continue
-            reference = expected[i]
+        inputs = []
+        import sqlglot
+        active = set(selection["active"]) if selection is not None else range(99)
+        mark("tokens")
+        for i in sorted(active):
+            meta, sql, _ = test.tpcds_sqls[i]
+            tokens = sqlglot.tokenize(sql)
+            if digest([[t.token_type.name, t.text, t.line, t.col, t.start, t.end, t.comments]
+                       for t in tokens]) != expected[i][0]:
+                raise ValueError("tokens changed")
+        mark("parse")
+        for i in sorted(active):
+            meta, sql, _ = test.tpcds_sqls[i]
             expr = pickle.loads(pickle.dumps(tests.parse_one(sql)))
-            if not meta.get("execute"):
-                continue
-            if digest(tests.transpile(sql, write="duckdb")) != reference[4]:
+            if digest(expr.dump()) != expected[i][2]:
+                raise ValueError("AST changed")
+            if meta.get("execute"):
+                inputs.append((i, meta, sql, expr))
+        mark("generate")
+        for i, meta, sql, expr in inputs:
+            if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
                 raise ValueError("reference query changed")
+        for i, meta, sql, expr in inputs:
+            reference = expected[i]
+            mark("optimize")
             required = i in full if isinstance(full, list) else bool(full)
-            parsed_matches = not required and digest(expr.dump()) == reference[2]
+            parsed_matches = True
             if selection is not None and i not in selection["worker"] and parsed_matches:
                 continue
             ran = skipped = False

@@ -1,8 +1,9 @@
 """Differential replay for local expression edits in pinned per-query code."""
 import ast
+import contextlib
+from dataclasses import dataclass
 import functools
 import gzip
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,7 @@ import textwrap
 import tempfile
 import time
 
-from . import query_slice, verify, warm_replay
+from . import impact, query_slice, token_options, verify, warm_replay
 from .patch import parse
 from .schedule import plan_cost, schedule
 
@@ -189,28 +190,40 @@ def replay(group, cases, overlay, deadline, path=None):
     # from patched code cannot be mistaken for completed assertions.
     if group == "catalog":
         script = SCRIPT.with_name("catalog_check.py")
-    elif group == "generator":
+    elif group == "rules":
+        script = SCRIPT.with_name("rule_corpus.py")
+    elif group == "bundle":
+        script = SCRIPT.with_name("bundle.py")
+    elif group in {"generator", "dialects"}:
         script = SCRIPT.with_name("generator_cases.py")
-    elif group in {"scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial"}:
-        script = SCRIPT.with_name("staged.py")
+    elif group in {"imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial"}:
+        script = SCRIPT.with_name("stage_check.py")
     else:
         script = SCRIPT
-    with tempfile.TemporaryFile() as receipt:
+    with tempfile.TemporaryFile() as receipt, tempfile.TemporaryFile() as phase:
         env = dict(os.environ, BLAST_RECEIPT=str(receipt.fileno()), MALLOC_ARENA_MAX="2")
+        env["BLAST_PHASE_FD"] = str(phase.fileno())
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
-        if warm_replay.ready and group not in {"ds", "parser", "generator"}:
-            return warm_replay.run(script, group, cases, overlay, deadline,
-                                   env.get("BLAST_CHANGED_MODULE", ""), receipt)
+        if warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
+            result = warm_replay.run(script, group, cases, overlay, deadline,
+                                   env.get("BLAST_CHANGED_MODULE", ""), receipt, phase)
+            replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
+            return result
         with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(script), group, *cases],
-                              cwd=overlay, env=env, pass_fds=(receipt.fileno(),),
+                              cwd=overlay, env=env, pass_fds=(receipt.fileno(), phase.fileno()),
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              stdin=subprocess.DEVNULL, start_new_session=True) as child:
+                              stdin=subprocess.DEVNULL, start_new_session=warm_replay.active_overlay is None) as child:
             try:
                 status = child.wait(timeout=max(0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
-                os.killpg(child.pid, signal.SIGKILL)
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(child.pid, signal.SIGKILL)
+                child.kill()
+                child.wait()
+                replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
                 return "timeout"
+        replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
         receipt.seek(0)
         return "pass" if status == 0 and receipt.read(3) == b"OK" else "failed"
 
@@ -218,102 +231,6 @@ def replay(group, cases, overlay, deadline, path=None):
 def cpu():
     children = resource.getrusage(resource.RUSAGE_CHILDREN)
     return time.process_time() + children.ru_utime + children.ru_stime
-
-
-def collect(patch, dur, stop):
-    req, pl = patch.alt
-    files = parse(patch.text)
-    # Pytest configuration, helpers, registries and file operations stay full.
-    if (len(files) != 1 or files[0].old_path != files[0].new_path or not re.fullmatch(
-        r"sqlglot/(?:parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py",
-        files[0].path
-    ) or len(req) == len(dur)):
-        return
-    changes = verify.apply_patch(patch.text)
-    path = files[0].path
-    # Reject module/class state and decorators. The only difference may be
-    # inside an existing function body. Keep all original file readers.
-    bodies = []
-    for source, touched in (
-        ((Path(verify.PRISTINE) / path).read_text(), {n for h in files[0].hunks for n in h.removed_old_lines}),
-        (changes[path], {n for h in files[0].hunks for n in h.added_new_lines}),
-    ):
-        module = ast.parse(source)
-        for fn in ast.walk(module):
-            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                if any(fn.lineno <= n <= fn.end_lineno for n in touched) and shared_state(fn):
-                    return
-                fn.body = []
-        bodies.append(ast.dump(module))
-    if bodies[0] != bodies[1]:
-        return
-    workers = schedule(req, pl, dur)
-    if plan_cost(workers, dur) >= plan_cost(schedule(set(dur), set(), dur), dur):
-        return
-    began = cpu()
-    with tempfile.TemporaryDirectory() as work:
-        verify.build_overlay(work, changes)
-        result = replay("collect", [], work, min(stop, time.monotonic()+6))
-    print("collection", patch.commit, result, f"{cpu()-began:.4f}", file=sys.stderr)
-    if result == "pass":
-        patch.full, patch.req, patch.pl, patch.workers = False, req, pl, workers
-
-
-def narrow_pass(patches, catalog, dur, t0, start_cpu):
-    stop = min(time.monotonic()+60, t0+120)
-    targets = {t["number"]: TARGETS[t["id"]] for t in catalog if TARGETS.get(t["id"]) in {"ds", "parser"}}
-    for patch in patches:
-        if time.monotonic() >= stop or cpu() - start_cpu > 48:
-            break
-        if patch.full and patch.alt:
-            try:
-                collect(patch, dur, min(stop, time.monotonic() + (70-cpu()+start_cpu)/2))
-            except Exception as exc:
-                print("collection", patch.commit, type(exc).__name__, file=sys.stderr)
-            continue
-        if patch.full:
-            continue
-        scheduled = set().union(*patch.workers)
-        for n in sorted(scheduled & targets.keys()):
-            group = targets[n]
-            began = cpu()
-            before = plan_cost(patch.workers, dur)
-            outcome = "hazard"
-            count = 0
-            try:
-                edit = local_edit(patch.text)
-                if edit is None:
-                    continue
-                path, span, changes = edit
-                cases = affected(group, path, span)
-                if cases is None:
-                    outcome = "coverage-or-cost"
-                    continue
-                count = len(cases)
-                req, pl = patch.req - {n}, patch.pl - {n}
-                workers = schedule(req, pl, dur) if req else []
-                if (n in set().union(*workers) or plan_cost(workers, dur) >= before
-                    or not req.issubset(set().union(*workers))):
-                    outcome = "no-saving"
-                    continue
-                with tempfile.TemporaryDirectory() as work:
-                    verify.build_overlay(work, changes)
-                    outcome = replay(group, cases, work, min(stop, time.monotonic()+min(10, (70-cpu()+start_cpu)/2)), path)
-                if outcome == "pass":
-                    patch.req, patch.pl, patch.workers = req, pl, workers
-            except Exception as exc:
-                outcome = type(exc).__name__
-            finally:
-                print(
-                    "heavy",
-                    patch.commit,
-                    group,
-                    outcome,
-                    count,
-                    f"{cpu() - began:.4f}",
-                    before - plan_cost(patch.workers, dur),
-                    file=sys.stderr,
-                )
 
 
 @functools.cache
@@ -469,42 +386,124 @@ def eligible_file(f, group):
     return True
 
 
+def method_spans(path, fd, original, source):
+    """Prove the module prefix and suffix identical before comparing a single method."""
+    removed = [n for h in fd.hunks for n in h.removed_old_lines]
+    if not removed:
+        return None
+    scopes = impact._index()["scopes"].get(path)
+    if not scopes:
+        return None
+    for kind, start, end, name, body in reversed(scopes[1]):
+        if kind != "def" or not body <= min(removed) <= max(removed) <= end:
+            continue
+        old = original.splitlines(keepends=True)
+        new = source.splitlines(keepends=True)
+        end_new = end + len(new) - len(old)
+        if old[:start-1] != new[:start-1] or old[end:] != new[end_new:]:
+            return None
+        prefix = old[start-1][:len(old[start-1])-len(old[start-1].lstrip())]
+        chunks = []
+        for lines in (old[start-1:end], new[start-1:end_new]):
+            if any(line.strip() and not line.startswith(prefix) for line in lines):
+                return None
+            chunks.append("".join(line[len(prefix):] if line.startswith(prefix) else line
+                                  for line in lines))
+        ranges = query_slice.spans(*chunks)
+        if ranges:
+            return [(lo+start-1, hi+start-1) for lo, hi in ranges]
+        return None
+    return None
+
+
 @functools.lru_cache(maxsize=2)
 def changed_regions(text):
     changes = verify.apply_patch(text)
     result = {}
+    files = {f.path: f for f in parse(text)}
     for path, source in changes.items():
         if not re.fullmatch(r"sqlglot/(?:\w+/)*\w+\.py", path):
             return None
-        ranges = query_slice.spans((Path(verify.PRISTINE) / path).read_text(), source)
+        original = (Path(verify.PRISTINE) / path).read_text()
+        removed = [n for h in files[path].hunks for n in h.removed_old_lines]
+        scopes = impact._index()["scopes"].get(path)
+        if scopes and any(not any(k == "def" and body <= n <= end
+                                  for k, _, end, _, body in scopes[1]) for n in removed):
+            return None
+        ranges = method_spans(path, files[path], original, source)
+        if ranges is None:
+            ranges = query_slice.spans(original, source)
         if ranges is None:
             return None
         result[path] = ranges
     return result
 
 
+@functools.cache
+def probe_profiles(group):
+    with gzip.open(f"/app/profile-{group}.gz") as stream:
+        return json.load(stream)
+
+
+@functools.lru_cache(maxsize=48)
 def stage_edit(text, group):
     files = parse(text)
     if not files or not all(eligible_file(f, "ds") for f in files):
         return None
     changes = verify.apply_patch(text)
     paths = ",".join(changes)
-    if group == "generator":
-        return "generator", paths, changes, []
     regions = changed_regions(text)
+    if group == "generator":
+        if regions:
+            rows = probe_profiles("generator")
+            if not query_slice.reached(rows["generator-setup"], regions):
+                dialects = [k[4:] for k, v in rows.items() if k.startswith("gen:") and query_slice.reached(v, regions)]
+                return "dialects", paths, changes, dialects
+        return "generator", paths, changes, []
     if group == "parser":
         if regions and not any(query_slice.reached(profile("parser")[k]["lines"], regions) for k in ("parser:setup", "parser:2")):
             return "small", paths, changes, []
         if not all(eligible_file(f, group) for f in files):
             return None
         return "scaled", paths, changes, []
+    if len(files) == 1 and regions is None and token_options.corpus_edit(paths, (Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
+        return "tokens", paths, changes, []
     if paths == "sqlglot/tokens.py" and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
         return "tokens", paths, changes, []
+    selection = query_slice.query_cases(regions) if regions else None
+    if selection is not None and not selection["active"]:
+        if local_edit(text):
+            return "unreached", paths, changes, []
+        selection["execute"] = []
+        return "slice", paths, changes, selection
     if regions and all(p == "sqlglot/parser.py" or p.startswith("sqlglot/parsers/") for p in regions):
         outside = json.loads(Path("/app/parse-corpus.pkl.json").read_text())
         if not query_slice.reached(outside, regions):
+            rows = probe_profiles("parser")
+            # A corpus input can warm shared parser caches. Replay the complete
+            # corpus when any input reaches the edit, preserving input order.
+            if not any(query_slice.reached(v, regions) for v in rows.values()):
+                return "imported", paths, changes, []
             return "corpus", paths, changes, []
-    selection = query_slice.query_cases(regions) if regions else None
+    if selection is not None and all(p.startswith("sqlglot/optimizer/") for p in regions):
+        from . import rule_corpus
+        # Include every enclosing method and its decorators. The complete AST
+        # check above has already confined each edit to existing method bodies.
+        tails = downstream()
+        def tail_hit(path, spans):
+            scopes = impact._index()["scopes"].get(path)
+            if not scopes:
+                return True
+            affected = [(start, end) for kind, start, end, _, body in scopes[1]
+                        if kind == "def" and any(body <= lo <= hi <= end for lo, hi in spans)]
+            if not affected:
+                return True
+            return any(p == path and any(lo <= line <= hi for lo, hi in affected)
+                       for row in tails for p, line in row["calls"])
+        if not any(tail_hit(path, spans) for path, spans in regions.items()):
+            indices = rule_corpus.select(regions)
+            if indices is not None:
+                return "rules", paths, changes, indices
     if selection is not None and not selection["worker"]:
         selection["execute"] = []
         return "slice", paths, changes, selection
@@ -517,134 +516,190 @@ def stage_edit(text, group):
     return ("partial" if cases else "front"), paths, changes, cases
 
 
-def run(patches, catalog, dur, t0):
-    started = time.monotonic()
-    start_cpu = cpu()
-    stop = min(t0 + 120, started + 70)
-    narrow_pass(patches, catalog, dur, t0, start_cpu)
-    queue = []
-    targets = [
-        (test["number"], TARGETS[test["id"]])
-        for test in catalog
-        if test["id"] in TARGETS
-    ]
-    def enqueue(patch):
-        if time.monotonic() >= stop or cpu() - start_cpu >= 68 or patch.full or not patch.req:
+@dataclass
+class Probe:
+    patch: object
+    group: str
+    number: int | None
+    mode: str
+    paths: str
+    cases: object
+    proposed: tuple
+    gain: float
+    probability: float
+    estimate: float
+
+    @property
+    def priority(self):
+        return self.gain * self.probability / self.estimate
+
+
+def economics(mode, cases):
+    # Smoothed rates from tuning, pooled by verification mechanism.
+    if mode == "rules":
+        from .rule_corpus import estimate
+        return 0.78, estimate(cases)
+    if mode == "slice":
+        exe = cases["execute"]
+        cost = 0.18 + 0.010 * len(cases["active"]) + 0.038 * len(cases["worker"])
+        return (0.32 if exe else 0.74), cost + 0.1 * len(exe)
+    if mode in {"partial", "front"}:
+        return 0.60, 4.0 + 0.11 * len(cases)
+    if mode == "dialects":
+        return 0.79, 0.22 + 0.025 * len(cases)
+    return {
+        "unreached": (0.99, 0.005), "imported": (0.90, 0.09),
+        "tokens": (0.60, 0.22), "corpus": (0.86, 0.46),
+        "small": (0.75, 0.29), "scaled": (0.67, 0.61),
+        "generator": (0.79, 1.35),
+    }[mode]
+
+
+def options(patch, catalog, targets, dur):
+    if patch.full:
+        if not patch.alt:
             return
-        for number, group in targets:
-            if number not in patch.req:
-                continue
-            try:
-                req = patch.req - {number}
-                workers = schedule(req, patch.pl - {number}, dur) if req else []
-                gain = plan_cost(patch.workers, dur) - plan_cost(workers, dur)
-                if gain <= 0 or number in set().union(*workers):
-                    continue
-                edit = stage_edit(patch.text, group)
-                if not edit:
-                    continue
-                mode, path, changes, cases = edit
-                estimate = (
-                    0.9
-                    if mode in {"scaled", "small", "corpus", "tokens"}
-                    else (0.35 + 0.008 * len(cases["active"]) + 0.05 * len(cases["worker"]) if mode == "slice" else 6)
-                    + sum(
-                        profile("ds")[f"ds:{i}"]["phases"].get("execute", 0)
-                        for i in (cases["execute"] if mode == "slice" else cases)
-                    )
-                )
-                if group == "generator":
-                    estimate = 1.45
-                if gain > estimate * 1000:
-                    queue.append(
-                        (
-                            gain / estimate,
-                            patch,
-                            group,
-                            number,
-                            mode,
-                            path,
-                            cases,
-                            hashlib.sha256(json.dumps(changes, sort_keys=True).encode()).digest(),
-                        )
-                    )
-            except Exception:
-                continue
-    # A collection hazard keeps the whole suite until actual pytest collection
-    # has succeeded. Even then, only verified heavy tests may leave the plan.
-    full_plan = None
-    for patch in patches:
-        if time.monotonic() >= stop or cpu() - start_cpu > 55:
-            break
-        if not patch.full or not patch.alt:
-            continue
-        try:
-            files = parse(patch.text)
-            if not files or not all(eligible_file(f, "ds") for f in files):
-                continue
-            if full_plan is None:
-                full_plan = schedule(set(dur), set(), dur)
-            warm_replay.prepare()
-            with tempfile.TemporaryDirectory() as work:
-                verify.build_overlay(work, verify.apply_patch(patch.text))
-                outcome = replay("catalog", [], work, min(stop, time.monotonic() + 5))
-            print("full-collection", patch.commit, outcome, file=sys.stderr)
-            if outcome == "pass":
-                patch.req, patch.pl = set(dur), set()
-                patch.full, patch.workers = False, full_plan
-        except Exception:
-            continue
-    for patch in patches:
-        enqueue(patch)
-    if sum(row[4] in {"front", "partial", "slice"} for row in queue) >= 2:
-        warm_replay.prepare()
-    verdicts = {}
-    while queue:
-        queue.sort(key=lambda row: row[0])
-        _, patch, group, number, mode, path, cases, overlay_id = queue.pop()
+        files = parse(patch.text)
+        if not files or not all(eligible_file(f, "ds") for f in files):
+            return
+        changes = verify.apply_patch(patch.text)
+        for path, source in changes.items():
+            compile(source, path, "exec", dont_inherit=True)
+        # Successful collection alone permits no exclusions. Price this as an
+        # opportunity to verify the high-cost tests on the next iteration.
+        req = set(dur)
+        workers = schedule(req, set(), dur)
+        yield Probe(patch, "collection", None, "catalog", ",".join(changes), [],
+                    (req, set(), workers), 5, 0.60, 1.1)
+        return
+    if not patch.req:
+        return
+    for number, group in targets:
         if number not in patch.req:
             continue
-        remaining = min(stop - time.monotonic(), (70 - (cpu() - start_cpu)) / 2)
-        if remaining <= 0:
+        req, pl = patch.req - {number}, patch.pl - {number}
+        workers = schedule(req, pl, dur) if req else []
+        gain = (plan_cost(patch.workers, dur) - plan_cost(workers, dur)) / 1000
+        if gain <= 0 or number in set().union(*workers):
+            continue
+        edit = stage_edit(patch.text, group)
+        if edit:
+            mode, paths, changes, cases = edit
+            probability, estimate = economics(mode, cases)
+            yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
+                        gain, probability, estimate)
+    if len(patch.workers) != 1:
+        return
+    required = patch.req | (patch.pl & set(patch.workers[0]))
+    load = sum(dur[n] for n in required) / 1000
+    if len(required) > 12 or load > 0.65:
+        return
+    files = parse(patch.text)
+    if not files or not all(eligible_file(f, "ds") for f in files):
+        return
+    cases = [catalog[n] for n in sorted(required)]
+    setup_cost = 0.0
+    for node in cases:
+        parts = node.split("::")
+        if len(parts) != 3:
+            return
+        path, cls, _ = parts
+        scopes = impact._index()["scopes"].get(path)
+        if scopes and any(name == cls + ".setUpClass" for _, _, _, name, _ in scopes[1]):
+            setup_cost = 0.75
             break
-        began = cpu()
-        before = plan_cost(patch.workers, dur)
+    yield Probe(patch, "bundle", None, "bundle", ",".join(f.path for f in files),
+                cases, (set(), set(), []), plan_cost(patch.workers, dur) / 1000,
+                0.25, setup_cost + 0.12 + 0.55 * load)
+
+
+def run(patches, catalog, dur, t0):
+    from .probe_session import PatchSession
+    started = cpu()
+    stop = min(t0 + 105, time.monotonic() + 53)
+    base = max(2.75, len(patches) * 0.06875)
+    targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
+    ids = {t["number"]: t["id"] for t in catalog}
+    saved = 0.0
+    paid = 0
+    queue = []
+    attempted = set()
+    session = None
+
+    def remaining():
+        credit = 0.35 * saved if paid >= 2 else 0.0
+        budget = min(45.0, base + credit)
+        return min(stop - time.monotonic(), budget - (cpu() - started)
+                   - (session.charged if session else 0))
+
+    def enqueue(patch):
         try:
-            req, pl = patch.req - {number}, patch.pl - {number}
-            workers = schedule(req, pl, dur) if req else []
-            gain = before - plan_cost(workers, dur)
-            if gain <= 0 or number in set().union(*workers):
+            for probe in options(patch, ids, targets, dur):
+                if probe.priority >= 1.25 and (patch, probe.group) not in attempted:
+                    queue.append(probe)
+        except Exception:
+            return
+
+    for patch in patches:
+        if remaining() < 0.08:
+            break
+        enqueue(patch)
+    print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
+    active = None
+    with contextlib.ExitStack() as stack:
+        while queue and remaining() > 0.05:
+            queue.sort(key=lambda p: p.priority)
+            probe = queue.pop()
+            patch = probe.patch
+            if probe.estimate > 1.5 * remaining() and probe.mode != "unreached":
                 continue
-            key = (overlay_id, group)
-            if key in verdicts:
-                result = verdicts[key]
-            else:
-                with tempfile.TemporaryDirectory() as work:
-                    verify.build_overlay(work, verify.apply_patch(patch.text))
-                    result = replay(
-                        mode,
-                        [json.dumps(cases)] if mode in {"partial", "slice"} else [],
-                        work,
-                        min(stop, time.monotonic() + min(remaining, 30)),
-                        path,
-                    )
-                verdicts[key] = result
-            if result == "pass":
-                patch.req, patch.pl, patch.workers = req, pl, workers
-                queue[:] = [item for item in queue if item[1] is not patch]
-                enqueue(patch)
-        except Exception as exc:
-            result = type(exc).__name__
-        print(
-            "heavy",
-            patch.commit,
-            group,
-            result,
-            mode,
-            f"{cpu() - began:.4f}",
-            before - plan_cost(patch.workers, dur),
-            file=sys.stderr,
-        )
+            began = cpu() + (session.charged if session else 0)
+            phase = probe.mode
+            attempted.add((patch, probe.group))
+            try:
+                if active is not patch:
+                    stack.close()
+                    session = None
+                    active = None
+                    work = stack.enter_context(tempfile.TemporaryDirectory())
+                    changes = verify.apply_patch(patch.text)
+                    verify.build_overlay(work, changes)
+                    active = patch
+                    modules = ",".join(p[:-3].replace("/", ".") for p in changes)
+                    if (probe.group != "collection" and any(p.patch is patch for p in queue)
+                            and warm_replay.compatible(modules) and changed_regions(patch.text)):
+                        session = PatchSession(work, probe.paths)
+                        stack.callback(session.close)
+                if probe.mode == "bundle" and session is None:
+                    warm_replay.prepare_core()
+                if probe.mode in {"catalog", "front", "partial"} and not warm_replay.ready:
+                    warm_replay.prepare()
+                deadline = time.monotonic() + max(0, min(remaining(), max(0.55, 2.25 * probe.estimate + 0.20)))
+                args = ([json.dumps(probe.cases)] if probe.mode in
+                        {"partial", "slice", "rules", "dialects", "bundle"} else [])
+                if probe.mode == "unreached":
+                    result = "pass"
+                elif session:
+                    result, phase = session.check(probe.mode, args, deadline)
+                else:
+                    replay.phase = phase
+                    result = replay(probe.mode, args, work, deadline, probe.paths)
+                    phase = replay.phase
+                if result == "pass":
+                    patch.req, patch.pl, patch.workers = probe.proposed
+                    patch.full = False
+                    if probe.group != "collection":
+                        saved += probe.gain
+                        paid += int(probe.group != "bundle")
+                    queue[:] = [p for p in queue if p.patch is not patch]
+                    enqueue(patch)
+            except Exception as exc:
+                result = type(exc).__name__
+            cost = cpu() + (session.charged if session else 0) - began
+            print("heavy", patch.commit, probe.group, result, probe.mode, f"{cost:.4f}",
+                  round(1000 * probe.gain) if result == "pass" and probe.group != "collection" else 0,
+                  phase, f"{probe.probability:.2f}", file=sys.stderr)
+    print("probe-cpu", f"{cpu()-started:.4f}", file=sys.stderr)
 
 
 def bounded_run(patches, catalog, dur, t0):

@@ -13,6 +13,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "eval"))
 import score_lib  # noqa: E402
+import plan_audit
 
 FLAGS = """--rm --platform linux/amd64 --network none --cpus 2 --memory 4096m
 --memory-swap 4096m --pids-limit 256 --read-only --tmpfs /tmp:rw,size=64m,mode=1777
@@ -31,12 +32,15 @@ def main():
     ap.add_argument("image")
     ap.add_argument("catalog", type=Path)
     ap.add_argument("output", type=Path)
+    ap.add_argument("--candidate-only", action="store_true", help="measure only the candidate image")
+    ap.add_argument("--audit", action="store_true", help="aggregate probe timings and schedule cost buckets")
     ap.add_argument("--labels", default="8cba26f")
     ap.add_argument("--partition", choices=("dev", "holdout"), required=True)
     args = ap.parse_args()
     catalog = args.catalog.resolve()
     tests = json.loads(catalog.read_text())["tests"]
     dur = {t["number"]: round(t["seconds"] * 1000) for t in tests}
+    names = {t["number"]: t["id"] for t in tests}
     targets = {
         t["number"]: t["id"].split("::")[-1]
         for t in tests
@@ -80,7 +84,8 @@ def main():
                 for path, _ in batch:
                     shutil.copyfile(path, Path(d) / path.name)
                 selected = defaultdict(dict)
-                for tag, img in (("old", args.baseline), ("new", args.image)):
+                images = [("new", args.image)] if args.candidate_only else [("old", args.baseline), ("new", args.image)]
+                for tag, img in images:
                     cmd = [
                         "docker",
                         "run",
@@ -105,15 +110,19 @@ def main():
                         patches=len(batch),
                         cpu=float(r.stderr.decode().splitlines()[-1].split()[1]),
                     )
+                    if args.audit:
+                        stats.update(plan_audit.attempts(r.stderr.decode()))
                     for path, labels in batch:
                         plan = plans["plans"][path.stem]
                         sel = set().union(*plan)
                         stats["miss"] += bool(labels - sel)
                         stats["sim_ms"] += score_lib.commit_cost_ms(plan, dur)
+                        if args.audit:
+                            stats.update(plan_audit.schedule_stats(plan, labels, dur, names))
                         for num, group in targets.items():
                             selected[path.stem, num][tag] = num in sel
                             if tag == "new" and (
-                                num in sel or selected[path.stem, num]["old"]
+                                num in sel or selected[path.stem, num].get("old", False)
                             ):
                                 outcome = (
                                     ("fail" if num in labels else "pass")

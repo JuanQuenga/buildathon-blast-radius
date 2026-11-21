@@ -64,3 +64,17 @@ if Path("/app/ds.json.gz").exists():
             row["lines"] = {p: v for p, v in row["lines"].items() if group == "parser" or p in methods}
         with gzip.open(out / f"{group}-lines.json.gz", "wt") as stream:
             json.dump(rows, stream, separators=(",", ":"))
+
+    from selector.token_options import discover_sites
+    source = ast.parse(_sources()["src"]["sqlglot/tokens.py"])
+    init = next(n for n in ast.walk(source) if isinstance(n, ast.FunctionDef) and n.name == "_init_core")
+    names = {n.value.attr for n in ast.walk(init) if isinstance(n, ast.keyword)
+             and isinstance(n.value, ast.Attribute) and n.value.attr.isupper()}
+    (out / "token-options.json").write_text(json.dumps({n: discover_sites(n) for n in sorted(names)}))
+
+    # A parser mismatch can reject a replay without loading executor tables.
+    import pickle
+    sys.path.insert(0, "/app/sqlglot")
+    with open("/app/staged-tables.pkl", "rb") as stream:
+        queries, _ = pickle.load(stream)
+    (out / "ds-inputs.json").write_text(json.dumps([sql for _, sql, _ in queries]))

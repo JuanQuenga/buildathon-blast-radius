@@ -1230,6 +1230,16 @@ class PyDiff:
                                         for n in names):
             b = _attr_refs(self.an, names, self.path, f"{self.module}.{q}", q, fam,
                            o_other)
+            if (self.an.single_file and q.split(".")[-1] == "Tokenizer" and
+                    (self.path == "sqlglot/tokens.py" or self.path.startswith("sqlglot/dialects/"))):
+                from . import token_options
+                name = token_options.option(o_other, n_other)
+                readers = token_options.read_bits(self.an, name) if name else None
+                if readers is not None:
+                    b &= readers
+                    if name == "NUMERIC_ESCAPES":
+                        b = token_options.keyed_bits(self.an, b, f"{self.module}.{q}",
+                                                     o_other[0], n_other[0])
             self.an.excluded |= fam & ~b  # for offline validation of the refinement
             how = "readers"
         else:

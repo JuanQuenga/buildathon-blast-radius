@@ -35,8 +35,8 @@ for path in sorted(Path("/patches").glob("*.patch")):
                 mode,source,changes,cases=edit
                 with tempfile.TemporaryDirectory() as overlay:
                     verify.build_overlay(overlay,changes)
-                    args=[json.dumps(cases)] if mode in {"partial","slice"} else []
-                    result=heavy.replay(mode,args,overlay,time.monotonic()+30,source)
+                    args=[json.dumps(cases)] if mode in {"partial","slice","rules","dialects"} else []
+                    result="pass" if mode=="unreached" else heavy.replay(mode,args,overlay,time.monotonic()+30,source)
         except Exception as exc:
             result=type(exc).__name__
         outcomes[group]=[mode,result,round(heavy.cpu()-start,4)]

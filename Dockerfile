@@ -19,6 +19,10 @@ COPY selector/query_trace.py /app/selector/query_trace.py
 RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/query_trace.py
 COPY selector/parse_corpus.py /app/selector/parse_corpus.py
 RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/parse_corpus.py
+COPY selector/rule_corpus.py /app/selector/rule_corpus.py
+RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/rule_corpus.py record
+COPY selector/probe_profiles.py /app/selector/probe_profiles.py
+RUN cd /app/sqlglot && ulimit -v 2400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/probe_profiles.py generator && MALLOC_ARENA_MAX=2 python -sB /app/selector/probe_profiles.py parser
 COPY selector/ /app/selector/
 ENV BLAST_HEAVY=1
 RUN python -m selector.prepare_runtime
