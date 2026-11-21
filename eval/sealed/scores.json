@@ -1,0 +1,156 @@
+{
+  "0ab560e898f667ad14d2ed870d5b4986938d2cb7": {
+    "clean": 6,
+    "cpu_us": 344599,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 186254
+  },
+  "3759b53809f4ca260be1ceb50d8aa2100da63500": {
+    "clean": 6,
+    "cpu_us": 436492,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 201873
+  },
+  "3d699f1790964dd142256901ed2172f7c34dc7bf": {
+    "clean": 6,
+    "cpu_us": 523045,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 186254
+  },
+  "60c75b8827e4b81c5b9765d0135ad57cf68aca34": {
+    "clean": 6,
+    "cpu_us": 311076,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 201873
+  },
+  "6a7c9ca0f1bb2b758360501799fa2b22bc689ae6": {
+    "clean": 6,
+    "cpu_us": 2204975,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 184018
+  },
+  "6b2acfc238afe323a553150f1a2d4ca0d62a07bb": {
+    "clean": 6,
+    "cpu_us": 4838400,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 186254
+  },
+  "783ee5471947aa032f8fdd79ad4e2fbf3b688d89": {
+    "clean": 6,
+    "cpu_us": 5786036,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 186254
+  },
+  "8586a56a29495a5d2d69b94a4d7dadb673d2dbf2": {
+    "clean": 6,
+    "cpu_us": 2465505,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 186254
+  },
+  "8664f8b74a4b34255d5609dccf34168ec4faad38": {
+    "clean": 6,
+    "cpu_us": 420363,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 201873
+  },
+  "91fab71bc5692aa7fd5861796f4552c72ee0556b": {
+    "clean": 6,
+    "cpu_us": 1933074,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 184018
+  },
+  "a41469a20b6175ecb637250acbdf0a1ff634a9e2": {
+    "clean": 6,
+    "cpu_us": 4560315,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 1,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 159928
+  },
+  "bfd42e7446341d9a469603e03bc218e42263b5dd": {
+    "clean": 6,
+    "cpu_us": 3789412,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 1,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 159928
+  },
+  "e42b3cb93aa3213912ca1524970ac6356aea8b10": {
+    "clean": 6,
+    "cpu_us": 372784,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 2,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 201873
+  },
+  "f07cda68603915b173fec2206c55558ef3249141": {
+    "clean": 6,
+    "cpu_us": 1858950,
+    "full_suite_baseline_ms": 883608,
+    "full_suite_plans": 1,
+    "misses": 0,
+    "oracle_bound_ms": 97573,
+    "oracle_feasible_ms": 97573,
+    "patches": 24,
+    "simulation_ms": 159928
+  }
+}
