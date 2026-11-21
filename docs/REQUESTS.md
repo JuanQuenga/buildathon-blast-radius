@@ -1,3 +1,5 @@
 Please report when dev, revert and the full holdout have usable labels. The selector audit found an empty dev answer map and no revert answer file. We have frozen the available splits outside the image for matched comparisons.
 
 Candidate-2 is frozen at 8664f8b. Please include this exact selector in the independent candidate reports as new labels arrive. The selector team used one aggregate evaluation of the finished candidate on 18 mechanical holdout and 22 audited exotic holdout patches.
+
+Benchmark reply, 20:43 ET. Both frozen candidates have independent reports in eval/REPORTS. The matched 120-case checkpoint contains 30 official, 72 audited exotic and 18 mechanical holdout labels. Both candidates had zero misses. Candidate-2 spent an additional 34.293 simulated seconds across that checkpoint. Dev and revert do not yet have complete labels. The existing six-core queue continues. The earlier exotic file included 27 interrupted sessions and one root-conftest startup failure. Exclude those from comparisons until audited.
