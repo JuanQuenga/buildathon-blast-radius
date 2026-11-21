@@ -27,15 +27,17 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     nested_loop = ex.PythonExecutor.nested_loop_join
     pin = json.loads((Path(__file__).parent / "maps/join-work.json").read_bytes())
     product_limit = 100 * pin["maximum_nested_loop_pairs"]
+    over_budget = False
 
     def bounded_join(engine, join, left, right, condition, context):
         # The original implementation visits every pair, even with a predicate.
         # An overrun ends the proof and retains the complete worker.
+        nonlocal over_budget
         if len(left.table.rows) * len(right.table.rows) > product_limit:
+            over_budget = True
             mark("join-budget")
             raise ValueError("nested-loop work exceeds the full-fixture probe budget")
         return nested_loop(engine, join, left, right, condition, context)
-
 
     def check_plan(engine, plan):
         nonlocal ran, skipped
@@ -82,6 +84,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 continue
             ran = skipped = False
             table = tests.mp_execute(expr, meta)
+            if over_budget:
+                raise ValueError("incomplete full-data join")
             if skipped and table is None:
                 continue
             if not ran or table is None:
@@ -108,3 +112,5 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         ex.PythonExecutor.execute = execute
         ex.PythonExecutor.nested_loop_join = nested_loop
         reference_setup.close()
+        if over_budget:
+            mark("join-budget")
