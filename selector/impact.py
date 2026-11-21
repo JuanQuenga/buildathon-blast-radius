@@ -306,6 +306,19 @@ def _header_end(s) -> int:
     return s.end_lineno or s.lineno
 
 
+def _header_dump(s) -> str:
+    """Dump of a compound statement without its nested blocks."""
+    if isinstance(s, (ast.If, ast.While)):
+        return _dump(s.test)
+    if isinstance(s, (ast.For, ast.AsyncFor)):
+        return _dump(s.target) + _dump(s.iter)
+    if isinstance(s, (ast.With, ast.AsyncWith)):
+        return repr([_dump(x) for x in s.items])
+    if isinstance(s, ast.Match):
+        return _dump(s.subject)
+    return ""
+
+
 def _def_header(s) -> str:
     parts = [s.name, _dump(s.args), [_dump(d) for d in s.decorator_list],
              _dump(s.returns) if s.returns is not None else None,
@@ -414,15 +427,23 @@ class Analysis:
 
     def family(self, module: str, qualname: str, path: str | None = None,
                node=None) -> int:
+        key = (module, qualname, path)
+        cache = self.__dict__.setdefault("_fam_cache", {})
+        if key in cache:
+            return cache[key]
         b = 0
         sid = self.idx["families"].get(f"{module}.{qualname}")
         if sid is not None:
             b |= self.sets(sid)
-        if path and node is not None:
+        if path:
             # code of the class that ran (classmethods/staticmethods without instances)
-            for s in ast.walk(node):
-                if isinstance(s, _DEFS) and s.body:
-                    b |= self.lines_bits(path, s.body[0].lineno, s.end_lineno)
+            sc = self.idx.get("scopes", {}).get(path)
+            if sc:
+                pre = qualname + "."
+                for it in sc[1]:
+                    if it[0] == "def" and it[3].startswith(pre):
+                        b |= self.lines_bits(path, it[4], it[2])
+        cache[key] = b
         return b
 
     def tests_in_file(self, test_file: str) -> int:
@@ -549,7 +570,9 @@ class Analysis:
             return
         if not fp.hunks:
             return
-        new_src, _ = apply_hunks(old_src, fp.hunks)
+        new_src, placed = apply_hunks(old_src, fp.hunks)
+        if self.fast_function_path(oldp, old_src, new_src, placed):
+            return
         try:
             old_tree = ast.parse(old_src)
         except SyntaxError:
@@ -560,15 +583,91 @@ class Analysis:
             self.add(self.import_break(oldp, f"no longer compiles ({type(e).__name__})"),
                      f"{oldp} no longer compiles")
             return
-        PyDiff(self, oldp, old_tree, new_tree).run()
+        PyDiff(self, oldp, old_tree, new_tree, old_src, new_src).run()
+
+    def fast_function_path(self, path, old_src, new_src, placed) -> bool:
+        """All hunks strictly inside one function body: parse just that
+        function (old and new) instead of the whole module."""
+        sc = self.idx.get("scopes", {}).get(path)
+        if not sc:
+            return False
+        lo, hi = None, None
+        delta = 0
+        for h, start in placed:
+            o = start
+            first = last = None
+            prev_ctx = None
+            for tag, _t in h.lines:
+                if tag == " ":
+                    prev_ctx = o
+                    o += 1
+                    continue
+                if tag == "-":
+                    first = o if first is None else first
+                    last = o
+                    o += 1
+                else:  # '+': between prev old line and the next one
+                    a = prev_ctx if prev_ctx is not None else o - 1
+                    first = a if first is None else min(first, a)
+                    last = max(last or 0, o)
+            delta += h.new_len - h.old_len
+            if first is None:
+                continue
+            lo = first if lo is None else min(lo, first)
+            hi = last if hi is None else max(hi, last)
+        if lo is None:
+            return False
+        best = None
+        for it in sc[1]:
+            if it[0] == "def" and it[4] <= lo and hi <= it[2]:
+                if best is None or it[1] >= best[1]:
+                    best = it
+        if best is None:
+            return False
+        kind, d_start, d_end, qual, body_start = best
+        old_lines = old_src.split("\n")
+        new_lines = new_src.split("\n")
+        old_seg = old_lines[d_start - 1: d_end]
+        new_seg = new_lines[d_start - 1: d_end + delta]
+
+        def parse(seg):
+            text = "\n".join(seg)
+            indent = len(seg[0]) - len(seg[0].lstrip())
+            if indent:
+                tree = ast.parse("if 1:\n" + text)
+                node = tree.body[0].body[0]
+                ast.increment_lineno(tree, d_start - 2)
+            else:
+                tree = ast.parse(text)
+                node = tree.body[0]
+                ast.increment_lineno(tree, d_start - 1)
+            return node
+
+        try:
+            o = parse(old_seg)
+            n = parse(new_seg)
+        except SyntaxError:
+            return False
+        if (not isinstance(o, _DEFS) or type(o) is not type(n) or _def_header(o) != _def_header(n)
+                or o.lineno != _start(o) and False):
+            return False
+        if o.end_lineno != d_end or (n.end_lineno or 0) != d_end + delta:
+            return False  # the segment is not exactly the function
+        pd = PyDiff(self, path, None, None, old_src, new_src)
+        first = next((x for x in o.body if not _is_docstring(x)), None)
+        entry = pd.stmt_bits(first) if first is not None else pd.lb(body_start, d_end)
+        pd.block(o.body, n.body, entry, "func", None)
+        return True
 
     def _name_users_of_module(self, path: str) -> int:
         return 0
 
 
 class PyDiff:
-    def __init__(self, an: Analysis, path: str, old_tree, new_tree):
+    def __init__(self, an: Analysis, path: str, old_tree, new_tree, old_src="", new_src=""):
         self.an = an
+        self.old_lines = old_src.split("\n")
+        self.new_lines = new_src.split("\n")
         self.path = path
         self.module = _module_name(path)
         self.old_tree = old_tree
@@ -599,16 +698,47 @@ class PyDiff:
     def run(self):
         self.block(self.old_tree.body, self.new_tree.body, 0, "module", None)
 
+    def otext(self, s) -> str:
+        return "\n".join(self.old_lines[_start(s) - 1: s.end_lineno or s.lineno])
+
+    def ntext(self, s) -> str:
+        return "\n".join(self.new_lines[_start(s) - 1: s.end_lineno or s.lineno])
+
+    def same(self, o, n) -> bool:
+        """Semantically equal statements (identical text is a fast path)."""
+        return self.otext(o) == self.ntext(n) or _dump(o) == _dump(n)
+
     def block(self, olds, news, entry, scope, owner):
-        od = [_dump(s) for s in olds]
-        nd = [_dump(s) for s in news]
-        if od == nd:
+        ot = [self.otext(s) for s in olds]
+        nt = [self.ntext(s) for s in news]
+        if ot == nt:
             return
+        oset, nset = set(ot), set(nt)
+
+        def key(st, txt, other):
+            if txt in other:
+                return ("t", txt)
+            if isinstance(st, _DEFS + (ast.ClassDef,)):
+                return ("d", type(st).__name__, st.name)
+            if isinstance(st, _COMPOUND):
+                return ("c", type(st).__name__, _header_dump(st))
+            return ("a", _dump(st))
+
+        okeys = [key(st, t, nset) for st, t in zip(olds, ot)]
+        nkeys = [key(st, t, oset) for st, t in zip(news, nt)]
         if scope == "func":
             self.an.plaus |= entry  # cheap insurance: everyone entering the block
-        sm = difflib.SequenceMatcher(None, od, nd, autojunk=False)
+        sm = difflib.SequenceMatcher(None, okeys, nkeys, autojunk=False)
         for tag, i1, i2, j1, j2 in sm.get_opcodes():
             if tag == "equal":
+                # weak keys (same def name / compound header): look inside
+                for k in range(i2 - i1):
+                    o, n = olds[i1 + k], news[j1 + k]
+                    if okeys[i1 + k][0] in "dc" and ot[i1 + k] != nt[j1 + k]:
+                        if scope == "func":
+                            self.func_stmt(o, n, entry)
+                        else:
+                            self.named_pair(o, n, scope, owner)
                 continue
             if scope == "func":
                 self.func_range(olds, news, i1, i2, j1, j2, entry)
@@ -630,7 +760,7 @@ class PyDiff:
     def func_range(self, olds, news, i1, i2, j1, j2, entry):
         if i2 - i1 == j2 - j1:
             for o, n in zip(olds[i1:i2], news[j1:j2]):
-                if _dump(o) != _dump(n):
+                if not self.same(o, n):
                     self.func_stmt(o, n, entry)
             return
         if i2 > i1:
@@ -715,7 +845,7 @@ class PyDiff:
                 o = ol[k] if k < len(ol) else None
                 n = nl[k] if k < len(nl) else None
                 if o is not None and n is not None:
-                    if _dump(o) != _dump(n):
+                    if self.otext(o) != self.ntext(n):
                         self.named_pair(o, n, scope, owner)
                 elif o is not None:
                     self.named_removed(o, scope, owner)
