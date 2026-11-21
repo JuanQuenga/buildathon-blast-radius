@@ -106,25 +106,37 @@ def measure(ref):
         for kind, rs in sorted(groups.items()):
             row(f"{name} / {kind} (dev)", rs)
     output += ["", "## Batch scenarios", "",
-               "Draws use the official sample as the reference population, conditional on its observed kinds and failure rates. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
+               "Each reference uses the official 16/8/3/3 weights. Held-out mutation scenarios require all four original kinds to have labels. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
                "", "| N | Unseen share | P10 s | Median s | P90 s | Mean misses |", "|---:|---:|---:|---:|---:|---:|"]
     official = [r for r in records if r['set']=='sample']
     unseen = defaultdict(list)
     for r in records:
         if r['split']=='holdout' and r['kind'] not in run.PRACTICE_KINDS:
             unseen[r['kind']].append(r)
-    for n in (40,60):
-        for share in (0,.2):
-            if share and not unseen:
-                continue
-            rng = random.Random(32768)
-            totals, misses = [], []
-            for _ in range(4000):
-                draws = [rng.choice(rng.choice(list(unseen.values()))) if rng.random()<share else rng.choice(official) for _ in range(n)]
-                totals.append(sum(r['sim']+r['cpu'] for r in draws))
-                misses.append(sum(bool(r['missed']) for r in draws))
-            totals.sort()
-            output.append(f"| {n} | {share:.0%} | {totals[400]:.1f} | {totals[2000]:.1f} | {totals[3600]:.1f} | {statistics.mean(misses):.2f} |")
+    references = {"Official sample": official, "Held-out mutations": [
+        r for r in records if r["split"] == "holdout" and r["kind"] in run.PRACTICE_KINDS
+    ]}
+    output[-2:] = ["| Reference | N | Unseen share | P10 s | Median s | P90 s | Mean misses |",
+                   "|---|---:|---:|---:|---:|---:|---:|"]
+    for label, reference in references.items():
+        groups = [[r for r in reference if r["kind"] == k] for k in run.PRACTICE_KINDS]
+        if not all(groups):
+            continue
+        for n in (40, 60):
+            for share in (0, .2):
+                if share and not unseen:
+                    continue
+                rng = random.Random(32768)
+                totals, misses = [], []
+                extras = list(unseen.values())
+                for _ in range(4000):
+                    kinds = rng.choices(groups, weights=list(run.PRACTICE_KINDS.values()), k=n)
+                    draws = [rng.choice(rng.choice(extras) if rng.random() < share else group)
+                             for group in kinds]
+                    totals.append(sum(r["sim"] + r["cpu"] for r in draws))
+                    misses.append(sum(bool(r["missed"]) for r in draws))
+                totals.sort()
+                output.append(f"| {label} | {n} | {share:.0%} | {totals[400]:.1f} | {totals[2000]:.1f} | {totals[3600]:.1f} | {statistics.mean(misses):.2f} |")
     output += ["", "## Development misses", ""]
     for r in records:
         if r['missed'] and r['split']=='dev':
