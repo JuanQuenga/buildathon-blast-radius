@@ -4,6 +4,10 @@
 
 **Please submit `diagnostic-d1-tpcds` (`91ca333`) for the approximately 8:23 AM ET practice slot.** The coordinator submits. This experiment intentionally misses one official sample patch. Candidate 14 remains the provisional final entry. [Diagnostic tags, measurements and interpretation](PRACTICE-DIAGNOSTICS.md)
 
+### Full-data CPU experiment
+
+The order-preserving experimental tag reduced probe CPU from 19.594 to 6.228 seconds on a constructed 40-patch batch with identical worker cost. It had zero labeled misses, but retained a historical C13 TPC-DS selection on holdout and increased matched holdout CPU by 52.671 seconds. Candidate 14 remains the provisional final entry. [Matched results and failed gate](ORDERED-CPU.md)
+
 ### Candidate-14 official result
 
 Candidate 14 scored **174.6 seconds**, with 150.503 simulated seconds, 24.1–24.6 CPU seconds and zero missed commits. Field-precise fixture attribution made no measurable difference on this practice batch. It covered all 67 failing-method observations on 36 labeled local fixture edits and saved 466.768 simulated seconds there. The static control has no scheduled practice slot. [Candidate 14 validation](CANDIDATE14.md)

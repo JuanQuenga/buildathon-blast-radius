@@ -34,11 +34,11 @@ Every labeled local patch where candidate 13 selected TPC-DS was included. Addit
 | Reduced outcome | Real full test passed | Real full test failed |
 |---|---:|---:|
 | Matched pin results | 84 | **1** |
-| Diverged or raised during execution | 0 | 89 |
+| Diverged or raised during execution | 0 | 90 |
 | Ineligible for replay | 18 | 26 |
 | DuckDB reference SQL changed | 3 | 1 |
 
-The table includes one extra generated executor control. The original 221 had zero false clearances. The extra control raises when an input table exceeds 512 rows. No reduced table triggered it, but the real pinned TPC-DS test on full data failed in 5.93 seconds. A separate rerun using the host-mounted study tool reproduced the false clearance. The reference file is the optional reduced fixture emitted by the CPU experiment’s offline recorder. Run the study tool inside the pin image with that file and a directory of patches, then compare its JSONL to full-test labels on the host. [Reduced-data study tool](../tools/study_reduced_tpcds.py)
+The table includes two additional generated executor controls, for 223 total. The original 221 had zero false clearances. The first extra control raises when an input table exceeds 512 rows. No reduced table triggered it, but the real pinned TPC-DS test on full data failed in 5.93 seconds. A separate rerun using the host-mounted study tool reproduced the false clearance. The reference file is the optional reduced fixture emitted by the CPU experiment’s offline recorder. Run the study tool inside the pin image with that file and a directory of patches, then compare its JSONL to full-test labels on the host. [Reduced-data study tool](../tools/study_reduced_tpcds.py)
 
 The production proof therefore uses full fixture data. A matching reduced run alone would have incurred a 300-second penalty on this control.
 
@@ -64,4 +64,4 @@ A second pin run recorded which optimizer keyword arguments were supplied explic
 
 The prototype measured above executed some full-data queries in increasing CPU-cost order. A generated executor mutation retained the width of the previous query's input schema. The reordered probe passed. The real test raised at the transition from two input tables to seven and failed after seven passing subtests. This found a false clearance beyond the original 104 generated patches.
 
-The corrected probe runs cached plans at their original fixture positions, using the same live worker tables as uncached queries. Its direct probe and independent real pytest both failed on the control. The earlier prototype is unsuitable for submission. The practice diagnostic D1 starts from candidate 14 and uses its original fixture order.
+The reduced run also raised on this second control, giving the ninetieth reduced divergence or error paired with a real full-test failure. The corrected probe runs cached plans at their original fixture positions, using the same live worker tables as uncached queries. Its direct probe and independent real pytest both failed on the control. The earlier prototype is unsuitable for submission. The practice diagnostic D1 starts from candidate 14 and uses its original fixture order.

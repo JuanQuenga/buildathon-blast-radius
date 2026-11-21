@@ -2,6 +2,8 @@
 
 **Candidate 14 (`da0ed24`) remains the provisional final entry.** On official practice, candidates 13 and 14 both recorded 150.503 simulated seconds, about 24 CPU seconds and zero misses. Candidate 14 also covered all failures on the 36 local fixture mutations at lower worker cost. Its stress replay still has deadline-sensitive differences. All tags prefixed `diagnostic-` are practice experiments with intentional omissions. [Release measurements](CANDIDATE14.md) · [Practice diagnostics](PRACTICE-DIAGNOSTICS.md)
 
+The full-data CPU experiment failed the C13 holdout heavy-drop gate. It remains a research tag. [CPU experiment and release checks](ORDERED-CPU.md)
+
 ## Candidate-12 sixty-patch scenarios
 
 These are expected simulated plus CPU seconds conditional on zero misses. The 270-second limit applies to the selector's real wall time. The simulation can exceed 270.
