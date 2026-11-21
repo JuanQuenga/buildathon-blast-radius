@@ -222,8 +222,8 @@ def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int
         covered_pl = sum(len(b) for b in bins) - n
         if rest:
             _fill(bins, ms, rest, dur)
-        total = sum(len(b) for b in bins)
-        key = (cost, -covered_pl, -total)
+        selected_count = sum(len(b) for b in bins)
+        key = (cost, -covered_pl, -selected_count)
         if best is None or key < best[0:3]:
-            best = (cost, -covered_pl, -total, k, bins)
+            best = (cost, -covered_pl, -selected_count, k, bins)
     return best[4]

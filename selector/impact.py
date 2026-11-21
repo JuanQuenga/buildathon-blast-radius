@@ -473,6 +473,22 @@ class Analysis:
     def analyze(self, fp: FilePatch):
         path = fp.path
         oldp, newp = fp.old_path, fp.new_path
+        if fp.status == "A" and not fp.binary and newp and newp.endswith(".py"):
+            self.data_file(fp)  # existing tests may enumerate the directory
+            source, _ = apply_hunks("", fp.hunks)
+            filename = newp.rsplit("/", 1)[-1]
+            if filename == "conftest.py":
+                # Even comments can specify a broken Python source encoding.
+                compile(source.encode(), newp, "exec", dont_inherit=True)
+                if not ast.parse(source).body:
+                    return
+            if filename == "__init__.py" or "/" not in newp:
+                raise Unsupported(f"new package or top-level module {newp} may change imports")
+            if (newp.startswith("tests/") and
+                    (filename.startswith("test_") or filename.endswith("_test.py"))):
+                # Pytest imports new test modules even without catalog entries.
+                # Top-level code and decorators can affect the collection session.
+                raise Unsupported(f"new pytest module {newp}")
         if fp.binary:
             self.data_file(fp)
             if any(p and (p.endswith(".py") or p.startswith("sqlglot/")) for p in (oldp, newp)):
@@ -581,6 +597,14 @@ class Analysis:
         if not fp.hunks:
             return
         new_src, placed = apply_hunks(old_src, fp.hunks)
+        # ast.parse accepts errors such as a break outside a loop. Compile the
+        # complete module first so the fast path cannot hide collection errors.
+        try:
+            compile(new_src.encode(), oldp, "exec", dont_inherit=True)
+        except (SyntaxError, ValueError) as e:
+            self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
+                     f"{oldp} no longer compiles")
+            return
         if self.fast_function_path(oldp, old_src, new_src, placed):
             return
         try:
