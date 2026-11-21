@@ -110,6 +110,12 @@ def run_pytest(work: Path, out: Path, log: Path) -> dict:
         # rule is "unimportable test file -> all tests in that file fail", others still run
         "--continue-on-collection-errors",
     ]
+    if os.environ.get("BR_LIMIT_TEST_NODE"):
+        env["BR_LIMIT_TEST_NODE"] = os.environ["BR_LIMIT_TEST_NODE"]
+        env["BR_LIMIT_AS_MIB"] = str(int(os.environ["BR_LIMIT_AS_MIB"]))
+        if os.environ.get("BR_CHILD_AS_MIB"):
+            env["BR_CHILD_AS_MIB"] = str(int(os.environ["BR_CHILD_AS_MIB"]))
+        cmd.extend(["-p", "br_test_memory"])
     t0 = time.time()
     with open(log, "wb") as lf:
         with subprocess.Popen(cmd, cwd=work, env=env, stdout=lf,
@@ -236,6 +242,12 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
                 res = res2
             res.update(run)
             res["key"] = key
+            if os.environ.get("BR_LIMIT_TEST_NODE"):
+                res["test_resource_limit"] = {
+                    "nodeid": os.environ["BR_LIMIT_TEST_NODE"],
+                    "address_space_growth_mib": int(os.environ["BR_LIMIT_AS_MIB"]),
+                    "child_address_space_mib": int(os.environ.get("BR_CHILD_AS_MIB", "0")),
+                }
             if run["rc"] == "case_timeout":
                 res["status"] = "case_timeout"
             elif (run["rc"] == 4 and not res["ended"]
@@ -326,6 +338,8 @@ def _label_dir(a):
             answers[cid] = {"failing": r["failing"], "kind": m.get("kind", "unknown")}
             if r.get("missing") and not inferred:
                 answers[cid]["missing"] = sorted(numbers[nid] for nid in r["missing"])
+            if r.get("test_resource_limit"):
+                answers[cid]["test_resource_limit"] = r["test_resource_limit"]
             if inferred:
                 answers[cid]["basis"] = r["status"]
             oracle[cid] = {k: r.get(k) for k in ("status", "key", "missing", "collect_errors", "rc", "wall", "slow")}

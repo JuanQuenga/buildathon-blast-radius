@@ -118,6 +118,10 @@ def main():
         repeat = json.loads((PRIVATE / "stability.json").read_text())
         if len(repeat) != 2 or not all(repeat.values()):
             raise ValueError("Reserve stability check incomplete")
+        if any(entry.get("test_resource_limit") for entry in answers.values()):
+            budget_repeat = json.loads((PRIVATE / "budget-repeat.json").read_text())
+            if not budget_repeat.get("match") or not budget_repeat.get("clean_control"):
+                raise ValueError("Resource-limited reserve label lacks its independent control")
     for ref in args.refs:
         sha, result = plans(ref, cases, catalog, tests)
         if not args.plans_only:
