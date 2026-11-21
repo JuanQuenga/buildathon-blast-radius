@@ -1,10 +1,12 @@
 # Final entry
 
-Candidate 14 remains the final pick. The short-cap study projected 297.1 seconds for C14, 304.9 for the calibrated prototype and 961.6 for D1. [Outcome table, timing and risk estimates](CALIBRATED17.md)
+The 11:23 AM ET practice recommendation is `candidate-18`. The coordinator will decide on the final selection after verifying its official simulated time and miss count. [Release measurements](CANDIDATE18.md)
+
+Candidate 18 is ready for practice verification. It adds conservative input and deadline fallbacks to the selected candidate 14. The short-cap study projected 297.1 seconds for C14, 304.9 for the calibrated prototype and 961.6 for D1. [Outcome table, timing and risk estimates](CALIBRATED17.md)
 
 **Candidate 14 (`da0ed24`, receipt BB-34D93935) is the selected final entry.** Candidate 15 scored 173.0 seconds in practice, with 171.957 simulated seconds, 1.05–1.06 CPU seconds and zero missed commits. The diagnostic D1 scored 154.9 seconds on practice and missed one official sample patch locally. [Candidate 15 forecasts, risks and release gates](CANDIDATE15.md) · [Candidate 14 validation](CANDIDATE14.md)
 
-The hybrid projects to 301.13 seconds on the 48+12 final proxy, compared with 297.09 for C14. Both covered all labelled failures. The hybrid failed the holdout total and the per-patch CPU gate. D2 is the recommended practice diagnostic. [Hybrid release audit](HYBRID16.md)
+The hybrid projects to 301.13 seconds on the 48+12 final proxy, compared with 297.09 for C14. Both covered all labelled failures. The hybrid failed the holdout total and the per-patch CPU gate. D2 reproduced C14’s simulated time and missed zero commits. [Hybrid release audit](HYBRID16.md)
 
 On a 60-patch proxy with 48 sample-like changes and 12 drawn from 47 matched unfamiliar holdouts, C14 projects to 297.1 seconds and C15 to 311.4 with zero misses. On a purely sample-like mix they project to 192.1 and 192.6. C15 completed the exact-tag no-cache build in 55 seconds and passed the sample and registered-holdout recall gates. It failed heavy-drop monotonicity against both C8 and C13. [Scenario assumptions and class-specific risk](CANDIDATE15.md)
 

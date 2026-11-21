@@ -4,7 +4,9 @@ Candidate 14 remains the final pick. The short-cap study projected 297.1 seconds
 
 ## Please submit
 
-**Please submit `diagnostic-d2-attempted` (`0406efd`) for the 10:23 AM ET practice slot.** Candidate 14 remains selected for the final. The production hybrid failed its holdout and per-patch CPU gates and has no candidate-16 tag. Its 197-holdout total was 1,635.836 seconds versus 1,607.804 on a fresh C14 run. [Hybrid measurements and forecast](HYBRID16.md) · [Diagnostic interpretation](PRACTICE-DIAGNOSTICS.md)
+**Please submit `candidate-18` for the 11:23 AM ET practice slot.** It adds input and deadline fallbacks to candidate 14. All 498 matched, generated and fixture plan rows are byte-identical to the C14 archive. Candidate 14 remains selected for the final pending practice verification. [Release tests, timeout exceptions and forecast](CANDIDATE18.md)
+
+D2 scored 174.9 seconds in practice, with 150.503 simulated seconds and zero missed commits (BB-DC55275C). The D1 saving falls in the unattempted branch. D3 has no scheduled slot.
 
 ### Candidate-15 official result
 

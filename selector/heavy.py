@@ -192,8 +192,6 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
     # from patched code cannot be mistaken for completed assertions.
     if group == "catalog":
         script = SCRIPT.with_name("catalog_check.py")
-    elif group == "frontend":
-        script = SCRIPT.with_name("frontend_check.py")
     elif group == "rules":
         script = SCRIPT.with_name("rule_corpus.py")
     elif group == "bundle":
@@ -508,26 +506,6 @@ def probe_profiles(group):
         return json.load(stream)
 
 
-def optimizer_helper_regions(path, source):
-    """Ignore newly defined private helpers while locating their changed callers."""
-    if not path.startswith("sqlglot/optimizer/"):
-        return None
-    original = (Path(verify.PRISTINE) / path).read_text()
-    old, new = ast.parse(original), ast.parse(source)
-    if not any(isinstance(n, ast.ImportFrom) and n.module == "__future__"
-               and any(a.name == "annotations" for a in n.names) for n in old.body):
-        return None
-    names = {n.name for n in old.body if isinstance(n, ast.FunctionDef)}
-    additions = [n for n in new.body if isinstance(n, ast.FunctionDef) and n.name not in names]
-    if not additions or any(not n.name.startswith("_") or n.name.startswith("__")
-                            or n.decorator_list or n.args.defaults or any(n.args.kw_defaults)
-                            or n.type_params or re.search(r"\b" + re.escape(n.name) + r"\b", original)
-                            for n in additions):
-        return None
-    new.body = [n for n in new.body if n not in additions]
-    return query_slice.spans(original, ast.unparse(new))
-
-
 @functools.lru_cache(maxsize=256)
 def stage_edit(text, group):
     files = parse(text)
@@ -553,10 +531,6 @@ def stage_edit(text, group):
         return "tokens", paths, changes, []
     if paths == "sqlglot/tokens.py" and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
         return "tokens", paths, changes, []
-    if not regions and len(changes) == 1:
-        spans = optimizer_helper_regions(paths, changes[paths])
-        if spans:
-            regions = {paths: spans}
     selection = query_slice.query_cases(regions) if regions else None
     if selection is not None and not selection["active"]:
         if local_edit(text):
@@ -866,13 +840,13 @@ def run(patches, catalog, dur, t0):
     print("probe-cpu", f"{cpu()-started:.4f}", file=sys.stderr)
 
 
-def bounded_run(patches, catalog, dur, t0):
+def bounded_run(patches, catalog, dur, t0, *, deadline=None):
     """Keep static plans in the parent until the verifier returns a complete batch."""
     import multiprocessing
 
     # Reserve at least a minute for fallback and output on both contest limits.
     allowance = min(180, 3 * max(40, len(patches)))
-    deadline = t0 + allowance
+    deadline = min(deadline, t0 + allowance) if deadline is not None else t0 + allowance
     if time.monotonic() >= deadline:
         return
     with tempfile.TemporaryFile(mode="w+") as result:

@@ -21,7 +21,7 @@ them across up to eight simulated workers.
   then fills the slack under the makespan with plausible tests and then any other
   test ("free riders"). The extra tests cost nothing and reduce the chance of a miss.
 - `selector/patch.py`: dependency-free unified-diff parser (`-p1` like `git apply`).
-- `selector/static_heavy.py` prices removals against the whole worker plan. The candidate-15 image uses pinned branch, predicate and option observations. Where the dependency trace permits it, a fork checks every affected frontend input against a pinned fingerprint. Unresolved workers stay scheduled. Up to two small unittest bundles can also run. [Candidate 15 release measurements](docs/CANDIDATE15.md)
+Candidate 18 uses candidate 14’s bounded differential probes. Malformed or oversized patch inputs and unanalysed patches at the batch deadline receive the full catalog. [Candidate 18 release measurements](docs/CANDIDATE18.md)
 - `selector/verify.py`: optional whole-test runtime verification. It applies the patch into
   a `/tmp` overlay and runs candidate tests in a forked child. **Off by default.**
   See [docs/verification.md](docs/verification.md) for the measurements and why.
