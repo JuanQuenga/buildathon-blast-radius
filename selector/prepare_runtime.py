@@ -6,8 +6,14 @@ import sys
 from pathlib import Path
 import re
 import sqlite3
+import tarfile
 
 from selector.impact import _index, _sources
+
+archive = Path("/app/selector/maps/pin-runtime.tar.xz")
+with tarfile.open(archive) as recorded:
+    recorded.extractall("/app", filter="data")
+archive.unlink()
 
 # Store raw members together so xz can compress shared rule inputs across files.
 for raw in Path("/app").rglob("*.gz.raw"):

@@ -13,7 +13,6 @@ RUN mkdir /app/sqlglot && tar xzf /tmp/pin.tar.gz --strip-components=1 -C /app/s
 ENV OPENBLAS_NUM_THREADS=1 PYTHON_CPU_COUNT=1 SKIP_INTEGRATION=0
 COPY selector/ /app/selector/
 # Only pin-derived probe inputs and traces from the frozen Python environment.
-RUN python -c "import tarfile; t = tarfile.open('/app/selector/maps/pin-runtime.tar.xz'); t.extractall('/app', filter='data'); t.close()" && rm /app/selector/maps/pin-runtime.tar.xz
 ENV BLAST_HEAVY=1
 RUN python -m selector.prepare_runtime
 # Precompile (the runtime FS is read-only) and make everything readable by nobody.
