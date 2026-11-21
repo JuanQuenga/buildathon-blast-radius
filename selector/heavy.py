@@ -739,7 +739,6 @@ def run(patches, catalog, dur, t0, hybrid=False):
     evidence = {}
     if hybrid:
         from .static_heavy import refine
-        evidence = refine(patches, catalog, dur, bundles=False)
     # Admission consumes pin-derived estimates, independent of machine load.
     allowance = min(96.0, max(18.0, 1.75 * len(patches)))
     cpu_ceiling = max(30.0, min(144.0, 2.4 * len(patches)))
@@ -753,6 +752,8 @@ def run(patches, catalog, dur, t0, hybrid=False):
 
     def enqueue(patch):
         try:
+            if hybrid and not patch.full:
+                refine([patch], catalog, dur, bundles=False, evidence_by_target=evidence)
             for probe in options(patch, ids, [(n, g) for n, g in targets
                                               if (patch, g) not in attempted], dur):
                 price = hybrid_price(probe, evidence) if hybrid else None

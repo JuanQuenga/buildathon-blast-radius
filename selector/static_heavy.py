@@ -131,8 +131,9 @@ def classify(text, combine=False):
     except Exception:
         return "unavailable", ""
 
-def refine(patches, catalog, durations, *, bundles=True):
-    evidence_by_target = {}
+def refine(patches, catalog, durations, *, bundles=True, evidence_by_target=None):
+    if evidence_by_target is None:
+        evidence_by_target = {}
     targets = {heavy.TARGETS[t["id"]]: t["number"] for t in catalog if t["id"] in heavy.TARGETS}
     start = heavy.cpu()
     for patch in patches:
@@ -141,7 +142,7 @@ def refine(patches, catalog, durations, *, bundles=True):
             continue
         for group in ("ds", "generator"):
             number = targets.get(group)
-            if number not in patch.req:
+            if number not in patch.req or number in patch.missing or (patch, group) in evidence_by_target:
                 continue
             required, plausible = patch.req - {number}, patch.pl - {number}
             alternative = schedule(required, plausible, durations) if required else []
