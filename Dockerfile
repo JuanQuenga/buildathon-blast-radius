@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY selector/ /app/selector/
-RUN --mount=type=bind,source=tools/prepare_runtime.py,target=/tmp/prepare_runtime.py PYTHONPATH=/app python /tmp/prepare_runtime.py
+RUN python -m selector.prepare_runtime
 # Precompile (the runtime FS is read-only) and make everything readable by nobody.
 RUN python -m compileall -q /app/selector && chmod -R a+rX /app
 
