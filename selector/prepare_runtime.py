@@ -62,8 +62,8 @@ if Path("/app/ds.json.gz").exists():
         for row in rows.values():
             row.pop("arcs", None)
             row["lines"] = {p: v for p, v in row["lines"].items() if group == "parser" or p in methods}
-        with gzip.open(out / f"{group}-lines.json.gz", "wt") as stream:
-            json.dump(rows, stream, separators=(",", ":"))
+        packed = json.dumps(rows, separators=(",", ":")).encode()
+        (out / f"{group}-lines.json.gz").write_bytes(gzip.compress(packed, mtime=0))
 
     from selector.token_options import discover_sites
     source = ast.parse(_sources()["src"]["sqlglot/tokens.py"])
