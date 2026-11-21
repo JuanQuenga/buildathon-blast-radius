@@ -1,15 +1,35 @@
 """Register a locally built image for offline measurement of its frozen default command."""
 import argparse
+import hashlib
+import io
 import json
 from pathlib import Path
 import subprocess
 import tempfile
+import tarfile
 
 from paths import REPO, WORKBENCH
 
 
 def command(*args):
     return subprocess.check_output(args, cwd=REPO)
+
+
+def verify_expanded_bundle(sha, app, bundle):
+    recipe = command("git", "show", f"{sha}:Dockerfile")
+    if f"rm /app/{bundle}".encode() not in recipe:
+        raise ValueError("Tagged image recipe does not remove its input archive")
+    blob = command("git", "show", f"{sha}:{bundle}")
+    with tarfile.open(fileobj=io.BytesIO(blob), mode="r|xz") as archive:
+        for member in archive:
+            if member.isdir():
+                continue
+            dest = (app / member.name).resolve()
+            if not member.isfile() or not dest.is_relative_to(app.resolve()) or not dest.is_file():
+                raise ValueError(f"Missing or unexpected runtime bundle member: {member.name}")
+            with dest.open("rb") as image_file, archive.extractfile(member) as frozen:
+                if hashlib.file_digest(image_file, "sha256").digest() != hashlib.file_digest(frozen, "sha256").digest():
+                    raise ValueError(f"Extracted runtime file differs from Git: {member.name}")
 
 
 def register(ref, image):
@@ -43,6 +63,10 @@ def register(ref, image):
         app = root / "app"
         actual = {str(path.relative_to(app)) for path in (app / "selector").rglob("*")
                   if path.is_file() and "__pycache__" not in path.parts}
+        bundle = "selector/maps/pin-runtime.tar.xz"
+        if expected - actual == {bundle}:
+            verify_expanded_bundle(sha, app, bundle)
+            expected.remove(bundle)
         if actual != expected or any((app / path).read_bytes() != command("git", "show", f"{sha}:{path}")
                                      for path in sorted(expected)):
             raise ValueError("Image selector files differ from the frozen commit")
