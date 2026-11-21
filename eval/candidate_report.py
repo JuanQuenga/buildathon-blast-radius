@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import random
+import shutil
 import statistics
 import subprocess
 import tempfile
@@ -33,11 +34,35 @@ def missed_catalog_ids(node_ids, numbers):
     return f"{len(node_ids)} numbered tests in the supplied catalog ({ranges})"
 
 
+def prepare_tree(sha, tmp, cache):
+    subprocess.run(["tar", "-xf", "-", "-C", tmp], input=git("archive", sha, "selector"), check=True)
+    if not (tmp / "selector/prepare_runtime.py").exists():
+        return
+    # This Docker build step writes to /app. Give it a private /app and
+    # the same local Python executable used to measure the finished selector.
+    prepared = cache / "host-pin-cache"
+    if not prepared.exists():
+        runtime = PYTHON.resolve().parent.parent
+        with tempfile.TemporaryDirectory(dir=cache) as stage:
+            stage = Path(stage)
+            shutil.copytree(tmp / "selector", stage / "selector")
+            cmd = ["bwrap", "--die-with-parent", "--unshare-net", "--ro-bind", "/usr", "/usr",
+                   "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib", "/lib64",
+                   "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
+                   "--ro-bind", str(runtime), "/runtime", "--bind", str(stage), "/app",
+                   "--chdir", "/app", "--setenv", "PYTHONPYCACHEPREFIX", "/tmp/pycache",
+                   "/runtime/bin/" + PYTHON.resolve().name, "-m", "selector.prepare_runtime"]
+            subprocess.run(cmd, check=True)
+            (stage / "pin-cache").rename(prepared)
+    (tmp / "pin-cache").symlink_to(prepared, target_is_directory=True)
+
+
 def measure_batch(name, batch, tmp, cache, catalog, tests):
     key = hashlib.sha256(catalog)
     for c in batch:
         key.update(c['id'].encode() + b'\0' + c['patch'])
-    cached = cache / f"{name}-{key.hexdigest()[:16]}.json"
+    runtime = "prepared-" if (tmp / "pin-cache").is_dir() else ""
+    cached = cache / f"{runtime}{name}-{key.hexdigest()[:16]}.json"
     if not cached.exists():
         data = run.make_batch_dir(tmp / cached.stem, batch, catalog)
         r = run.run_selector([str(PYTHON), "-m", "selector.main"], tmp, data,
@@ -63,7 +88,7 @@ def matched_report(current_ref, previous_ref, records, catalog, tests, durations
         cache.mkdir(exist_ok=True, parents=True)
         with tempfile.TemporaryDirectory(dir=cache) as tmp:
             tmp = Path(tmp)
-            subprocess.run(["tar", "-xf", "-", "-C", tmp], input=git("archive", sha, "selector"), check=True)
+            prepare_tree(sha, tmp, cache)
             cohorts = {
                 "Tuning": [r for r in records if r["split"] == "dev"],
                 "Registered holdout": [r for r in records if r["split"] == "holdout"],
@@ -140,8 +165,7 @@ def measure(ref, labels_ref=None):
                 seen.add(case["patch"])
     with tempfile.TemporaryDirectory(dir=cache) as tmp:
         tmp = Path(tmp)
-        archive = git("archive", sha, "selector")
-        subprocess.run(["tar", "-xf", "-", "-C", tmp], input=archive, check=True)
+        prepare_tree(sha, tmp, cache)
         for name in SETS:
             pool = [c for c in sets if c["set"] == name]
             random.Random(1729).shuffle(pool)
