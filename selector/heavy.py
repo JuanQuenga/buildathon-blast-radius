@@ -711,9 +711,30 @@ def options(patch, catalog, targets, dur):
                 0.30, setup_cost + 0.16 + 0.55 * load)
 
 
-def run(patches, catalog, dur, t0):
+def hybrid_admits(probe, evidence):
+    # Rates and total attempt costs from the development and mutation replay.
+    # Price the actual replacement plan, including changes in worker count.
+    if probe.group == "ds" and evidence.get((probe.patch, "ds")) != "unresolved":
+        return False
+    prices = {
+        "front": (3 / 5, 8.629), "partial": (1 / 4, 16.626),
+        "generator": (30 / 38, 2.241), "dialects": (1.0, 0.568),
+        "scaled": (5 / 10, 0.596), "small": (2 / 8, 0.308),
+        "bundle": (27 / 90, 0.427),
+    }
+    if probe.mode not in prices:
+        return False
+    probability, cost = prices[probe.mode]
+    return probability * probe.gain > cost
+
+
+def run(patches, catalog, dur, t0, hybrid=False):
     from .probe_session import PatchSession
     started = cpu()
+    evidence = {}
+    if hybrid:
+        from .static_heavy import refine
+        evidence = refine(patches, catalog, dur, bundles=False)
     # Admission consumes pin-derived estimates, independent of machine load.
     allowance = min(96.0, max(18.0, 1.75 * len(patches)))
     cpu_ceiling = max(30.0, min(144.0, 2.4 * len(patches)))
@@ -729,6 +750,8 @@ def run(patches, catalog, dur, t0):
         try:
             for probe in options(patch, ids, [(n, g) for n, g in targets
                                               if (patch, g) not in attempted], dur):
+                if hybrid and not hybrid_admits(probe, evidence):
+                    continue
                 if (patch, probe.group) in attempted:
                     continue
                 if probe.estimate > max(1.0, probe.gain):
@@ -866,7 +889,7 @@ def run(patches, catalog, dur, t0):
     print("probe-cpu", f"{cpu()-started:.4f}", file=sys.stderr)
 
 
-def bounded_run(patches, catalog, dur, t0):
+def bounded_run(patches, catalog, dur, t0, hybrid=False):
     """Keep static plans in the parent until the verifier returns a complete batch."""
     import multiprocessing
 
@@ -879,7 +902,7 @@ def bounded_run(patches, catalog, dur, t0):
         def work():
             limit = 1800 * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-            run(patches, catalog, dur, t0)
+            run(patches, catalog, dur, t0, hybrid=hybrid)
             json.dump([p.workers for p in patches], result)
             result.flush()
 

@@ -334,7 +334,13 @@ def main() -> int:
     patches = [Patch(p.stem) for p in sorted((DATA / "commits").glob("*.patch"))]
     select = _load_impact() if patches else None
     _impact_pass(patches, select, catalog, dur, valid, t0)
-    if os.environ.get("BLAST_STATIC_FRONTEND") == "1":
+    if os.environ.get("BLAST_HYBRID") == "1":
+        from . import heavy
+        try:
+            heavy.bounded_run(patches, catalog, dur, t0, hybrid=True)
+        except Exception as exc:
+            log(f"hybrid stopped ({type(exc).__name__})")
+    elif os.environ.get("BLAST_STATIC_FRONTEND") == "1":
         from .static_heavy import refine
         try:
             refine(patches, catalog, dur)

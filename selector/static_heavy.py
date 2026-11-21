@@ -127,7 +127,8 @@ def classify(text):
     except Exception:
         return "unavailable", ""
 
-def refine(patches, catalog, durations):
+def refine(patches, catalog, durations, *, bundles=True):
+    evidence_by_target = {}
     targets = {heavy.TARGETS[t["id"]]: t["number"] for t in catalog if t["id"] in heavy.TARGETS}
     start = heavy.cpu()
     for patch in patches:
@@ -152,13 +153,16 @@ def refine(patches, catalog, durations):
                 except Exception:
                     evidence = "unavailable"
                 mode = ""
+            evidence_by_target[patch, group] = evidence
             drop = evidence.startswith("proved-") or evidence == "complete"
             print("static-evidence", patch.commit, group, evidence, mode, round(gain, 3),
                   "drop" if drop else "keep", file=sys.stderr)
             if drop:
                 patch.req, patch.pl, patch.workers = required, plausible, alternative
-    shrink_small_workers(patches, catalog, durations)
+    if bundles:
+        shrink_small_workers(patches, catalog, durations)
     print("static-refine-cpu", round(heavy.cpu()-start, 4), file=sys.stderr)
+    return evidence_by_target
 
 
 def shrink_small_workers(patches, catalog, durations):
