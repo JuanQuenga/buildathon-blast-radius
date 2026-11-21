@@ -50,6 +50,49 @@ def measure_batch(name, batch, tmp, cache, catalog, tests):
     return json.loads(cached.read_text())
 
 
+def matched_report(current_ref, previous_ref, records, catalog, tests, durations):
+    """Replay identical set/split batches and retain only aggregate plan differences."""
+    prior = {}
+    lines = ["", f"## Matched comparison with {previous_ref}", "",
+             "Both selectors received identical batches of up to 40 patches within each set and split. CPU includes startup for each batch. Plan differences ignore ordering of workers and tests. Tuning includes the official sample and labelled development cases.", "",
+             "| Split | Candidate | Patches | Misses | Simulated s | CPU s | Full suite plans | Changed plans vs previous | Changed selections vs previous |",
+             "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
+    for ref in (previous_ref, current_ref):
+        sha = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
+        cache = WORKBENCH / "candidate-runs" / sha
+        cache.mkdir(exist_ok=True, parents=True)
+        with tempfile.TemporaryDirectory(dir=cache) as tmp:
+            tmp = Path(tmp)
+            subprocess.run(["tar", "-xf", "-", "-C", tmp], input=git("archive", sha, "selector"), check=True)
+            for split in ("dev", "holdout"):
+                cases = [r for r in records if r["split"] == split]
+                sim = misses = full = changed = changed_selection = cpu = 0
+                for name in SETS:
+                    group = [r for r in cases if r["set"] == name]
+                    for start in range(0, len(group), 40):
+                        batch = group[start:start + 40]
+                        run_data = measure_batch(name, batch, tmp, cache, catalog, tests)
+                        cpu += run_data["cpu"]
+                        for row in batch:
+                            key = (name, row["id"])
+                            plan = run_data["plans"][row["id"]]
+                            normalized = tuple(sorted(tuple(sorted(worker)) for worker in plan))
+                            selected = frozenset(t for worker in plan for t in worker)
+                            miss = not selected.issuperset(row["answer"]["failing"])
+                            misses += miss
+                            sim += score.commit_cost_ms(plan, durations) + score.MISS_MS * miss
+                            full += len(selected) == len(tests)
+                            if ref == previous_ref:
+                                prior[key] = (normalized, selected)
+                            else:
+                                changed += normalized != prior[key][0]
+                                changed_selection += selected != prior[key][1]
+                label = "Tuning" if split == "dev" else "Holdout"
+                diffs = f"{changed} | {changed_selection}" if ref == current_ref else "— | —"
+                lines.append(f"| {label} | {ref} | {len(cases)} | {misses} | {sim/1000:.3f} | {cpu/1e6:.3f} | {full} | {diffs} |")
+    return lines
+
+
 def measure(ref, labels_ref=None):
     sha = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     cache = WORKBENCH / "candidate-runs" / sha
@@ -198,6 +241,11 @@ def measure(ref, labels_ref=None):
             output.append(f"- {r['set']}/{r['id']} ({r['kind']}). {r.get('desc','')} Selector trace: {r['reason']}. Omitted catalog IDs: " + missed_catalog_ids(r["missed"], numbers))
     if not any(r['missed'] and r['split']=='dev' for r in records):
         output.append("No missed development patches among the labelled cases.")
+    if label_commit and ref.startswith("candidate-") and ref[10:].isdigit():
+        index = int(ref[10:])
+        if index > 1:
+            previous = f"candidate-{index - 1}"
+            output.extend(matched_report(ref, previous, records, catalog, tests, durations))
     dest = EVAL / "REPORTS" / (sha + ".md")
     dest.parent.mkdir(exist_ok=True)
     dest.write_text("\n".join(output)+"\n")
