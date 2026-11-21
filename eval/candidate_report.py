@@ -83,7 +83,7 @@ def measure(ref):
                     sel = {t for w in ws for t in w}
                     failures = c["answer"]["failing"]
                     missed = set(failures) - sel
-                    log = next((l for l in m["log"] if l.startswith(c['id'] + ': ')), '')
+                    log = " ".join(l.strip() for l in m["log"] if l.strip().startswith(c['id'] + ': '))
                     records.append(dict(c, missed=sorted(names[n] for n in missed),
                                         clean=not failures, selected=len(sel), reason=log,
                                         sim=score.commit_cost_ms(ws, durations)/1000 + 300*bool(missed),

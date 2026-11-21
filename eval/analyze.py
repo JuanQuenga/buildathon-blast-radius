@@ -42,6 +42,8 @@ def main():
         det = json.loads(det_p.read_text()) if det_p.exists() else {}
         for cid, x in ans.items():
             m = meta.get(cid, {})
+            if m.get("split") == "holdout":
+                continue
             rows.append({"set": s, "id": cid, "kind": m.get("kind", x.get("kind")), "op": m.get("op", "?"),
                          "area": m.get("area", "?"), "desc": m.get("desc", ""), "fail": x["failing"],
                          "missing": (det.get(cid) or {}).get("missing") or [],

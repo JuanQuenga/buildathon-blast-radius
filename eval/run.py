@@ -71,9 +71,11 @@ def load_cases(sets: list[str], split: str, kinds: set[str] | None, ignore_missi
             kind = m.get("kind", a.get("kind", "unknown"))
             if kinds and kind not in kinds:
                 continue
-            key = cid if cid not in cases else f"{d.name}-{cid}"
+            if cid in cases:
+                raise ValueError(f"Duplicate case ID {cid}; run the sets separately")
+            key = cid
             cases[key] = {
-                "id": cid, "set": d.name, "patch": (d / "commits" / f"{cid}.patch").read_bytes(),
+                "id": cid, "set": d.name, "split": sp, "patch": (d / "commits" / f"{cid}.patch").read_bytes(),
                 "failing": sorted(set(a["failing"]) - {id2num[i] for i in (details.get(cid) or {}).get("missing") or []
                                                          if i in id2num}) if ignore_missing else a["failing"],
                 "kind": kind,
@@ -251,7 +253,8 @@ def report(cases: dict, results: list[dict], full_ms: int, args, tests) -> dict:
     def group(keyf, title):
         g = collections.defaultdict(list)
         for cid, p in per.items():
-            g[keyf(by_id[cid])].append(p)
+            case = by_id[cid]
+            g["held-out (aggregate)" if case["split"] == "holdout" else keyf(case)].append(p)
         print(f"\n-- by {title}: n  miss  avg_cost_s  avg_opt_s  sel/fail  zero-fail%")
         rows = []
         for k, ps in sorted(g.items(), key=lambda kv: -len(kv[1])):
@@ -269,6 +272,7 @@ def report(cases: dict, results: list[dict], full_ms: int, args, tests) -> dict:
         out["by_family"] = group(lambda c: c["family"], "family")
     else:
         out["by_op"] = group(lambda c: f"{c['kind']}:{c['op']}", "kind:op")
+    misses = [cid for cid in misses if by_id[cid]["split"] == "dev"]
     if misses:
         print(f"\n-- misses ({len(misses)})")
         for cid in sorted(misses, key=lambda x: by_id[x]["kind"]):
@@ -398,6 +402,8 @@ def main(argv=None):
         out["bootstrap"] = bootstrap(cases, out["per"], cpu_pp, args.sample, args.reps, args.mix, args.seed)
     print(f"\n[run] outputs and stderr in {root}", file=sys.stderr)
     if args.json:
+        out["per"] = {cid: p for cid, p in out.get("per", {}).items()
+                      if any(c["id"] == cid and c["split"] == "dev" for c in cases.values())}
         Path(args.json).write_text(json.dumps(out, indent=1))
 
 
