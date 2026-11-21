@@ -820,7 +820,9 @@ def run(patches, catalog, dur, t0):
                     args.append("verify-results")
                     cpu_limit = max(cpu_limit, 2 * probe.gain + 1)
                 if probe.mode == "config":
-                    cpu_limit = min(cpu_limit, 4.0)
+                    # A configuration change can diverge across every optimizer rule.
+                    # Keep the heavy test if this speculative proof overruns.
+                    cpu_limit = min(cpu_limit, 1.0)
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1:
                     break

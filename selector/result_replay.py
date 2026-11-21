@@ -103,7 +103,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             reference = expected[i]
             mark("optimize")
             required = i in full if isinstance(full, list) else bool(full)
-            if not required and selection is not None and i not in selection["worker"] and parsed_matches and reference_matches(i):
+            if (not required and selection is not None and i not in selection["worker"]
+                    and parsed_matches and reference_matches(i)):
                 continue
             ran = skipped = False
             table = tests.mp_execute(expr, meta)
