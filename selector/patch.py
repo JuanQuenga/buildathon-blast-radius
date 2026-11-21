@@ -96,17 +96,66 @@ class FileDiff:
         return {p for p in (self.old_path, self.new_path) if p}
 
 
+def _unquote(p: str) -> str:
+    """git C-style quoted path ("a/f\\303\\251.py") -> str."""
+    if not (len(p) >= 2 and p[0] == '"' and p[-1] == '"'):
+        return p
+    body, out, i = p[1:-1], bytearray(), 0
+    esc = {"n": 10, "t": 9, '"': 34, "\\": 92, "a": 7, "b": 8, "f": 12, "r": 13, "v": 11}
+    while i < len(body):
+        c = body[i]
+        if c == "\\" and i + 1 < len(body):
+            d = body[i + 1]
+            if d in "01234567" and i + 3 < len(body) + 1:
+                out.append(int(body[i + 1:i + 4], 8) & 0xFF)
+                i += 4
+                continue
+            out.append(esc.get(d, ord(d)))
+            i += 2
+            continue
+        out += c.encode("utf-8")
+        i += 1
+    return out.decode("utf-8", "replace")
+
+
 def _strip(p: str) -> str | None:
-    p = p.strip()
+    """Path from a ---/+++ line, with one leading component removed (-p1),
+    exactly like ``git apply``: works for a/ b/, c/ i/ w/ o/ prefixes."""
+    p = p.rstrip("\n")
     if "\t" in p:
         p = p.split("\t", 1)[0]
-    if p.startswith('"') and p.endswith('"'):
-        p = p[1:-1]
+    p = _unquote(p.strip())
     if p == "/dev/null":
         return None
-    if p.startswith("a/") or p.startswith("b/"):
-        p = p[2:]
+    if "/" in p:
+        p = p.split("/", 1)[1]
     return p
+
+
+def _header_paths(rest: str) -> tuple[str | None, str | None]:
+    """Paths from 'diff --git <a> <b>' (both -p1 stripped)."""
+    rest = rest.strip()
+    if rest.startswith('"'):
+        j = rest.find('" ', 1)
+        while j != -1 and rest[j - 1] == "\\":
+            j = rest.find('" ', j + 1)
+        if j == -1:
+            return None, None
+        return _strip(rest[:j + 1]), _strip(rest[j + 2:])
+    if rest.endswith('"'):
+        j = rest.rfind(' "')
+        return _strip(rest[:j]), _strip(rest[j + 1:])
+    # unquoted: same path on both sides unless renamed; split in the middle
+    n = len(rest)
+    if n % 2 == 1:
+        h = n // 2
+        a, b = rest[:h], rest[h + 1:]
+        if rest[h] == " " and _strip(a) == _strip(b):
+            return _strip(a), _strip(b)
+    parts = rest.split(" ")
+    if len(parts) == 2:
+        return _strip(parts[0]), _strip(parts[1])
+    return None, None
 
 
 def parse(text: str) -> list[FileDiff]:
@@ -140,9 +189,8 @@ def parse(text: str) -> list[FileDiff]:
             hunk.lines.append(line); i += 1; continue
         hunk = None
         if line.startswith("diff --git "):
-            m = re.match(r"^diff --git (\"?a/.+?\"?) (\"?b/.+\"?)$", line)
-            cur = FileDiff(old_path=_strip(m.group(1)) if m else None,
-                           new_path=_strip(m.group(2)) if m else None)
+            a, b = _header_paths(line[len("diff --git "):])
+            cur = FileDiff(old_path=a, new_path=b)
             files.append(cur)
         elif cur is None and (line.startswith("--- ") or line.startswith("+++ ")):
             # plain unified diff without a git header
@@ -164,9 +212,9 @@ def parse(text: str) -> list[FileDiff]:
         elif line.startswith("deleted file mode"):
             cur.is_deleted = True
         elif line.startswith("rename from ") or line.startswith("copy from "):
-            cur.is_rename = True; cur.old_path = line.split(" ", 2)[2]
+            cur.is_rename = True; cur.old_path = _unquote(line.split(" ", 2)[2])
         elif line.startswith("rename to ") or line.startswith("copy to "):
-            cur.is_rename = True; cur.new_path = line.split(" ", 2)[2]
+            cur.is_rename = True; cur.new_path = _unquote(line.split(" ", 2)[2])
         elif line.startswith("old mode") or line.startswith("new mode"):
             cur.mode_change = True
         elif line.startswith("Binary files") or line.startswith("GIT binary patch"):

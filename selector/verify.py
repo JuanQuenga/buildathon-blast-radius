@@ -33,6 +33,7 @@ from .patch import FileDiff, PatchError, parse
 PRISTINE = os.environ.get("BLAST_SQLGLOT", "/app/sqlglot")
 
 PASS, FAIL, SKIP = "pass", "fail", "skip"
+DONE = "__done__"
 
 
 # --------------------------------------------------------------------------
@@ -362,13 +363,49 @@ def _child(overlay: str, nids: list[str], per_test_s: float, wfd: int) -> None:
                 emit(nid, SKIP)
             else:
                 emit(nid, PASS)
+    w.write(json.dumps([DONE, DONE]) + "\n")
     w.close()
 
 
-def run_tests(overlay: str, nids: list[str], deadline_s: float,
-              per_test_s: float = 10.0) -> dict[str, str]:
-    """Run ``nids`` against ``overlay`` in a forked child.  Returns nid ->
-    pass/fail/skip for tests that reported; missing = unverified."""
+class Job:
+    """One verification child in flight."""
+
+    def __init__(self, pid: int, fd: int, t_end: float, work: str, key=None):
+        self.pid, self.fd, self.t_end, self.work, self.key = pid, fd, t_end, work, key
+        self.buf = b""
+        self.done = False      # child said it finished
+        self.closed = False    # we stopped listening
+        self.killed = False
+        self.t_start = time.monotonic()
+
+
+def check_verifiable(changes: dict[str, str | None]) -> None:
+    """Refuse patches whose effect on *pytest* (what the labeler ran) our
+    unittest runner would not reproduce: pytest config / conftest / plugins,
+    or anything outside the package and its tests."""
+    for p in changes:
+        base = p.rsplit("/", 1)[-1]
+        if base == "conftest.py" or base in ("pytest.ini", "tox.ini", "setup.cfg",
+                                             "pyproject.toml", "setup.py"):
+            raise PatchError(f"pytest-level change: {p}")
+        if not (p.startswith("sqlglot/") or p.startswith("tests/")):
+            raise PatchError(f"outside sqlglot/ and tests/: {p}")
+        if p.endswith((".so", ".pyd", ".pth")):
+            raise PatchError(f"binary/extension: {p}")
+
+
+def start(patch_text: str, nids: list[str], work: str, deadline_s: float,
+          per_test_s: float = 10.0, root: str = PRISTINE, key=None) -> Job:
+    """Apply the patch, build the overlay and fork the test child.
+    Raises PatchError (or OSError) without leaving anything behind."""
+    changes = apply_patch(patch_text, root)
+    check_verifiable(changes)
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        build_overlay(work, changes, root)
+    except BaseException:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
     sys.stdout.flush()
     sys.stderr.flush()
     r, w = os.pipe()
@@ -377,7 +414,7 @@ def run_tests(overlay: str, nids: list[str], deadline_s: float,
         try:
             os.close(r)
             os.setpgid(0, 0)
-            _child(overlay, nids, per_test_s, w)
+            _child(work, nids, per_test_s, w)
         finally:
             os._exit(0)
     os.close(w)
@@ -385,60 +422,85 @@ def run_tests(overlay: str, nids: list[str], deadline_s: float,
         os.setpgid(pid, pid)
     except OSError:
         pass
-    res: dict[str, str] = {}
-    buf = b""
-    t_end = time.monotonic() + deadline_s
-    import select as _sel
-    killed = False
-    while True:
-        left = t_end - time.monotonic()
-        if left <= 0:
-            killed = True
-            break
-        rl, _, _ = _sel.select([r], [], [], left)
-        if not rl:
-            continue
-        chunk = os.read(r, 65536)
-        if not chunk:
-            break
-        buf += chunk
-    os.close(r)
-    if killed:
-        for target in (-pid, pid):
-            try:
-                os.kill(target, signal.SIGKILL)
-            except OSError:
-                pass
+    return Job(pid, r, time.monotonic() + deadline_s, work, key)
+
+
+def _close(job: Job) -> None:
+    if job.closed:
+        return
+    job.closed = True
+    if not job.done:
+        job.killed = True
     try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
-    # reap any grandchildren the tests left behind in our process group
-    try:
-        os.killpg(pid, signal.SIGKILL)
+        os.close(job.fd)
     except OSError:
         pass
-    lines = buf.decode("utf-8", "replace").split("\n")
-    if killed and lines:
-        lines = lines[:-1]  # possibly truncated
+    # Kill the whole process group (the child and anything its tests left behind).
+    for target in (-job.pid, job.pid):
+        try:
+            os.kill(target, signal.SIGKILL)
+        except OSError:
+            pass
+    try:
+        os.waitpid(job.pid, 0)
+    except ChildProcessError:
+        pass
+    shutil.rmtree(job.work, ignore_errors=True)
+
+
+def poll(jobs: list[Job], timeout: float) -> list[Job]:
+    """Wait up to ``timeout`` for output; return jobs that are now finished
+    (completed, crashed or past their deadline).  Finished jobs are closed."""
+    import select as _sel
+    now = time.monotonic()
+    live = [j for j in jobs if not j.closed]
+    finished = []
+    for j in live:
+        if now >= j.t_end:
+            _close(j)
+            finished.append(j)
+    live = [j for j in live if not j.closed]
+    if not live:
+        return finished
+    wait = max(0.0, min([timeout] + [j.t_end - now for j in live]))
+    rl, _, _ = _sel.select([j.fd for j in live], [], [], wait)
+    for j in live:
+        if j.fd in rl:
+            chunk = os.read(j.fd, 65536)
+            if chunk:
+                j.buf += chunk
+                if b'"__done__"' in j.buf:
+                    j.done = True
+            if not chunk or j.done:
+                _close(j)
+                finished.append(j)
+    return finished
+
+
+def results(job: Job) -> dict[str, str]:
+    """nid -> pass/fail/skip for tests that reported; missing = unverified.
+    Without the child's DONE sentinel the last line may be truncated and is
+    dropped."""
+    res: dict[str, str] = {}
+    lines = job.buf.decode("utf-8", "replace").split("\n")
+    if not job.done and lines:
+        lines = lines[:-1]
     for line in lines:
         if not line:
             continue
         try:
             nid, st = json.loads(line)
-            res[nid] = st
         except Exception:
-            pass
+            continue
+        if nid != DONE and st in (PASS, FAIL, SKIP):
+            res[nid] = st
     return res
 
 
 def verify(patch_text: str, nids: list[str], work: str, deadline_s: float,
            per_test_s: float = 10.0, root: str = PRISTINE) -> dict[str, str]:
-    """Apply + overlay + run.  Raises PatchError when the patch does not apply."""
-    changes = apply_patch(patch_text, root)
-    shutil.rmtree(work, ignore_errors=True)
-    try:
-        build_overlay(work, changes, root)
-        return run_tests(work, nids, deadline_s, per_test_s)
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+    """Blocking convenience wrapper.  Raises PatchError if the patch does not apply."""
+    job = start(patch_text, nids, work, deadline_s, per_test_s, root)
+    while not job.closed:
+        poll([job], 1.0)
+    return results(job)
