@@ -2,9 +2,11 @@
 
 ## Please submit
 
-**Please submit candidate-14 for the next practice slot, approximately 7:22 AM ET.** The coordinator handles submission. This tag adds fixture attribution to candidate 13. On 36 independently labeled fixture edits it covered all 67 failing-method observations and reduced simulated time from 916.344 to 449.576 seconds.
+**Please submit `diagnostic-d1-tpcds` (`91ca333`) for the approximately 8:23 AM ET practice slot.** The coordinator submits. This experiment intentionally misses one official sample patch. Candidate 14 remains the provisional final entry. [Diagnostic tags, measurements and interpretation](PRACTICE-DIAGNOSTICS.md)
 
-On the same zero-miss hidden batch, one productive TPC fixture edit gives a conditional forecast of **152.3–158.9 total seconds** including 23–26 CPU seconds. With no productive edit the range is **173.5–176.5**. The separately tagged candidate-14-static is a candidate-5-based control. [Release measurements and forecast](CANDIDATE14.md)
+### Candidate-14 official result
+
+Candidate 14 scored **174.6 seconds**, with 150.503 simulated seconds, 24.1–24.6 CPU seconds and zero missed commits. Field-precise fixture attribution made no measurable difference on this practice batch. It covered all 67 failing-method observations on 36 labeled local fixture edits and saved 466.768 simulated seconds there. The static control has no scheduled practice slot. [Candidate 14 validation](CANDIDATE14.md)
 
 ### Candidate-13 official result
 

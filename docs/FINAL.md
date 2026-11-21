@@ -1,6 +1,6 @@
 # Final entry
 
-**Use candidate-14 for the next practice measurement. Keep the final choice provisional pending that result.** It retains candidate 13's probes and attributes SQL fixture edits to the tests that consume each changed field. Candidate 13 officially scored 174.6 with zero misses, 150.503 simulated seconds and about 24.1 CPU seconds. The hidden fixture mix is unknown. Candidate-14-static is the low-CPU alternative. [Candidate 14 release measurements](CANDIDATE14.md)
+**Candidate 14 (`da0ed24`) remains the provisional final entry.** On official practice, candidates 13 and 14 both recorded 150.503 simulated seconds, about 24 CPU seconds and zero misses. Candidate 14 also covered all failures on the 36 local fixture mutations at lower worker cost. Its stress replay still has deadline-sensitive differences. All tags prefixed `diagnostic-` are practice experiments with intentional omissions. [Release measurements](CANDIDATE14.md) · [Practice diagnostics](PRACTICE-DIAGNOSTICS.md)
 
 ## Candidate-12 sixty-patch scenarios
 
