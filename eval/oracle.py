@@ -262,9 +262,10 @@ def _cmd_label_dir(a):
 
     def write(res):
         for cid, r in res.items():
-            if r.get("failing") is None:
+            if r.get("status") != "ok" or r.get("rc") not in (0, 1, 5):
                 bad[cid] = r["status"]
                 answers.pop(cid, None)
+                oracle.pop(cid, None)
                 continue
             m = meta.get(cid, {})
             answers[cid] = {"failing": r["failing"], "kind": m.get("kind", "unknown")}
@@ -272,7 +273,7 @@ def _cmd_label_dir(a):
             oracle[cid]["reasons"] = r.get("reasons", {})
         # answers.json is written atomically so readers never see a partial file
         tmp = ans_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"commits": dict(sorted(answers.items()))}, indent=0) + "\n")
+        tmp.write_text(json.dumps({"commits": dict(sorted(answers.items()))}, separators=(",", ":")) + "\n")
         tmp.replace(ans_path)
         tmp = oracle_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(dict(sorted(oracle.items())), indent=0) + "\n")

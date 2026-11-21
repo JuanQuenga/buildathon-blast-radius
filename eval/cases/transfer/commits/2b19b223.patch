@@ -1,0 +1,11 @@
+--- a/sqlglot/time.py
++++ b/sqlglot/time.py
+@@ -11,7 +11,7 @@
+     string: str, mapping: dict[str, str], trie: dict[t.Any, t.Any] | None = None
+ ) -> str | None:
+     """
+-    Converts a time string given a mapping.
++    Display a literal Windows path such as C:\Users in an example.
+ 
+     Examples:
+         >>> format_time("%Y", {"%Y": "YYYY"})

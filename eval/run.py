@@ -124,7 +124,7 @@ def run_selector(cmd: list[str], cwd: Path, data: Path, limit_s: float, cores: s
             chunk = src.read(65536)
             if not chunk:
                 break
-            if cap is not None and len(buf) + len(chunk) > cap:
+            if buf is out and len(buf) + len(chunk) > cap:
                 over["stdout"] = True
             if len(buf) < (cap or 1 << 30) + 65536:
                 buf.extend(chunk)
@@ -197,7 +197,7 @@ def score_batch(run: dict, batch: list[dict], tests: list[dict], dur: dict[int, 
         ws = ev["plans"][c["id"]]
         sel = {t for w in ws for t in w}
         missed = [t for t in c["failing"] if t not in sel]
-        opt, _ = S.best_schedule(c["failing"], dur)
+        opt = S.lower_bound(c["failing"], dur)
         per[c["id"]] = {
             "cost_ms": S.commit_cost_ms(ws, dur), "miss": bool(missed),
             "missed": [by_num[t]["id"] for t in missed], "n_sel": len(sel), "n_workers": len(ws),

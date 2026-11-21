@@ -1,0 +1,11 @@
+--- a/tests/fixtures/pretty.sql
++++ b/tests/fixtures/pretty.sql
+@@ -3,7 +3,7 @@
+ 
+ SELECT * FROM test;
+ SELECT
+-  *
++    *
+ FROM test;
+ 
+ WITH a AS ((SELECT 1 AS b) UNION ALL (SELECT 2 AS b)) SELECT * FROM a;

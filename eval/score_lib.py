@@ -12,7 +12,7 @@ from typing import Any
 WORKER_MS = 2_000
 MISS_MS = 300_000
 MAX_WORKERS = 8
-STDOUT_CAP = 2 * 1024 * 1024  # "2 MB"; exact unit unpublished, we use MiB and also warn at 2,000,000
+STDOUT_CAP = 2_000_000  # "2 MB"; exact unit unpublished, we use MiB and also warn at 2,000,000
 
 
 class _NotJson(Exception):
@@ -142,3 +142,13 @@ def best_schedule(tests: list[int], dur: dict[int, int]) -> tuple[int, list[list
         if best is None or c < best[0]:
             best = (c, ws)
     return best
+
+
+def lower_bound(tests: list[int], dur: dict[int, int]) -> int:
+    """Relax integral scheduling to an average-load and longest-job bound."""
+    if not tests:
+        return 0
+    total = sum(dur[t] for t in tests)
+    longest = max(dur[t] for t in tests)
+    return min(WORKER_MS * k + max(longest, (total + k - 1) // k)
+               for k in range(1, min(len(tests), MAX_WORKERS) + 1))
