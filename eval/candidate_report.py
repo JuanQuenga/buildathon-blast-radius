@@ -2,6 +2,7 @@
 import argparse
 from collections import defaultdict
 import hashlib
+import io
 import json
 from pathlib import Path
 import random
@@ -9,6 +10,7 @@ import shutil
 import statistics
 import subprocess
 import tempfile
+from zipfile import ZipFile
 
 import run
 import image_runtime
@@ -154,21 +156,32 @@ def measure(ref, labels_ref=None):
     records, missing, duplicates = [], defaultdict(int), defaultdict(int)
     seen = set()
     sets = []
+    # Labels and the patch bytes used to produce them must share one revision.
+    snapshot = {}
+    if label_commit:
+        with ZipFile(io.BytesIO(git("archive", "--format=zip", label_commit, "eval/cases"))) as archive:
+            snapshot = {path: archive.read(path) for path in archive.namelist() if not path.endswith("/")}
     for name in SETS:
         directory = CASES / name
-        meta = json.loads((directory / "meta.json").read_text())
-        answers = directory / "answers.json"
+        prefix = f"eval/cases/{name}/"
         if label_commit:
-            blob = subprocess.run(["git", "show", f"{label_commit}:eval/cases/{name}/answers.json"],
-                                  cwd=REPO, capture_output=True)
-            labels = json.loads(blob.stdout)["commits"] if blob.returncode == 0 else {}
+            if prefix + "meta.json" not in snapshot:
+                continue
+            meta = json.loads(snapshot[prefix + "meta.json"])
+            labels = json.loads(snapshot.get(prefix + "answers.json", b'{"commits":{}}'))["commits"]
+            patches = {Path(path).stem: data for path, data in snapshot.items()
+                       if path.startswith(prefix + "commits/") and path.endswith(".patch")}
         else:
+            meta = json.loads((directory / "meta.json").read_text())
+            answers = directory / "answers.json"
             labels = json.loads(answers.read_text())["commits"] if answers.exists() else {}
+            patches = {p.stem: p.read_bytes() for p in (directory / "commits").glob("*.patch")}
+        if set(patches) != set(meta):
+            raise ValueError(f"Patch inventory differs from metadata for {name}")
         details = WORKBENCH / "oracle-details" / (name + ".json")
         audit = json.loads(details.read_text()) if not label_commit and details.exists() else {}
-        for path in sorted((directory / "commits").glob("*.patch")):
-            cid = path.stem
-            case = dict(meta[cid], id=cid, patch=path.read_bytes(), set=name)
+        for cid, patch in sorted(patches.items()):
+            case = dict(meta[cid], id=cid, patch=patch, set=name)
             result = audit.get(cid, {})
             valid = (result.get("status") == "ok" and result.get("rc") in (0, 1, 5))
             if label_commit:
@@ -222,8 +235,11 @@ def measure(ref, labels_ref=None):
                     part = group[offset:offset + 40]
                     replay = measure_batch(group[0]["set"], part, tmp, cache, catalog, tests)
                     isolated_cpu[label] += replay["cpu"] / 1e6
+    runtime = ("the default command and files exported from the verified image"
+               if (WORKBENCH / "candidate-images" / sha / "config.json").exists()
+               else "the tagged selector source and its prepared runtime on the benchmark host")
     output = [f"# Selector {sha[:12]}", "",
-              "Host run of the frozen selector tree in shuffled batches of up to 40. CPU is measured per process batch. Interim tables allocate batch CPU evenly to labelled patches. Full counts plans selecting the entire catalog. Simulated time includes miss penalties. The bound relaxes worker packing. The full-suite reference uses four workers.",
+              f"The benchmark replayed {runtime} in shuffled batches of up to 40 patches. Full counts plans selecting the entire catalog. Simulated time includes miss penalties. The bound relaxes worker packing. The full-suite reference uses four workers.",
               "", "Incomplete or unaudited patches excluded by set: " + str(dict(missing)) + ". Byte-identical development patches excluded from held-out results: " + str(dict(duplicates)) + ".",
               "", "| Set / kind | N | Clean | Miss | Sim s | CPU s | Full | Bound s | Full suite s |",
               "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
