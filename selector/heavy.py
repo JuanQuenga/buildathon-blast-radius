@@ -713,6 +713,8 @@ def options(patch, catalog, targets, dur, *, price_collection=False):
 
 # (attempts, clearances, total CPU / attempts). Development and mutation
 # receipts only. A group below eight observations uses C14's admission.
+HYBRID_DS_CPU_SECONDS = 12.5
+
 HYBRID_PRICES = {
     ("ds", "different-or-incomplete", "corpus"): (15, 4, 0.836),
     ("ds", "execution-or-planning", "slice"): (29, 10, 3.667),
@@ -803,6 +805,10 @@ def run(patches, catalog, dur, t0, hybrid=False):
                 continue
             allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
+            probe_deadline = deadline
+            ds_cap = hybrid and probe.group == "ds"
+            if ds_cap:
+                probe_deadline = min(deadline, time.monotonic() + HYBRID_DS_CPU_SECONDS)
             phase = probe.mode
             price = hybrid_price(probe, evidence) if hybrid else None
             allow_continuation = not price or price[1] * probe.gain > price[0] * price[2]
@@ -835,13 +841,16 @@ def run(patches, catalog, dur, t0, hybrid=False):
                 if remaining_cpu < 0.1:
                     break
                 cpu_limit = min(cpu_limit, remaining_cpu)
+                if ds_cap:
+                    spent = cpu() + (session.charged if session else 0) - began
+                    cpu_limit = min(cpu_limit, max(0.001, HYBRID_DS_CPU_SECONDS - spent))
                 if probe.mode == "unreached":
                     result = "pass"
                 elif session:
-                    result, phase = session.check(probe.mode, args, deadline, cpu_limit)
+                    result, phase = session.check(probe.mode, args, probe_deadline, cpu_limit)
                 else:
                     replay.phase = phase
-                    result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
+                    result = replay(probe.mode, args, work, probe_deadline, probe.paths, cpu_limit)
                     phase = replay.phase
                 if result == "failed" and allow_continuation and probe.mode in {"corpus", "tokens"}:
                     regions = changed_regions(patch.text)
@@ -860,12 +869,15 @@ def run(patches, catalog, dur, t0, hybrid=False):
                         allowance -= price
                         limit = min(max(4, 2.5 * price + 1),
                                     cpu_ceiling - (cpu() - started) - (session.charged if session else 0))
+                        if ds_cap:
+                            spent = cpu() + (session.charged if session else 0) - began
+                            limit = min(limit, HYBRID_DS_CPU_SECONDS - spent)
                         if limit < 0.1:
-                            break
+                            raise TimeoutError("TPC-DS continuation budget exhausted")
                         if session:
-                            result, phase = session.check(mode, args, deadline, limit)
+                            result, phase = session.check(mode, args, probe_deadline, limit)
                         else:
-                            result = replay(mode, args, work, deadline, probe.paths, limit)
+                            result = replay(mode, args, work, probe_deadline, probe.paths, limit)
                             phase = replay.phase
                 if result == "pass":
                     if probe.mode == "catalog":
