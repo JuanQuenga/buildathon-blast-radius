@@ -24,6 +24,18 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from query_budget import query_budget
 
     execute = ex.PythonExecutor.execute
+    nested_loop = ex.PythonExecutor.nested_loop_join
+    pin = json.loads((Path(__file__).parent / "maps/join-work.json").read_bytes())
+    product_limit = 100 * pin["maximum_nested_loop_pairs"]
+
+    def bounded_join(engine, join, left, right, condition, context):
+        # The original implementation visits every pair, even with a predicate.
+        # An overrun ends the proof and retains the complete worker.
+        if len(left.table.rows) * len(right.table.rows) > product_limit:
+            mark("join-budget")
+            raise ValueError("nested-loop work exceeds the full-fixture probe budget")
+        return nested_loop(engine, join, left, right, condition, context)
+
 
     def check_plan(engine, plan):
         nonlocal ran, skipped
@@ -43,6 +55,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     reference_setup = contextlib.ExitStack()
     changed_reference = set()
     ex.PythonExecutor.execute = check_plan
+    ex.PythonExecutor.nested_loop_join = bounded_join
     try:
         if len(test.tpcds_sqls) != len(expected) or len(expected) != 99:
             raise ValueError("incomplete fixtures")
@@ -93,4 +106,5 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 raise ValueError("result changed")
     finally:
         ex.PythonExecutor.execute = execute
+        ex.PythonExecutor.nested_loop_join = nested_loop
         reference_setup.close()
