@@ -58,7 +58,7 @@ def enter_overlay(overlay):
                                    for p in paths]
 
 
-def run(script, group, args, overlay, deadline, modules, receipt, phase=None):
+def run(script, group, args, overlay, deadline, modules, receipt, phase=None, cpu_limit=None):
     pid = os.fork()
     if pid == 0:
         status = 1
@@ -75,6 +75,8 @@ def run(script, group, args, overlay, deadline, modules, receipt, phase=None):
             os.environ["BLAST_CHANGED_MODULE"] = modules
             if phase is not None:
                 os.environ["BLAST_PHASE_FD"] = str(phase.fileno())
+            if cpu_limit is not None:
+                signal.setitimer(signal.ITIMER_PROF, cpu_limit)
             sys.argv = [str(script), group, *args]
             runpy.run_path(str(script), run_name="__main__")
             for name in filter(None, modules.split(",")):
@@ -91,6 +93,8 @@ def run(script, group, args, overlay, deadline, modules, receipt, phase=None):
             done, status = os.waitpid(pid, os.WNOHANG)
             if done:
                 receipt.seek(0)
+                if os.waitstatus_to_exitcode(status) == -signal.SIGPROF:
+                    return "timeout"
                 return "pass" if status == 0 and receipt.read(3) == b"OK" else "failed"
             time.sleep(0.01)
         return "timeout"

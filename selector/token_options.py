@@ -158,3 +158,73 @@ def keyed_bits(an, bits, owner, old, new):
             if not any(cls in (owner, "*") and key in changed for cls, key in observations):
                 bits &= ~(1 << i)
     return bits
+
+
+@functools.cache
+def keyword_reads():
+    return json.loads((Path(__file__).parent / "maps" / "keyword-reads.json").read_text())
+
+
+@functools.cache
+def token_kinds():
+    from .impact import _sources
+    module = ast.parse(_sources()["src"]["sqlglot/tokenizer_core.py"])
+    cls = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name == "TokenType")
+    return {target.id for stmt in cls.body if isinstance(stmt, ast.Assign)
+            for target in stmt.targets if isinstance(target, ast.Name)}
+
+
+def changed_keywords(old, new):
+    if len(old) != 1 or len(new) != 1:
+        return None
+    a, b = old[0], new[0]
+    if type(a) != type(b) or not isinstance(a, (ast.Assign, ast.AnnAssign)):
+        return None
+    targets = a.targets if isinstance(a, ast.Assign) else [a.target]
+    if len(targets) != 1 or not isinstance(targets[0], ast.Name) or targets[0].id != "KEYWORDS":
+        return None
+    x, y = a.value, b.value
+    if not isinstance(x, ast.Dict) or not isinstance(y, ast.Dict):
+        return None
+    restored = copy.copy(b)
+    restored.value = x
+    if ast.dump(a) != ast.dump(restored):
+        return None
+
+    def entries(node):
+        order, values = [], {}
+        for key, value in zip(node.keys, node.values):
+            if (isinstance(key, ast.Constant) and type(key.value) is str
+                    and isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name)
+                    and value.value.id == "TokenType" and value.attr in token_kinds()):
+                if key.value in values:
+                    return None, None
+                values[key.value] = value.attr
+                order.append(key.value)
+            else:
+                order.append((ast.dump(key) if key is not None else None, ast.dump(value)))
+        return order, values
+
+    left, old_values = entries(x)
+    right, new_values = entries(y)
+    if left is None or right is None:
+        return None
+    moved = old_values.keys() ^ new_values.keys()
+    if moved:
+        meta = keyword_reads()
+        for k in moved:
+            if (not k.isascii() or not k.isidentifier() or len(k) > 64 or k in meta["excluded"]
+                    or any(char in k for char in meta["single"])):
+                return None
+    if [k for k in left if k not in moved] != [k for k in right if k not in moved]:
+        return None
+    return {k for k in old_values.keys() | new_values.keys() if old_values.get(k) != new_values.get(k)}
+
+
+
+def keyword_bits(an, bits, keys):
+    profiles = keyword_reads()["profiles"]
+    for i, test in enumerate(an.idx["tests"]):
+        if bits & (1 << i) and test in profiles and keys.isdisjoint(profiles[test]):
+            bits &= ~(1 << i)
+    return bits

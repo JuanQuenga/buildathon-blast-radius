@@ -32,7 +32,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 raise TimeoutError("result verification budget exhausted")
             # A changed join can expand rapidly. A CPU timer also bounds a
             # single divergent query. The process exits on SIGPROF.
-            signal.setitimer(signal.ITIMER_PROF, extra_cpu)
+            outer = signal.getitimer(signal.ITIMER_PROF)[0]
+            signal.setitimer(signal.ITIMER_PROF, min(extra_cpu, outer) if outer else extra_cpu)
         start = time.process_time()
         try:
             mark("execute")
@@ -40,8 +41,9 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             return execute(engine, plan)
         finally:
             if not required:
-                signal.setitimer(signal.ITIMER_PROF, 0)
-                extra_cpu -= time.process_time() - start
+                spent = time.process_time() - start
+                signal.setitimer(signal.ITIMER_PROF, max(0.000001, outer-spent) if outer else 0)
+                extra_cpu -= spent
 
     ex.PythonExecutor.execute = check_plan
     try:

@@ -1233,6 +1233,9 @@ class PyDiff:
             if (self.an.single_file and q.split(".")[-1] == "Tokenizer" and
                     (self.path == "sqlglot/tokens.py" or self.path.startswith("sqlglot/dialects/"))):
                 from . import token_options
+                keys = token_options.changed_keywords(o_other, n_other)
+                if keys:
+                    b = token_options.keyword_bits(self.an, b, keys)
                 name = token_options.option(o_other, n_other)
                 readers = token_options.read_bits(self.an, name) if name else None
                 if readers is not None:

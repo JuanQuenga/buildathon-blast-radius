@@ -27,9 +27,9 @@ def serve(conn, work, paths):
         warm_replay.ready = True
         warm_replay.active_overlay = work
         while True:
-            mode, args, deadline = json.loads(conn.recv_bytes(65536))
+            mode, args, deadline, cpu_limit = json.loads(conn.recv_bytes(65536))
             heavy.replay.phase = mode
-            result = heavy.replay(mode, args, work, deadline, paths)
+            result = heavy.replay(mode, args, work, deadline, paths, cpu_limit)
             conn.send_bytes(json.dumps([result, heavy.replay.phase, heavy.cpu()]).encode())
     except (EOFError, BrokenPipeError):
         pass
@@ -46,8 +46,8 @@ class PatchSession:
         child.close()
         self.charged = 0.0
 
-    def check(self, mode, args, deadline):
-        self.conn.send_bytes(json.dumps([mode, args, deadline]).encode())
+    def check(self, mode, args, deadline, cpu_limit):
+        self.conn.send_bytes(json.dumps([mode, args, deadline, cpu_limit]).encode())
         if not self.conn.poll(max(0, deadline + 0.06 - time.monotonic())):
             self.close()
             return "timeout", mode

@@ -28,9 +28,11 @@ TARGETS = {
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
 
 CHILD = """
-import os, resource, runpy, sys
+import os, resource, runpy, signal, sys
 cap = 1800 * 1024 * 1024
 resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
+if "BLAST_PROBE_CPU" in os.environ:
+    signal.setitimer(signal.ITIMER_PROF, float(os.environ["BLAST_PROBE_CPU"]))
 sys.argv = sys.argv[1:]
 runpy.run_path(sys.argv[0], run_name="__main__")
 module = os.environ.get("BLAST_CHANGED_MODULE")
@@ -185,7 +187,7 @@ def affected(group, path, span):
     return hits
 
 
-def replay(group, cases, overlay, deadline, path=None):
+def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
     # Require an explicit completion token. An early successful process exit
     # from patched code cannot be mistaken for completed assertions.
     if group == "catalog":
@@ -203,11 +205,13 @@ def replay(group, cases, overlay, deadline, path=None):
     with tempfile.TemporaryFile() as receipt, tempfile.TemporaryFile() as phase:
         env = dict(os.environ, BLAST_RECEIPT=str(receipt.fileno()), MALLOC_ARENA_MAX="2")
         env["BLAST_PHASE_FD"] = str(phase.fileno())
+        if cpu_limit is not None:
+            env["BLAST_PROBE_CPU"] = str(cpu_limit)
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
         if warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
             result = warm_replay.run(script, group, cases, overlay, deadline,
-                                   env.get("BLAST_CHANGED_MODULE", ""), receipt, phase)
+                                   env.get("BLAST_CHANGED_MODULE", ""), receipt, phase, cpu_limit)
             replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
             return result
         with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(script), group, *cases],
@@ -225,6 +229,8 @@ def replay(group, cases, overlay, deadline, path=None):
                 return "timeout"
         replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
         receipt.seek(0)
+        if status == -signal.SIGPROF:
+            return "timeout"
         return "pass" if status == 0 and receipt.read(3) == b"OK" else "failed"
 
 
@@ -617,10 +623,11 @@ def run(patches, catalog, dur, t0):
     from .probe_session import PatchSession
     started = cpu()
     stop = min(t0 + 105, time.monotonic() + 53)
-    base = max(2.75, len(patches) * 0.06875)
+    base = max(2.3, len(patches) * 0.0575)
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
     saved = 0.0
+    successful_cpu = 0.0
     paid = 0
     queue = []
     attempted = set()
@@ -628,7 +635,7 @@ def run(patches, catalog, dur, t0):
 
     def remaining():
         credit = 0.35 * saved if paid >= 2 else 0.0
-        budget = min(45.0, base + credit)
+        budget = min(45.0, base + successful_cpu + credit)
         return min(stop - time.monotonic(), budget - (cpu() - started)
                    - (session.charged if session else 0))
 
@@ -644,6 +651,14 @@ def run(patches, catalog, dur, t0):
         if remaining() < 0.08:
             break
         enqueue(patch)
+    # A dense batch of cheap proofs can have substantially more removable
+    # work than the practice batch. Bound this initial investment separately.
+    best_gain = {}
+    for probe in queue:
+        if probe.estimate <= 1.4 and probe.group not in {"bundle", "collection"}:
+            value = probe.gain * probe.probability - probe.estimate
+            best_gain[probe.patch] = max(best_gain.get(probe.patch, 0), value)
+    base += min(4.0, 0.045 * max(0.0, sum(best_gain.values()) - 60.0))
     print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
     active = None
     with contextlib.ExitStack() as stack:
@@ -674,16 +689,17 @@ def run(patches, catalog, dur, t0):
                     warm_replay.prepare_core()
                 if probe.mode in {"catalog", "front", "partial"} and not warm_replay.ready:
                     warm_replay.prepare()
-                deadline = time.monotonic() + max(0, min(remaining(), max(0.55, 2.25 * probe.estimate + 0.20)))
+                cpu_limit = max(0.02, min(remaining(), max(0.50, 1.8 * probe.estimate + 0.20)))
+                deadline = min(stop, time.monotonic() + 3 * cpu_limit + 0.3)
                 args = ([json.dumps(probe.cases)] if probe.mode in
                         {"partial", "slice", "rules", "dialects", "bundle"} else [])
                 if probe.mode == "unreached":
                     result = "pass"
                 elif session:
-                    result, phase = session.check(probe.mode, args, deadline)
+                    result, phase = session.check(probe.mode, args, deadline, cpu_limit)
                 else:
                     replay.phase = phase
-                    result = replay(probe.mode, args, work, deadline, probe.paths)
+                    result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
                     phase = replay.phase
                 if result == "pass":
                     patch.req, patch.pl, patch.workers = probe.proposed
@@ -696,6 +712,8 @@ def run(patches, catalog, dur, t0):
             except Exception as exc:
                 result = type(exc).__name__
             cost = cpu() + (session.charged if session else 0) - began
+            if result == "pass" and probe.group not in {"bundle", "collection"}:
+                successful_cpu += min(max(0, cost), 0.4 * probe.gain)
             print("heavy", patch.commit, probe.group, result, probe.mode, f"{cost:.4f}",
                   round(1000 * probe.gain) if result == "pass" and probe.group != "collection" else 0,
                   phase, f"{probe.probability:.2f}", file=sys.stderr)
