@@ -21,7 +21,7 @@ them across up to eight simulated workers.
   then fills the slack under the makespan with plausible tests and then any other
   test ("free riders"). The extra tests cost nothing and reduce the chance of a miss.
 - `selector/patch.py`: dependency-free unified-diff parser (`-p1` like `git apply`).
-- `selector/heavy.py` prices a possible test removal using the change in the complete worker plan. Eligible checks apply the patch to the pinned checkout. For TPC-DS, the verifier can follow a divergent optimizer rule to its query and compare the ordered result. The build restores compressed clean-pin recordings and indexes them by source line. [Candidate measurements and hazards](docs/CANDIDATE12.md)
+- `selector/static_heavy.py` prices removals against the whole worker plan. The candidate-15 image uses pinned branch, predicate and option observations. Where the dependency trace permits it, a fork checks every affected frontend input against a pinned fingerprint. Unresolved workers stay scheduled. Up to two small unittest bundles can also run. [Candidate 15 release measurements](docs/CANDIDATE15.md)
 - `selector/verify.py`: optional whole-test runtime verification. It applies the patch into
   a `/tmp` overlay and runs candidate tests in a forked child. **Off by default.**
   See [docs/verification.md](docs/verification.md) for the measurements and why.
@@ -49,4 +49,4 @@ make sample KIT=/path/to/starter/sample-kit   # Docker, scorer isolation flags
 - The official starter kit (`score.py`, sample patches) is used only for local
   evaluation and is not vendored. Sample answers never reach the selector or the image.
 
-The heavy-test verifier builds its fingerprints from the pinned SQLGlot checkout. For TPC-DS it compares all 99 query prefixes and uses per-query execution coverage to decide which Python results also need comparison. The parser probe checks both scaled limits and the original small assertions. The selector keeps the scheduled test on a failed probe or an exhausted verification budget. Offline mutation labels and performance measurements stay outside the image.
+Candidate 14 uses full-data execution to resolve some divergent plans. Candidate 15 ends its TPC-DS checks at the frontend. Both images build their indexes from committed clean-pin recordings. [Candidate 14](docs/CANDIDATE14.md) · [Candidate 15](docs/CANDIDATE15.md)

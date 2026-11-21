@@ -1,6 +1,6 @@
 # Final entry
 
-**Candidate 14 (`da0ed24`) remains the provisional final entry.** On official practice, candidates 13 and 14 both recorded 150.503 simulated seconds, about 24 CPU seconds and zero misses. Candidate 14 also covered all failures on the 36 local fixture mutations at lower worker cost. Its stress replay still has deadline-sensitive differences. All tags prefixed `diagnostic-` are practice experiments with intentional omissions. [Release measurements](CANDIDATE14.md) · [Practice diagnostics](PRACTICE-DIAGNOSTICS.md)
+**Candidate 14 (`da0ed24`, receipt BB-34D93935) is the selected final entry.** Candidate 15 is recommended for the 9:23 practice slot. It tests whether complete static and frontend evidence can eliminate the two expensive practice selections cheaply. The diagnostic D1 scored 154.9 seconds on practice and missed one official sample patch locally. [Candidate 15 forecasts, risks and release gates](CANDIDATE15.md) · [Candidate 14 validation](CANDIDATE14.md)
 
 The full-data CPU experiment failed the C13 holdout heavy-drop gate. It remains a research tag. [CPU experiment and release checks](ORDERED-CPU.md)
 

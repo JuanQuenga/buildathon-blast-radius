@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Please submit `diagnostic-d1-tpcds` (`91ca333`) for the approximately 8:23 AM ET practice slot.** The coordinator submits. This experiment intentionally misses one official sample patch. Candidate 14 remains the provisional final entry. [Diagnostic tags, measurements and interpretation](PRACTICE-DIAGNOSTICS.md)
+**Please submit `candidate-15` for the 9:23 AM ET practice slot.** The coordinator submits. Candidate 14 remains the selected final entry. The production-intent selector removes full-data TPC-DS probes, retains both real sample failures and requires complete evidence for each TPC-DS omission. [Measurements and forecast](CANDIDATE15.md)
+
+### D1 official result
+
+Practice receipt BB-ABC664BC scored **154.9 seconds**, with 130.483 simulated seconds, 24.26–24.51 CPU seconds and zero missed commits. D1 reduced the worker schedule by 20.020 seconds relative to candidate 14. These receipts do not identify the hidden patch or reveal the leaders' plans. D1 missed a real sample failure locally. The coordinator selected candidate 14 explicitly for final, receipt BB-34D93935.
 
 ### Full-data CPU experiment
 
