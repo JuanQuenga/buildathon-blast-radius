@@ -78,3 +78,31 @@ Keep candidate 14 selected for final pending the official C15 result. C15 saved 
 These plug-in expectations use the observed zero miss rates. An additional 0.1 percentage point of per-patch miss risk adds 18 seconds to the expected final score. The maximum miss penalty is **18,000 seconds** for either candidate. On the fixed catalog, four-worker longest-first packing has a 28.817-second maximum load for the full catalog. Removing jobs in the same order cannot increase the ordered greedy loads. The scheduler tests that packing (or uses fewer workers for fewer than four required tests) and fills only spare capacity. Thus a conservative valid-output ceiling for either entry is **20,209.02 seconds plus selector CPU** over 60 patches. This combines maxima that need not occur together. A run rejected for exceeding the wall deadline is outside that bound.
 
 Two repeated 60-patch plans had identical bytes, zero misses and 256.009 simulated seconds. CPU was 1.776–1.982 seconds and wall time 2.36–2.58 seconds. The runtime checkout was 9,622,549 bytes; its clean four-CPU, 8 GiB build and image load took 58 seconds. All 16 inherited unit tests and the isolation, timeout, failed-import, collection, early-exit and worker controls passed. C15 retains more expensive workers than C8 and C13 on the broad local partitions. Heavy-drop monotonicity fails. This is a practice recommendation, and candidate 14 remains selected for final.
+
+## Tagged release audit
+
+The exact public tag is `candidate-15` (`1dca6d6`). Its 9,633,474-byte tracked checkout built and loaded without cache in 55 seconds under the four-CPU, 8 GiB builder limit. The tagged image produced the same 30 sample plans as the release replay, SHA-256 `b07684ac6a6724c33773a5121e726f0d66889028502d3d43f8a75c54b4992674`. Its sample score was 95.064 simulated + 1.138 CPU, with zero misses.
+
+The two separate adversarial 60-patch workloads took **106.13 and 107.83 wall seconds**, or **103.637 and 104.940 CPU seconds**. They are inside the 270-second final wall limit and far above the representative-batch CPU target. On the labeled representative 60-patch batch the repeated plan SHA-256 was `180898c6cf860349cc3c963452ad3878c3f36a6003eef660e7c725fca4fe4c58`.
+
+| Heavy selections restored relative to baseline | Dev 659 | Holdout 218 | Generated 104 | Dual stress 60 | Stalled stress 60 |
+|---|---:|---:|---:|---:|---:|
+| C8 | 58 | 17 | 4 | 42 | 8 |
+| C13 | 129 | 33 | 5 | 89 | 31 |
+
+A regression here is a previously omitted heavy test that C15 schedules. One patch can restore several. These counts measure lost schedule savings independently of true failing-test coverage.
+
+A separate timing replay selected all 15 successful production TPC-DS receipts in development and generated batches, including cases without a truth label. Fourteen recertified at **0.269 mean / 0.272 median CPU seconds**. One complete parser-corpus check hit the CPU limit and retained TPC-DS after 0.864 seconds. Thus the matched sample and representative 60-patch plans repeated byte for byte, while a near-limit corpus receipt changed when isolated. No universal reproducibility claim follows.
+
+| Completed mechanism | Receipts | Mean CPU s |
+|---|---:|---:|
+| Pinned explicit default | 1 | 0.002 |
+| Unreached code | 1 | 0.004 |
+| Predicate domain | 1 | 0.070 |
+| Invariant branch | 1 | 0.117 |
+| Complete query frontend | 3 | 0.266 |
+| Complete optimizer-rule inputs | 5 | 0.327 |
+| Complete token corpus | 1 | 0.445 |
+| Complete parser corpus | 1 | 0.692 |
+
+The first attempt to record dialect access on the pin ran out of DuckDB memory at a 1,150 MB container limit. A fresh 2,500 MB run completed the real test and all 57 executed-query subtests. The published map uses the successful process receipts. Neither recording is part of the image build.

@@ -2,7 +2,7 @@
 
 ## Please submit
 
-**Please submit `candidate-15` for the 9:23 AM ET practice slot.** The coordinator submits. Candidate 14 remains the selected final entry. The production-intent selector removes full-data TPC-DS probes, retains both real sample failures and requires complete evidence for each TPC-DS omission. [Measurements and forecast](CANDIDATE15.md)
+**Please submit `candidate-15` (`1dca6d6`) for the 9:23 AM ET practice slot.** The coordinator submits. Candidate 14 remains the selected final entry. The production-intent selector removes full-data TPC-DS probes, retains both real sample failures and requires complete evidence for each TPC-DS omission. [Measurements and forecast](CANDIDATE15.md)
 
 ### D1 official result
 
