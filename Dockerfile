@@ -11,19 +11,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.lock
 ADD https://codeload.github.com/tobymao/sqlglot/tar.gz/eb11aec4be8cb2122afe713a4816662c3f0fb2fa /tmp/pin.tar.gz
 RUN mkdir /app/sqlglot && tar xzf /tmp/pin.tar.gz --strip-components=1 -C /app/sqlglot && rm /tmp/pin.tar.gz
 ENV OPENBLAS_NUM_THREADS=1 SKIP_INTEGRATION=0
-COPY selector/heavy_cases.py /app/selector/heavy_cases.py
-RUN cd /app/sqlglot && python -sB /app/selector/heavy_cases.py ds --record /app/ds.json.gz && python -sB /app/selector/heavy_cases.py ds --time-only --record /app/ds-costs.json.gz && python -sB /app/selector/heavy_cases.py parser --record /app/parser.json.gz
-COPY selector/staged.py /app/selector/staged.py
-RUN cd /app/sqlglot && python -sB /app/selector/staged.py record
-COPY selector/query_trace.py /app/selector/query_trace.py
-RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/query_trace.py
-COPY selector/parse_corpus.py /app/selector/parse_corpus.py
-RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/parse_corpus.py
-COPY selector/rule_corpus.py /app/selector/rule_corpus.py
-RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/rule_corpus.py record
-COPY selector/probe_profiles.py /app/selector/probe_profiles.py
-RUN cd /app/sqlglot && ulimit -v 2400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/probe_profiles.py generator && MALLOC_ARENA_MAX=2 python -sB /app/selector/probe_profiles.py parser
 COPY selector/ /app/selector/
+# Only pin-derived probe inputs and traces from the frozen Python environment.
+RUN python -c "import tarfile; t = tarfile.open('/app/selector/maps/pin-runtime.tar.xz'); t.extractall('/app', filter='data'); t.close()" && rm /app/selector/maps/pin-runtime.tar.xz
 ENV BLAST_HEAVY=1
 RUN python -m selector.prepare_runtime
 # Precompile (the runtime FS is read-only) and make everything readable by nobody.
