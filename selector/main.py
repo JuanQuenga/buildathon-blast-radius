@@ -110,6 +110,7 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
     use_alarm = hasattr(signal, "SIGPROF")
     if use_alarm:
         signal.signal(signal.SIGPROF, _alarm)
+        signal.signal(signal.SIGALRM, _alarm)
     for P in patches:
         elapsed = time.process_time() - cpu_start
         try:
@@ -118,17 +119,20 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
         except Exception as e:
             P.why = f"fallback (read: {e})"
             continue
-        if select is None or elapsed >= GLOBAL_BUDGET_S:
+        wall_left = t0 + 1.5 * GLOBAL_BUDGET_S - time.monotonic()
+        if select is None or elapsed >= GLOBAL_BUDGET_S or wall_left <= 0:
             continue
         try:
             budget = max(0.05, min(PER_PATCH_S, GLOBAL_BUDGET_S - elapsed))
             if use_alarm:
+                signal.setitimer(signal.ITIMER_REAL, min(4 * budget, wall_left))
                 signal.setitimer(signal.ITIMER_PROF, budget)
             try:
                 res = select(P.text, catalog)
             finally:
                 if use_alarm:
                     signal.setitimer(signal.ITIMER_PROF, 0)
+                    signal.setitimer(signal.ITIMER_REAL, 0)
             alt = res.get("if_collects") if res.get("full") else None
             if alt and (VERIFY or os.environ.get("BLAST_HEAVY") == "1"):
                 # impact went full only for fear of a collection error: keep
