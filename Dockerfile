@@ -23,4 +23,4 @@ USER 65534:65534
 CMD ["python", "-m", "selector.main"]
 
 # Practice diagnostic only. Choose an explicitly qualified final entry.
-ENV BLAST_PRACTICE_DIAGNOSTIC=D1
+ENV BLAST_PRACTICE_DIAGNOSTIC=D2
