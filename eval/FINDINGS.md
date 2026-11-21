@@ -77,3 +77,5 @@ The expensive tests failed in the following labelled development patches. Phases
 - `tests/test_executor.py::TestExecutor::test_execute_tpcds` (21.454 s) — call 3, official 2, setup 1.
 - `tests/test_generator.py::TestGenerator::test_generator_memory` (6.686 s) — setup 1, subtest 15.
 - `tests/test_parser.py::TestParser::test_max_nodes` (28.817 s) — missing 1, setup 1.
+
+Independent uncached label repeats with identical failure sets — sample 3/3.
