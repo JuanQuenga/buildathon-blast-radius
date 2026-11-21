@@ -1,5 +1,6 @@
 """Register a locally built image for offline measurement of its frozen default command."""
 import argparse
+import gzip
 import hashlib
 import io
 import json
@@ -17,17 +18,25 @@ def command(*args):
 
 def verify_expanded_bundle(sha, app, bundle):
     recipe = command("git", "show", f"{sha}:Dockerfile")
-    if f"rm /app/{bundle}".encode() not in recipe:
-        raise ValueError("Tagged image recipe does not remove its input archive")
+    prepare = command("git", "show", f"{sha}:selector/prepare_runtime.py")
+    unpacked_by_module = (b"python -m selector.prepare_runtime" in recipe
+                          and f'Path("/app/{bundle}")'.encode() in prepare
+                          and b"archive.unlink()" in prepare)
+    if f"rm /app/{bundle}".encode() not in recipe and not unpacked_by_module:
+        raise ValueError("Tagged image build does not remove its input archive")
     blob = command("git", "show", f"{sha}:{bundle}")
     with tarfile.open(fileobj=io.BytesIO(blob), mode="r|xz") as archive:
         for member in archive:
             if member.isdir():
                 continue
             dest = (app / member.name).resolve()
+            recompressed = unpacked_by_module and dest.name.endswith(".gz.raw")
+            if recompressed:
+                dest = dest.with_suffix("").resolve()
             if not member.isfile() or not dest.is_relative_to(app.resolve()) or not dest.is_file():
                 raise ValueError(f"Missing or unexpected runtime bundle member: {member.name}")
-            with dest.open("rb") as image_file, archive.extractfile(member) as frozen:
+            opener = gzip.open if recompressed else open
+            with opener(dest, "rb") as image_file, archive.extractfile(member) as frozen:
                 if hashlib.file_digest(image_file, "sha256").digest() != hashlib.file_digest(frozen, "sha256").digest():
                     raise ValueError(f"Extracted runtime file differs from Git: {member.name}")
 
