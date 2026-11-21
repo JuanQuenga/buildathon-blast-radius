@@ -23,8 +23,8 @@ def answers(directory, revision):
 
 
 def cohorts(partition, generated, revision):
-    if partition == "generated":
-        yield "generated", [(p, None) for p in sorted(generated.glob("*.patch"))]
+    if partition in {"generated", "stress"}:
+        yield partition, [(p, None) for p in sorted(generated.glob("*.patch"))]
         return
     seen = set()
     groups = defaultdict(list)
@@ -57,7 +57,7 @@ def main():
     ap.add_argument("generated", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--labels", required=True)
-    ap.add_argument("--partition", choices=("dev", "holdout", "generated"), required=True)
+    ap.add_argument("--partition", choices=("dev", "holdout", "generated", "stress"), required=True)
     ap.add_argument("--extra-only", action="store_true",
                     help="Reuse already captured matched and generated batches")
     args = ap.parse_args()
@@ -71,8 +71,9 @@ def main():
         for cohort, cases in cohorts(args.partition, args.generated, args.labels):
             if args.extra_only and not cohort.startswith("extra/"):
                 continue
-            for offset in range(0, len(cases), 40):
-                rows = cases[offset:offset + 40]
+            batch_size = 60 if args.partition == "stress" else 40
+            for offset in range(0, len(cases), batch_size):
+                rows = cases[offset:offset + batch_size]
                 with tempfile.TemporaryDirectory() as tmp:
                     batch = Path(tmp)
                     batch.chmod(0o755)
@@ -81,7 +82,7 @@ def main():
                     proc = subprocess.run(["docker", "run", *FLAGS, "-v",
                         f"{catalog}:/data/tests.json:ro", "-v", f"{batch}:/data/commits:ro",
                         args.image, "python", "-c", WRAPPER], capture_output=True,
-                        timeout=200, check=True)
+                        timeout=270 if args.partition == "stress" else 185, check=True)
                 result = score_lib.evaluate(proc.stdout, tests, [p.stem for p, _ in rows])
                 if not result["ok"]:
                     raise ValueError(result)

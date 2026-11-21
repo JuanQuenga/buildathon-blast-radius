@@ -82,12 +82,18 @@ for image in "$baseline" "$candidate"; do
     python tools/replay_heavy_release.py "$image" "$catalog" "$generated" \
       "$receipts/$image" --partition "$partition" --labels "$labels"
   done
+  for stress in "$dual_probe" "$stalled_probe"; do
+    python tools/replay_heavy_release.py "$image" "$catalog" "$stress" \
+      "$receipts/$image/${stress##*/}" --partition stress --labels "$labels"
+  done
 done
 python tools/check_heavy_monotonicity.py "$catalog" --labels "$labels" \
   --generated-patches "$generated" \
   --tuning "$receipts/$baseline/dev.plans" "$receipts/$candidate/dev.plans" \
   --holdout "$receipts/$baseline/holdout.plans" "$receipts/$candidate/holdout.plans" \
-  --generated "$receipts/$baseline/generated.plans" "$receipts/$candidate/generated.plans"
+  --generated "$receipts/$baseline/generated.plans" "$receipts/$candidate/generated.plans" \
+  --stress "$dual_probe" "$receipts/$baseline/${dual_probe##*/}/stress.plans" "$receipts/$candidate/${dual_probe##*/}/stress.plans" \
+  --stress "$stalled_probe" "$receipts/$baseline/${stalled_probe##*/}/stress.plans" "$receipts/$candidate/${stalled_probe##*/}/stress.plans"
 ```
 
 Pass earlier C8 receipts with `--historical-tuning`, `--historical-holdout` and `--historical-generated` when available. The gate fails on any restored heavy selection, including one introduced by worker padding. Independently verify a failing baseline exclusion before accepting a safety correction.

@@ -40,6 +40,8 @@ def main():
                             help="successful probe trace from a prior run of the baseline")
         parser.add_argument("--" + part, type=Path, nargs=2, required=True,
                             metavar=("BASELINE", "CANDIDATE"))
+    parser.add_argument("--stress", action="append", type=Path, nargs=3, required=True,
+                        metavar=("PATCH_DIRECTORY", "BASELINE", "CANDIDATE"))
     args = parser.parse_args()
     tests = json.loads(args.catalog.read_text())["tests"]
     nodes = {"tests/test_executor.py::TestExecutor::test_execute_tpcds": "ds",
@@ -74,6 +76,16 @@ def main():
         if part != "holdout":
             for key, node in losses:
                 print(key, node)
+    for directory, baseline, candidate in args.stress:
+        old, new = receipts(baseline, tests), receipts(candidate, tests)
+        expected = {p.stem for p in directory.glob("*.patch")}
+        if not expected or old.keys() != expected:
+            raise ValueError(f"incomplete stress baseline for {directory}")
+        losses = compare(old, new, targets)
+        lost += len(losses)
+        print(directory.name, len(old), "patches", len(losses), "regressions")
+        for key, node in losses:
+            print(key, node)
     return bool(lost)
 
 

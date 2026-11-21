@@ -76,6 +76,10 @@ def run(script, group, args, overlay, deadline, modules, receipt, phase=None, cp
             if phase is not None:
                 os.environ["BLAST_PHASE_FD"] = str(phase.fileno())
             if cpu_limit is not None:
+                # The static selector installs an exception-raising SIGPROF handler.
+                # A patched parser can catch that exception as an ordinary parse
+                # error. Let waitpid report the CPU limit as a signal instead.
+                signal.signal(signal.SIGPROF, signal.SIG_DFL)
                 signal.setitimer(signal.ITIMER_PROF, cpu_limit)
             sys.argv = [str(script), group, *args]
             runpy.run_path(str(script), run_name="__main__")
