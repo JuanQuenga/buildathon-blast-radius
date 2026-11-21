@@ -163,7 +163,17 @@ def parser(rec, selected):
         key = f"parser:{i}"
         if selected is None or key in selected:
             with rec.case(key):
-                exec(compile(ast.Module(fn.body[start:end], []), "<pinned assertions>", "exec"), scope)
+                try:
+                    exec(compile(ast.Module(fn.body[start:end], []), "<pinned assertions>", "exec"), scope)
+                except AssertionError as exc:
+                    import os
+                    if os.environ.get("BLAST_PRACTICE_DIAGNOSTIC") == "D4-parser":
+                        import traceback
+                        frames = traceback.extract_tb(exc.__traceback__)
+                        if any("/unittest/" in frame.filename for frame in frames):
+                            from phase import mark
+                            mark("asserted")
+                    raise
 
 
 def main():

@@ -696,6 +696,7 @@ def run(patches, catalog, dur, t0):
     ids = {t["number"]: t["id"] for t in catalog}
     queue = []
     attempted = set()
+    evidence = {}
     bundle_wins = bundle_tries = 0
     session = None
 
@@ -828,6 +829,9 @@ def run(patches, catalog, dur, t0):
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
+            if probe.group in {"ds", "parser"}:
+                evidence[patch.commit, probe.number] = (
+                    "asserted" if result == "failed" and phase == "asserted" else result)
             if result == "timeout":
                 allowance -= max(0.0, cpu_limit - probe.estimate)
             if probe.group == "bundle":
@@ -837,6 +841,9 @@ def run(patches, catalog, dur, t0):
             print("heavy", patch.commit, probe.group, result, probe.mode, f"{cost:.4f}",
                   round(1000 * probe.gain) if result == "pass" and probe.group != "collection" else 0,
                   phase, f"{probe.probability:.2f}", file=sys.stderr)
+    if os.environ.get("BLAST_PRACTICE_DIAGNOSTIC"):
+        from .practice_diagnostic import apply
+        apply(patches, catalog, dur, evidence)
     print("probe-cpu", f"{cpu()-started:.4f}", file=sys.stderr)
 
 
@@ -874,3 +881,4 @@ def bounded_run(patches, catalog, dur, t0):
             return
         for patch, workers in zip(patches, plans):
             patch.workers = workers
+        return True

@@ -1,6 +1,7 @@
 """Compare the reference SQL and the observable result of each executed query."""
 import contextlib
 import hashlib
+import os
 import pickle
 
 
@@ -64,7 +65,9 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             if not ran or table is None:
                 raise ValueError("missing result")
             table = pickle.loads(pickle.dumps(table))
-            if i in changed_reference:
+            diagnostic = os.environ.get("BLAST_PRACTICE_DIAGNOSTIC", "") in {"D1", "D2", "D3"}
+            mismatch = table_digest(table) != reference[-1]
+            if i in changed_reference or (diagnostic and mismatch):
                 if live_reference is None:
                     # Run the original assertion when its DuckDB SQL changes.
                     from tests.test_executor import TestExecutor
@@ -74,8 +77,24 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                         live_reference = TestExecutor("test_execute_tpcds")
                         live_reference.setUpClass()
                         reference_setup.callback(live_reference.tearDownClass)
-                live_reference.subtestHelper(i, table, tpch=False)
-            elif table_digest(table) != reference[-1]:
+                if diagnostic:
+                    # Only an error raised by the final DataFrame comparison is
+                    # positive evidence. Setup, SQL execution and conversion can fail.
+                    from tests import test_executor as actual
+                    frame = live_reference.cached_execute(test.tpcds_sqls[i][1], tpch=False)
+                    got = actual.pd.DataFrame(
+                        ((actual.np.nan if c is None else c for c in r) for r in table.rows),
+                        columns=table.columns)
+                    try:
+                        actual.assert_frame_equal(frame, got, check_dtype=False, check_index_type=False)
+                    except AssertionError:
+                        mark("asserted")
+                        raise
+                    if mismatch and i not in changed_reference:
+                        raise ValueError("non-identical digest")
+                else:
+                    live_reference.subtestHelper(i, table, tpch=False)
+            elif mismatch:
                 raise ValueError("result changed")
     finally:
         ex.PythonExecutor.execute = execute

@@ -21,3 +21,6 @@ RUN python -m compileall -q /app/selector /app/sqlglot/sqlglot /app/sqlglot/test
 ENV MALLOC_ARENA_MAX=2
 USER 65534:65534
 CMD ["python", "-m", "selector.main"]
+
+# Practice diagnostic only. Choose an explicitly qualified final entry.
+ENV BLAST_PRACTICE_DIAGNOSTIC=D1
