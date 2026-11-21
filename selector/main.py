@@ -84,7 +84,7 @@ def validate_line(obj, valid_tests: set[int], seen_commits: set[str]) -> None:
 
 
 class Patch:
-    __slots__ = ("commit", "text", "req", "pl", "workers", "why", "full", "alt", "missing")
+    __slots__ = ("commit", "text", "req", "pl", "workers", "why", "full", "alt", "missing", "data_fixture")
 
     def __init__(self, commit: str):
         self.commit = commit
@@ -95,6 +95,7 @@ class Patch:
         self.why = "full"
         self.full = True
         self.missing = set()
+        self.data_fixture = False
         self.alt = None  # (required, plausible) valid only if collection succeeds
 
 
@@ -149,6 +150,7 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
                 if not req <= valid:
                     raise ValueError("unknown test numbers in required")
                 pl &= valid
+                P.data_fixture = res.get("data_fixture", False)
                 P.workers = _plan(req, pl, dur, free_riders=not res.get("precise_fixture"))
                 P.req, P.pl, P.full = req, pl - req, False
                 P.why = f"req={len(req)} plaus={len(pl)} sel={sum(map(len, P.workers))}"
@@ -337,7 +339,8 @@ def main() -> int:
     if os.environ.get("BLAST_HYBRID") == "1":
         from . import heavy
         try:
-            heavy.bounded_run(patches, catalog, dur, t0, hybrid=True)
+            if any(p.alt or (p.req and not p.data_fixture) for p in patches):
+                heavy.bounded_run(patches, catalog, dur, t0, hybrid=True)
         except Exception as exc:
             log(f"hybrid stopped ({type(exc).__name__})")
     elif os.environ.get("BLAST_STATIC_FRONTEND") == "1":

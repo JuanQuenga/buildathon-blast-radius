@@ -764,7 +764,9 @@ def run(patches, catalog, dur, t0, hybrid=False):
                         continue
                 if (patch, probe.group) in attempted:
                     continue
-                if not price and not frontend and probe.estimate > max(1.0, probe.gain):
+                # C14 has no receipts in the region rejected by its pin-cost screen.
+                # A class-wide mean from admitted probes cannot price that region.
+                if not frontend and probe.estimate > max(1.0, probe.gain):
                     if probe.mode not in {"front", "partial", "slice"}:
                         continue
                     if probe.mode == "slice":
@@ -790,7 +792,7 @@ def run(patches, catalog, dur, t0, hybrid=False):
         while queue:
             queue.sort(key=lambda p: (p.priority, p.patch is active, p.patch.commit))
             probe = queue.pop()
-            if probe.group == "bundle" and not (hybrid and hybrid_price(probe, evidence)):
+            if probe.group == "bundle":
                 # Start with three pseudocounts. As outcomes arrive, expensive
                 # worker checks must still pay for their observed failure rate.
                 probability = (0.9 + bundle_wins) / (3 + bundle_tries)

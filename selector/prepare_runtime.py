@@ -1,5 +1,6 @@
 """Precompute repeated operations on pinned sources inside the image's Python."""
 import gzip
+import json
 import marshal
 import py_compile
 import sys
@@ -23,7 +24,11 @@ for raw in Path("/app").rglob("*.gz.raw"):
 out = Path("/app/pin-cache")
 out.mkdir()
 for name, data in (("index", _index()), ("src", _sources())):
-    (out / (name + ".marshal")).write_bytes(marshal.dumps(data))
+    directory = out / (name + ".fields")
+    directory.mkdir()
+    for key, field in data.items():
+        (directory / key).write_bytes(marshal.dumps(field))
+    (directory / "manifest.json").write_text(json.dumps(list(data)))
 
 db = sqlite3.connect(out / "names.db")
 db.execute("CREATE TABLE sites (name TEXT, path TEXT, rows BLOB, PRIMARY KEY(name,path)) WITHOUT ROWID")

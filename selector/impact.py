@@ -48,6 +48,7 @@ import os
 import pickle
 import re
 import zlib
+from collections.abc import MutableMapping
 from pathlib import Path
 from types import CodeType
 
@@ -73,8 +74,43 @@ FULL_PATHS = {"pytest.ini", "tox.ini", "conftest.py", "tests/conftest.py", ".pyt
 CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 
 
+class _MapFields(MutableMapping):
+    """Decode only the top-level fields used during this batch."""
+
+    def __init__(self, directory, names):
+        self.directory = directory
+        self.pending = set(names)
+        self.loaded = {}
+
+    def __getitem__(self, key):
+        if key in self.pending:
+            self.loaded[key] = marshal.loads((self.directory / key).read_bytes())
+            self.pending.remove(key)
+        return self.loaded[key]
+
+    def __setitem__(self, key, value):
+        self.pending.discard(key)
+        self.loaded[key] = value
+
+    def __delitem__(self, key):
+        if key in self.pending:
+            self.pending.remove(key)
+        else:
+            del self.loaded[key]
+
+    def __iter__(self):
+        return iter(self.loaded.keys() | self.pending)
+
+    def __len__(self):
+        return len(self.loaded) + len(self.pending)
+
+
 def _load_map(name):
     cache = MAPS_DIR.parents[1] / "pin-cache" / (name + ".marshal")
+    directory = cache.with_suffix(".fields")
+    manifest = directory / "manifest.json"
+    if manifest.is_file():
+        return _MapFields(directory, json.loads(manifest.read_bytes()))
     if cache.exists():
         return marshal.loads(cache.read_bytes())
     return pickle.loads(zlib.decompress((MAPS_DIR / (name + ".pkl.z")).read_bytes()))
@@ -2344,4 +2380,5 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
                 "reasons": an.reasons}
     return {"required": req | unknown, "plausible": plaus - req - unknown, "full": False,
             "precise_fixture": an.precise_fixture,
+            "data_fixture": an.fixture_only and all(not f.path.endswith(".py") for f in files),
             "reasons": an.reasons}
