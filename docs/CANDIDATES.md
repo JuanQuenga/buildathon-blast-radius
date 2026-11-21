@@ -2,11 +2,13 @@
 
 ## Please submit
 
-**Please submit candidate-13 at the approximately 6:48 AM ET practice slot after candidate-12.** The coordinator handles submission. C13 preserved every C8 heavy drop across 1,101 local patches, including both deadline controls. It had zero misses on the 310 audited tuning and 217 audited holdout patches at label revision `860e0bf`.
+**Please submit candidate-14 for the next practice slot, approximately 7:22 AM ET.** The coordinator handles submission. This tag adds fixture attribution to candidate 13. On 36 independently labeled fixture edits it covered all 67 failing-method observations and reduced simulated time from 916.344 to 449.576 seconds.
 
-With zero misses and no additional hidden savings, C13's conditional practice range is 158.6–202.1 seconds. The low end retains C8's TPC-DS drop at 3 CPU seconds. The high end loses it and spends 25 CPU seconds. [Lost drops, validation and forecast](CANDIDATE13.md) · [Final-entry recommendation](FINAL.md)
+On the same zero-miss hidden batch, one productive TPC fixture edit gives a conditional forecast of **152.3–158.9 total seconds** including 23–26 CPU seconds. With no productive edit the range is **173.5–176.5**. The separately tagged candidate-14-static is a candidate-5-based control. [Release measurements and forecast](CANDIDATE14.md)
 
-Candidate-12 is queued for the 5:48 AM ET practice slot. Its original 133.4-second forecast is withdrawn. Its official result is pending. [C12 validation](CANDIDATE12.md)
+### Candidate-13 official result
+
+C13 scored 174.6 with zero missed patches, 150.503 simulated seconds, and approximately 24.1 CPU seconds. Candidate 12 was superseded before submission. [C13 validation](CANDIDATE13.md) · [C12 validation](CANDIDATE12.md)
 
 ### Candidate-11 official result
 
@@ -98,3 +100,5 @@ The frozen selector is 3759b53809f4ca260be1ceb50d8aa2100da63500. The clean archi
 Sample and tuning CPU are measured process-batch totals. Their full column counts selector fallbacks. Holdout figures come from one post-freeze invocation of the bench delegate's candidate_report.py, using its aggregate rows and writing the report outside the shared tree. Holdout CPU is proportional allocation of shuffled batch CPU. Its full column counts all-catalog plans. The separate request for the bench owner's report is in REQUESTS.md. The matched candidate-2 tuning schedules, misses and fallback counts were identical. Candidate-2 host CPU was 0.489 on sample and 2.168 across the three tuning sets. The rule has no independent trigger in this snapshot. Zero holdout misses therefore verifies baseline behavior on represented cases and supplies no estimate of conditional miss risk.
 
 The official-sample bootstrap gives a 40-patch median of 150.8 seconds with a 106.7–207.0 tenth-to-ninetieth percentile range. At 20% unseen edits the median rises to 191.2 seconds. The mechanical holdout model gives 392.9 seconds using original kinds only. On the checked practice board the first three scores were 153.7, 156.8 and 165.5 seconds. Two high-cost passing comparison substitutions on 30 sample patches explain the entire measured schedule improvement. Repeating that rate on practice could compete for first. With one fewer such opportunity per 40 patches, add roughly 25 seconds under otherwise similar costs. A specific placement depends on the private patches. See [the cost attribution](GAP.md).
+
+Candidate-14 practice submission is recommended for its targeted fixture savings. Its concurrent validation lost four historical C8/C13 development drops and 29/8 historical C13 dual/stalled stress drops. All labeled misses were zero. See the candidate-14 release record before making a final-entry decision.
