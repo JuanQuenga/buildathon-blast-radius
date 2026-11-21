@@ -93,4 +93,4 @@ def apply(patches, catalog, dur, evidence):
                 result = schedule(required - {n}, p.pl - {n}, durations)
         p.workers = result
         saving = plan_cost(base, dur) - plan_cost(result, dur)
-        print("practice-diagnostic", MODE, p.commit, reason, f"{saving:.3f}", file=sys.stderr)
+        print("practice-diagnostic", MODE, p.commit, reason, f"{saving / 1000:.3f}", file=sys.stderr)
