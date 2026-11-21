@@ -53,7 +53,10 @@ def pytest_runtest_logreport(report):
         "duration": round(getattr(report, "duration", 0.0), 4),
     }
     if report.failed:
-        rec["msg"] = _short(report.longrepr)
+        detail = str(report.longrepr or "")
+        rec["msg"] = detail[-600:]
+        if "Timeout (>" in detail and "from pytest-timeout" in detail:
+            rec["timeout"] = True
     # only stream what we need: call reports, and anything that failed/skipped
     if report.when == "call" or report.failed or report.skipped:
         _w(rec)

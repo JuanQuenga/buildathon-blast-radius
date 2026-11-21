@@ -136,6 +136,7 @@ def interpret(out: Path, tests: list[dict], skipped: set[str]) -> dict:
                 pass
     ended = any(r["t"] == "end" for r in recs)
     failed: dict[str, list[str]] = {}
+    timeouts = set()
     reported: set[str] = set()
     durations: dict[str, float] = {}
     collect_errors: list[dict] = []
@@ -148,6 +149,8 @@ def interpret(out: Path, tests: list[dict], skipped: set[str]) -> dict:
             if r["when"] == "call" and not r["sub"]:
                 durations[nid] = r["duration"]
             if r["outcome"] == "failed":
+                if r.get("timeout") or "Timeout (>" in (r.get("msg") or ""):
+                    timeouts.add(nid)
                 why = ("subtest" if r["sub"] else r["when"]) + ": " + (r.get("msg") or "")[-300:]
                 failed.setdefault(nid, []).append(why)
     by_id = {t["id"]: t for t in tests}
@@ -180,6 +183,7 @@ def interpret(out: Path, tests: list[dict], skipped: set[str]) -> dict:
         "reasons": reasons,
         "slow": slow,
         "n_reported": len(reported),
+        "timeouts": sorted(timeouts.intersection(by_id)),
         "unknown_failed": sorted(n for n in failed if n not in by_id and n not in skipped),
     }
 
@@ -194,7 +198,7 @@ def cached_result(path: Path):
     # end-of-session record and still have interrupted the entire suite.
     if result.get("status") != "ok" or result.get("rc") not in (0, 1, 5):
         return None
-    if any("Timeout (>" in reason for reason in result.get("reasons", {}).values()):
+    if result.get("timeouts") or any("Timeout (>" in reason for reason in result.get("reasons", {}).values()):
         if "timeout_reproduced" not in result:
             return None
     return result
@@ -222,13 +226,13 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
             # A pytest-timeout on the shared machine is usually load, not the patch
             # (test_max_nodes took 184 s instead of 29 s at load 58): rerun once and keep
             # the timeout only if it reproduces.
-            timed_out = sorted(t for t, why in res["reasons"].items() if "Timeout (>" in why)
+            timed_out = res["timeouts"]
             if timed_out:
                 out.unlink(missing_ok=True)
                 run = run_pytest(work, out, log)
                 res2 = interpret(out, tests, skipped)
                 res2["timeout_first_run"] = timed_out
-                res2["timeout_reproduced"] = sorted(t for t, why in res2["reasons"].items() if "Timeout (>" in why)
+                res2["timeout_reproduced"] = res2["timeouts"]
                 res = res2
             res.update(run)
             res["key"] = key

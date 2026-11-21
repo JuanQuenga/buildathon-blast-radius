@@ -32,9 +32,17 @@ def main():
     pending = {p.stem for p in quarantine.glob("*.json")}
     for p in oracle.CACHE.glob("*.json"):
         x = json.loads(p.read_text())
-        if (x.get("status") == "case_timeout" or x.get("timeout_first_run")
+        if (x.get("status") == "case_timeout" or x.get("timeout_first_run") or x.get("timeouts")
                 or any("Timeout (>" in r for r in x.get("reasons", {}).values())):
             pending.add(p.stem)
+    # Older plugins retained only the first reason per parent. A timeout in
+    # a later subtest can still be visible in the original session log.
+    logs = oracle.WORKBENCH / "oracle-logs"
+    for log in logs.glob("*.log"):
+        if (oracle.CACHE / (log.stem + ".json")).is_file():
+            with log.open("rb") as stream:
+                if any(b"from pytest-timeout" in line and b"Timeout (>" in line for line in stream):
+                    pending.add(log.stem)
     touched = defaultdict(list)
     results = {}
     for p in sorted((oracle.EVAL / "cases").glob("*/commits/*.patch")):
