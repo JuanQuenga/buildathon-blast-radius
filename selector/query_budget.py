@@ -6,6 +6,8 @@ import json
 import signal
 import time
 
+from phase import mark
+
 
 @functools.cache
 def execution_costs():
@@ -22,8 +24,10 @@ def query_budget(i):
         yield
         return
     start = time.process_time()
+    mark("query-cap")
     signal.setitimer(signal.ITIMER_PROF, limit)
     try:
         yield
     finally:
         signal.setitimer(signal.ITIMER_PROF, max(0.001, remaining - (time.process_time() - start)))
+        mark("execute")

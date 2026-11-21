@@ -883,7 +883,10 @@ def run(patches, catalog, dur, t0):
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
-            if result == "timeout":
+            if result == "timeout" and phase != "query-cap":
+                # A per-query timer can expire long before the outer budget.
+                # Its admitted estimate stays charged. The emergency ceiling
+                # accounts for actual child CPU in both cases.
                 allowance -= max(0.0, cpu_limit - probe.estimate)
             if probe.group == "bundle":
                 bundle_tries += 1
