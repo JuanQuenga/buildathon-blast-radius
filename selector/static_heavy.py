@@ -14,18 +14,6 @@ from .rule_defaults import overridden_defaults
 
 
 @functools.cache
-def live_queries():
-    rows = json.loads(Path("/app/staged.json").read_text())["ds"]
-    return [i for i, row in enumerate(rows) if len(row) == 9]
-
-
-def spread(items, limit):
-    if len(items) <= limit:
-        return list(items)
-    return [items[round(i * (len(items) - 1) / (limit - 1))] for i in range(limit)]
-
-
-@functools.cache
 def branch_sites():
     return json.loads((Path(__file__).parent / "maps/branches.json").read_text())[
         "tests/test_executor.py::TestExecutor::test_execute_tpcds"]
@@ -111,50 +99,26 @@ def observe(text):
         return "proved-coverage", mode
     if mode == "rules":
         from . import rule_corpus
-        indices = cases if rule_corpus.estimate(cases) < 0.28 else spread(cases, 3)
-        check, args = "rules", [json.dumps(indices)]
-        scope = "complete" if indices == cases else "sample-rules"
+        if rule_corpus.estimate(cases) > 0.55:
+            return "incomplete-rule-set", mode
+        check, args = "rules", [json.dumps(cases)]
     elif mode in {"corpus", "tokens"}:
-        check, args, scope = mode, [], "complete"
+        check, args = mode, []
+    elif mode == "slice":
+        if cases["worker"] or cases["execute"]:
+            return "execution-or-planning", mode
+        if len(cases["active"]) > 4:
+            return "incomplete-query-set", mode
+        check, args = "frontend", [json.dumps(cases["active"])]
     else:
-        if mode == "slice" and cases["execute"]:
-            return "execution", mode
-        if any(p.startswith("sqlglot/executor/") for p in changes):
-            return "execution", mode
-        active = cases["active"] if mode == "slice" else range(99)
-        live = set(live_queries())
-        selected = sorted(set(active) & live)
-        indices = sorted(set(spread(selected, 3)) | set(spread([i for i in active if i not in live], 2)))
-        check, args = "frontend", [json.dumps(indices)]
-        scope = (("complete" if not cases["worker"] and set(indices) == set(active) else "sample-slice")
-                 if mode == "slice" else "sample-" + mode)
+        return "unresolved", mode
     with tempfile.TemporaryDirectory() as work:
         verify.build_overlay(work, changes)
         # Fork with only the pinned root imported when the changed modules can
         # be loaded fresh. For an incompatible change use a fresh interpreter.
         warm_replay.prepare_core()
         result = heavy.replay(check, args, work, time.monotonic() + 2, paths, cpu_limit=0.8)
-    if result != "pass":
-        return "different-or-incomplete", mode
-    if scope.startswith("sample-") and extra_guard(changes):
-        return "new-guard", mode
-    return scope, mode
-
-
-def extra_guard(changes):
-    """A bounded input sample cannot price a newly introduced failure condition."""
-    import collections
-    def guards(tree):
-        found = collections.Counter()
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.Raise, ast.Assert, ast.Global, ast.Nonlocal)):
-                found[ast.dump(node)] += 1
-            if isinstance(node, (ast.If, ast.IfExp, ast.While)):
-                found[ast.dump(node.test)] += 1
-        return found
-    sources = impact._sources()["src"]
-    return any(guards(ast.parse(after)) - guards(ast.parse(sources[path]))
-               for path, after in changes.items())
+    return ("complete" if result == "pass" else "different-or-incomplete"), mode
 
 
 def classify(text):
@@ -188,10 +152,7 @@ def refine(patches, catalog, durations):
                 except Exception:
                     evidence = "unavailable"
                 mode = ""
-            # Reserve 6.5 seconds of marginal savings for uncertainty on a
-            # sampled match; a mismatch or a new guard retains the test.
-            sampled = evidence in {"sample-front", "sample-partial", "sample-opaque", "sample-rules"}
-            drop = evidence.startswith("proved-") or evidence == "complete" or sampled and gain > 6.5
+            drop = evidence.startswith("proved-") or evidence == "complete"
             print("static-evidence", patch.commit, group, evidence, mode, round(gain, 3),
                   "drop" if drop else "keep", file=sys.stderr)
             if drop:
