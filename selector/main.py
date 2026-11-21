@@ -331,7 +331,7 @@ def main() -> int:
     if os.environ.get("BLAST_HEAVY") == "1":
         from . import heavy
         try:
-            heavy.run(patches, catalog, dur, t0)
+            (heavy.run if VERIFY else heavy.bounded_run)(patches, catalog, dur, t0)
         except Exception as exc:
             log(f"heavy verification stopped ({type(exc).__name__})")
     if VERIFY and select is not None:

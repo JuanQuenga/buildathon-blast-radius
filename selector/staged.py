@@ -75,7 +75,9 @@ def plan_digest(plan):
     return step(plan.root)
 
 
-def executor(record, expected, full):
+def executor(record, expected, full, selection=None):
+    if selection is not None and not selection["active"]:
+        return [], []
     import sqlglot
     import sqlglot.executor as ex
     from tests import test_executor as tests
@@ -146,6 +148,17 @@ def executor(record, expected, full):
     ex.PythonExecutor.execute = execute
     try:
         for i, (meta, sql, _) in enumerate(test.tpcds_sqls):
+            if selection is not None:
+                if i not in selection["active"]:
+                    continue
+                if i not in selection["worker"]:
+                    parsed = tests.parse_one(sql)
+                    expr = pickle.loads(pickle.dumps(parsed))
+                    if digest(expr.dump()) != expected[i][2]:
+                        raise ValueError("parsed expression changed")
+                    if meta.get("execute") and digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
+                        raise ValueError("reference query changed")
+                    continue
             if record:
                 paths.clear()
                 names.clear()
@@ -205,7 +218,7 @@ def executor(record, expected, full):
             if expected and row != expected[i]:
                 raise ValueError("plan changed")
             rows.append(row)
-        if len(rows) != 99:
+        if len(test.tpcds_sqls) != 99:
             raise ValueError("fixture count")
     finally:
         if not pristine_setup:
@@ -219,8 +232,20 @@ def main():
         rows, tail = executor(True, None, True)
         BASE.write_text(json.dumps(dict(ds=rows, tail=tail, parser=parser())))
         return
+    if group in {"corpus", "tokens"}:
+        sys.path.append(str(Path(__file__).parent))
+        from parse_corpus import replay, replay_tokens
+        (replay_tokens if group == "tokens" else replay)()
+        return
     data = json.loads(BASE.read_text())
-    if group == "scaled":
+    if group == "small":
+        sys.path.append(str(Path(__file__).parent))
+        from heavy_cases import Recorder, parser as pinned
+        pinned(Recorder(False), {"parser:0", "parser:1", "parser:3"})
+    elif group == "slice":
+        selection = json.loads(sys.argv[2])
+        executor(False, data["ds"], selection["execute"], selection)
+    elif group == "scaled":
         if parser() != data["parser"]:
             raise ValueError("scaled parser outcomes changed")
     else:

@@ -30,7 +30,7 @@ for path in sorted(Path("/patches").glob("*.patch")):
                 mode,source,changes,cases=edit
                 with tempfile.TemporaryDirectory() as overlay:
                     verify.build_overlay(overlay,changes)
-                    args=[json.dumps(cases)] if mode=="partial" else []
+                    args=[json.dumps(cases)] if mode in {"partial","slice"} else []
                     result=heavy.replay(mode,args,overlay,time.monotonic()+30,source)
         except Exception as exc:
             result=type(exc).__name__

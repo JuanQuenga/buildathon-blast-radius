@@ -139,7 +139,16 @@ def build_overlay(dest: str, changes: dict[str, str | None], root: str = PRISTIN
             names = []
         for name in names:
             r = f"{rel}/{name}" if rel else name
-            if r in changes or name == "__pycache__" and _has_changed_py(rel, changes):
+            if name == "__pycache__" and _has_changed_py(rel, changes):
+                cached = os.path.join(src_dir, name)
+                target = os.path.join(dst_dir, name)
+                os.mkdir(target)
+                for entry in os.listdir(cached):
+                    source = os.path.join(rel, entry.split(".")[0] + ".py")
+                    if source not in changes:
+                        os.symlink(os.path.join(cached, entry), os.path.join(target, entry))
+                continue
+            if r in changes:
                 continue
             if r in expand:
                 mirror(r)

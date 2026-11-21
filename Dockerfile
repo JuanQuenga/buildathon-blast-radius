@@ -15,11 +15,15 @@ COPY selector/heavy_cases.py /app/selector/heavy_cases.py
 RUN cd /app/sqlglot && python -sB /app/selector/heavy_cases.py ds --record /app/ds.json.gz && python -sB /app/selector/heavy_cases.py ds --time-only --record /app/ds-costs.json.gz && python -sB /app/selector/heavy_cases.py parser --record /app/parser.json.gz
 COPY selector/staged.py /app/selector/staged.py
 RUN cd /app/sqlglot && python -sB /app/selector/staged.py record
+COPY selector/query_trace.py /app/selector/query_trace.py
+RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/query_trace.py
+COPY selector/parse_corpus.py /app/selector/parse_corpus.py
+RUN cd /app/sqlglot && ulimit -v 3400000 && MALLOC_ARENA_MAX=2 python -sB /app/selector/parse_corpus.py
 COPY selector/ /app/selector/
 ENV BLAST_HEAVY=1
 RUN python -m selector.prepare_runtime
 # Precompile (the runtime FS is read-only) and make everything readable by nobody.
-RUN python -m compileall -q /app/selector && chmod -R a+rX /app
+RUN python -m compileall -q /app/selector /app/sqlglot/sqlglot /app/sqlglot/tests && chmod -R a+rX /app
 
 USER 65534:65534
 CMD ["python", "-m", "selector.main"]

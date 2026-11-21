@@ -2,6 +2,7 @@
 import ast
 import functools
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ import textwrap
 import tempfile
 import time
 
-from . import verify
+from . import query_slice, verify
 from .patch import parse
 from .schedule import plan_cost, schedule
 
@@ -189,7 +190,7 @@ def replay(group, cases, overlay, deadline, path=None):
         env = dict(os.environ, BLAST_RECEIPT=str(receipt.fileno()), MALLOC_ARENA_MAX="2")
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
-        with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(SCRIPT.with_name("staged.py") if group in {"scaled", "front", "full", "partial"} else SCRIPT), group, *cases],
+        with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(SCRIPT.with_name("staged.py") if group in {"scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial"} else SCRIPT), group, *cases],
                               cwd=overlay, env=env, pass_fds=(receipt.fileno(),),
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                               stdin=subprocess.DEVNULL, start_new_session=True) as child:
@@ -456,17 +457,49 @@ def eligible_file(f, group):
     return True
 
 
+@functools.lru_cache(maxsize=2)
+def changed_regions(text):
+    changes = verify.apply_patch(text)
+    result = {}
+    for path, source in changes.items():
+        if not re.fullmatch(r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py", path):
+            return None
+        ranges = query_slice.spans((Path(verify.PRISTINE) / path).read_text(), source)
+        if ranges is None:
+            return None
+        result[path] = ranges
+    return result
+
+
 def stage_edit(text, group):
     files = parse(text)
-    if not files or not all(eligible_file(f, group) for f in files):
+    if not files or not all(eligible_file(f, "ds") for f in files):
         return None
     changes = verify.apply_patch(text)
     paths = ",".join(changes)
+    regions = changed_regions(text)
     if group == "parser":
+        if regions and not any(query_slice.reached(profile("parser")[k]["lines"], regions) for k in ("parser:setup", "parser:2")):
+            return "small", paths, changes, []
+        if not all(eligible_file(f, group) for f in files):
+            return None
         return "scaled", paths, changes, []
+    if paths == "sqlglot/tokens.py" and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
+        return "tokens", paths, changes, []
+    if regions and all(p == "sqlglot/parser.py" or p.startswith("sqlglot/parsers/") for p in regions):
+        outside = json.loads(Path("/app/parse-corpus.pkl.json").read_text())
+        if not query_slice.reached(outside, regions):
+            return "corpus", paths, changes, []
+    selection = query_slice.query_cases(regions) if regions else None
+    if selection is not None and not selection["worker"]:
+        selection["execute"] = []
+        return "slice", paths, changes, selection
     cases = sorted(
         set().union(*(tail_cases(f.path, changes[f.path], f) for f in files))
     )
+    if selection is not None:
+        selection["execute"] = sorted(set(cases).intersection(selection["worker"]))
+        return "slice", paths, changes, selection
     return ("partial" if cases else "front"), paths, changes, cases
 
 
@@ -481,32 +514,32 @@ def run(patches, catalog, dur, t0):
         for test in catalog
         if test["id"] in TARGETS
     ]
-    for patch in patches:
-        if time.monotonic() >= stop or cpu() - start_cpu >= 68:
-            break
-        if patch.full or not patch.req:
-            continue
+    def enqueue(patch):
+        if time.monotonic() >= stop or cpu() - start_cpu >= 68 or patch.full or not patch.req:
+            return
         for number, group in targets:
             if number not in patch.req:
                 continue
             try:
+                req = patch.req - {number}
+                workers = schedule(req, patch.pl - {number}, dur) if req else []
+                gain = plan_cost(patch.workers, dur) - plan_cost(workers, dur)
+                if gain <= 0 or number in set().union(*workers):
+                    continue
                 edit = stage_edit(patch.text, group)
                 if not edit:
                     continue
                 mode, path, changes, cases = edit
                 estimate = (
                     0.9
-                    if mode == "scaled"
-                    else 6
+                    if mode in {"scaled", "small", "corpus", "tokens"}
+                    else (0.35 + 0.008 * len(cases["active"]) + 0.05 * len(cases["worker"]) if mode == "slice" else 6)
                     + sum(
                         profile("ds")[f"ds:{i}"]["phases"].get("execute", 0)
-                        for i in cases
+                        for i in (cases["execute"] if mode == "slice" else cases)
                     )
                 )
-                req = patch.req - {number}
-                workers = schedule(req, patch.pl - {number}, dur) if req else []
-                gain = plan_cost(patch.workers, dur) - plan_cost(workers, dur)
-                if number not in set().union(*workers) and gain > estimate * 1000:
+                if gain > estimate * 1000:
                     queue.append(
                         (
                             gain / estimate,
@@ -515,15 +548,20 @@ def run(patches, catalog, dur, t0):
                             number,
                             mode,
                             path,
-                            changes,
                             cases,
+                            hashlib.sha256(json.dumps(changes, sort_keys=True).encode()).digest(),
                         )
                     )
             except Exception:
                 continue
-    for _, patch, group, number, mode, path, changes, cases in sorted(
-        queue, key=lambda x: -x[0]
-    ):
+    for patch in patches:
+        enqueue(patch)
+    verdicts = {}
+    while queue:
+        queue.sort(key=lambda row: row[0])
+        _, patch, group, number, mode, path, cases, overlay_id = queue.pop()
+        if number not in patch.req:
+            continue
         remaining = min(stop - time.monotonic(), (70 - (cpu() - start_cpu)) / 2)
         if remaining <= 0:
             break
@@ -535,17 +573,24 @@ def run(patches, catalog, dur, t0):
             gain = before - plan_cost(workers, dur)
             if gain <= 0 or number in set().union(*workers):
                 continue
-            with tempfile.TemporaryDirectory() as work:
-                verify.build_overlay(work, changes)
-                result = replay(
-                    mode,
-                    [json.dumps(cases)] if mode == "partial" else [],
-                    work,
-                    min(stop, time.monotonic() + min(remaining, 30)),
-                    path,
-                )
+            key = (overlay_id, group)
+            if key in verdicts:
+                result = verdicts[key]
+            else:
+                with tempfile.TemporaryDirectory() as work:
+                    verify.build_overlay(work, verify.apply_patch(patch.text))
+                    result = replay(
+                        mode,
+                        [json.dumps(cases)] if mode in {"partial", "slice"} else [],
+                        work,
+                        min(stop, time.monotonic() + min(remaining, 30)),
+                        path,
+                    )
+                verdicts[key] = result
             if result == "pass":
                 patch.req, patch.pl, patch.workers = req, pl, workers
+                queue[:] = [item for item in queue if item[1] is not patch]
+                enqueue(patch)
         except Exception as exc:
             result = type(exc).__name__
         print(
@@ -558,3 +603,39 @@ def run(patches, catalog, dur, t0):
             before - plan_cost(patch.workers, dur),
             file=sys.stderr,
         )
+
+
+def bounded_run(patches, catalog, dur, t0):
+    """Keep static plans in the parent until the verifier returns a complete batch."""
+    import multiprocessing
+
+    # Reserve at least a minute for fallback and output on both contest limits.
+    allowance = min(180, 3 * max(40, len(patches)))
+    deadline = t0 + allowance
+    if time.monotonic() >= deadline:
+        return
+    with tempfile.TemporaryFile(mode="w+") as result:
+        def work():
+            limit = 1800 * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+            run(patches, catalog, dur, t0)
+            json.dump([p.workers for p in patches], result)
+            result.flush()
+
+        proc = multiprocessing.get_context("fork").Process(target=work)
+        proc.start()
+        try:
+            proc.join(max(0, deadline - time.monotonic()))
+        finally:
+            if proc.is_alive():
+                proc.kill()
+                proc.join()
+        if proc.exitcode != 0 or result.tell() > 2_000_000:
+            print("heavy batch fallback", proc.exitcode, file=sys.stderr)
+            return
+        result.seek(0)
+        plans = json.load(result)
+        if len(plans) != len(patches):
+            return
+        for patch, workers in zip(patches, plans):
+            patch.workers = workers
