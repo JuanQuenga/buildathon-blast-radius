@@ -25,7 +25,9 @@ TARGETS = {
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
 
 CHILD = """
-import os, runpy, sys
+import os, resource, runpy, sys
+cap = 1800 * 1024 * 1024
+resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
 sys.argv = sys.argv[1:]
 runpy.run_path(sys.argv[0], run_name="__main__")
 module = os.environ.get("BLAST_CHANGED_MODULE")
@@ -184,7 +186,7 @@ def replay(group, cases, overlay, deadline, path=None):
     # Require an explicit completion token. An early successful process exit
     # from patched code cannot be mistaken for completed assertions.
     with tempfile.TemporaryFile() as receipt:
-        env = dict(os.environ, BLAST_RECEIPT=str(receipt.fileno()))
+        env = dict(os.environ, BLAST_RECEIPT=str(receipt.fileno()), MALLOC_ARENA_MAX="2")
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
         with subprocess.Popen([sys.executable, "-sB", "-c", CHILD, str(SCRIPT.with_name("staged.py") if group in {"scaled", "front", "full", "partial"} else SCRIPT), group, *cases],
