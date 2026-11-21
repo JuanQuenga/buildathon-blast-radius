@@ -94,7 +94,9 @@ def run_pytest(work: Path, out: Path, log: Path) -> dict:
     cmd = TASKSET + [
         str(PYTHON), "-m", "pytest", "tests",
         "-p", "no:cacheprovider", "-p", "br_oracle_plugin",
-        "-q", "-rN", "--no-header", "--tb=short",
+        # Formatting thousands of failing subtests with source excerpts can
+        # dominate a run, especially when the same core import is broken.
+        "-q", "-rN", "--no-header", "--tb=line",
         f"--timeout={TEST_TIMEOUT_S}",
         # without this a collection error in ANY file aborts the whole session; the official
         # rule is "unimportable test file -> all tests in that file fail", others still run
