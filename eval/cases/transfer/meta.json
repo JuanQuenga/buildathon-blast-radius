@@ -1,0 +1,30 @@
+{
+ "2b19b223": {
+  "kind": "docstring",
+  "split": "holdout",
+  "files": [
+   "sqlglot/time.py"
+  ]
+ },
+ "5838e685": {
+  "kind": "whitespace",
+  "split": "holdout",
+  "files": [
+   "tests/fixtures/pretty.sql"
+  ]
+ },
+ "ec65a888": {
+  "kind": "metadata",
+  "split": "holdout",
+  "files": [
+   "tests/fixtures/optimizer/qualify_columns__invalid.sql"
+  ]
+ },
+ "93cd50a0": {
+  "kind": "encoding",
+  "split": "holdout",
+  "files": [
+   "sqlglot/jsonpath.py"
+  ]
+ }
+}
