@@ -1198,7 +1198,8 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
             if m in seen:
                 continue
             seen.add(m)
-            stack.extend(graph.get(m, ()))
+            # an ancestor package is already initialising when m is imported
+            stack.extend(d for d in graph.get(m, ()) if not m.startswith(d + "."))
         return False
 
     def cycle(target):
