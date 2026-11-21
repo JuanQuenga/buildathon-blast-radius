@@ -222,6 +222,14 @@ def measure(ref, labels_ref=None):
                                         sim=score.commit_cost_ms(ws, durations)/1000 + 300*bool(missed),
                                         cpu=m["cpu"]/1e6/len(batch), full=len(sel)==len(tests),
                                         lower=lower/1000, packing_gap_ms=upper-lower))
+        kind_groups = defaultdict(list)
+        for case in records:
+            kind_groups[case["kind"]].append(case)
+        public_kinds = defaultdict(list)
+        for kind, group in sorted(kind_groups.items()):
+            held = sum(case["split"] == "holdout" for case in group)
+            label = "Other kinds (pooled)" if 0 < held < 5 or len(group) < 5 else kind
+            public_kinds[label].extend(group)
         isolated_cpu = defaultdict(float)
         if label_commit:
             # Charge process startup separately to each replay group. These CPU
@@ -231,11 +239,15 @@ def measure(ref, labels_ref=None):
                 groups[case["set"]].append(case)
                 if case["split"] == "dev":
                     groups[f"{case['set']} / {case['kind']} (dev)"].append(case)
+            for kind, group in public_kinds.items():
+                groups[f"All / {kind}"] = group
             for label, group in groups.items():
-                for offset in range(0, len(group), 40):
-                    part = group[offset:offset + 40]
-                    replay = measure_batch(group[0]["set"], part, tmp, cache, catalog, tests)
-                    isolated_cpu[label] += replay["cpu"] / 1e6
+                for name in SETS:
+                    within_set = [case for case in group if case["set"] == name]
+                    for offset in range(0, len(within_set), 40):
+                        part = within_set[offset:offset + 40]
+                        replay = measure_batch(name, part, tmp, cache, catalog, tests)
+                        isolated_cpu[label] += replay["cpu"] / 1e6
     runtime = ("the default command and files exported from the verified image"
                if (WORKBENCH / "candidate-images" / sha / "config.json").exists()
                else "the tagged selector source and its prepared runtime on the benchmark host")
@@ -260,6 +272,12 @@ def measure(ref, labels_ref=None):
                 groups[r['kind']].append(r)
         for kind, rs in sorted(groups.items()):
             row(f"{name} / {kind} (dev)", rs)
+    output.extend(["", "## Results by change kind", "",
+                   "Each patch contributes once. Kinds with fewer than five total patches or one to four held-out patches share a row to protect individual outcomes.", "",
+                   "| Kind | N | Clean | Miss | Sim s | CPU s | Full | Bound s | Full suite s |",
+                   "|---|---:|---:|---:|---:|---:|---:|---:|---:|"])
+    for kind, group in sorted(public_kinds.items()):
+        row(f"All / {kind}", group)
     unresolved = [r["packing_gap_ms"] for r in records if r["packing_gap_ms"]]
     output.append(f"\nA feasible assignment attains the oracle bound on "
                   f"{len(records) - len(unresolved)} of {len(records)} measured patches. "
