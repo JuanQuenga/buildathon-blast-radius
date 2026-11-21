@@ -73,18 +73,20 @@ Counts cover complete pytest sessions or the official sample. Each row uses only
 
 | Set | Labelled / planned | Clean | Clean share |
 |---|---:|---:|---:|
-| dev | 48/443 | 15 | 31.2% |
+| dev | 149/443 | 51 | 34.2% |
 | exotic | 73/73 | 27 | 37.0% |
 | revert | 113/113 | 11 | 9.7% |
 | sample | 30/30 | 12 | 40.0% |
 
 The expensive tests failed in the following labelled development patches. Phases come from pytest reports. Missing means the catalog ID never reported.
 
-- `tests/test_executor.py::TestExecutor::test_execute_tpcds` (21.454 s) — call 9, collect 11, official 2, setup 1.
-  Observed patch operations include syntax-error (7), delete-module (7), import-cycle (2), sample (2), bool (1), not (1), return (1), rename-module (1), conftest-autouse-error (1).
+- `tests/test_executor.py::TestExecutor::test_execute_tpcds` (21.454 s) — call 14, collect 11, official 2, setup 1, subtest 2.
+  Observed patch operations include syntax-error (7), delete-module (7), return (3), bool (2), import-cycle (2), sample (2), not (1), num (1), stmt_del (1), cmp (1), code+code (1), rename-module (1), conftest-autouse-error (1).
 - `tests/test_generator.py::TestGenerator::test_generator_memory` (6.686 s) — collect 8, setup 1, subtest 24.
   Observed patch operations include delete-module (9), syntax-error (5), rename-module (4), drop-dialect-registration (4), delete-dialect (3), rename-dialect (2), import-cycle (2), return (1), conftest-autouse-error (1), import-raises (1), revert-fix (1).
 - `tests/test_parser.py::TestParser::test_max_nodes` (28.817 s) — call 1, collect 8, missing 1, setup 1.
   Observed patch operations include syntax-error (3), delete-module (3), import-cycle (2), return (1), conftest-autouse-error (1), delete-test-file (1).
+
+Development comment edits with a numbered failure, by generator operation — comment-in-string 2.
 
 Independent uncached label repeats with identical failure sets — exotic 2/2, sample 3/3.
