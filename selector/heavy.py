@@ -592,7 +592,7 @@ class Probe:
 
     @property
     def priority(self):
-        return self.gain * self.probability / self.estimate
+        return self.gain / self.estimate
 
 
 @functools.cache
@@ -687,20 +687,19 @@ def run(patches, catalog, dur, t0):
     from .probe_session import PatchSession
     started = cpu()
     # Admission consumes pin-derived estimates, independent of machine load.
-    allowance = max(12.0, 0.75 * len(patches))
+    allowance = min(70.0, max(18.0, 1.75 * len(patches)))
     deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
     queue = []
     attempted = set()
-    mode_counts = {}
     bundle_wins = bundle_tries = 0
     session = None
 
     def enqueue(patch):
         try:
             for probe in options(patch, ids, targets, dur):
-                if probe.priority >= 1.0 and (patch, probe.group) not in attempted:
+                if (patch, probe.group) not in attempted:
                     queue.append(probe)
         except Exception:
             return
@@ -722,9 +721,8 @@ def run(patches, catalog, dur, t0):
                 if probability * probe.gain < probe.estimate:
                     continue
             patch = probe.patch
-            if probe.estimate > allowance or mode_counts.get(probe.mode, 0) >= 12:
+            if probe.estimate > allowance:
                 continue
-            mode_counts[probe.mode] = mode_counts.get(probe.mode, 0) + 1
             allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
             phase = probe.mode
@@ -750,7 +748,7 @@ def run(patches, catalog, dur, t0):
                 cpu_limit = max(3.0, 3.0 * probe.estimate + 1.0)
                 args = ([json.dumps(probe.cases)] if probe.mode in
                         {"partial", "slice", "rules", "dialects", "bundle"} else [])
-                if probe.mode == "rules" and probe.gain * 0.65 > probe.estimate + 1.0:
+                if probe.mode == "rules":
                     args.append("verify-results")
                     cpu_limit = max(cpu_limit, 2 * probe.gain + 1)
                 if probe.mode == "unreached":
@@ -774,7 +772,7 @@ def run(patches, catalog, dur, t0):
                         selection["execute"] = sorted(forced.intersection(selection["worker"]))
                         mode, args = "slice", [json.dumps(selection)]
                         price = economics(mode, selection)[1]
-                    if price <= allowance and price < 0.65 * probe.gain:
+                    if price <= allowance:
                         allowance -= price
                         limit = max(4, 2.5 * price + 1)
                         if session:
