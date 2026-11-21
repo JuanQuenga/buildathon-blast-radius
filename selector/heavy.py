@@ -192,6 +192,8 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
     # from patched code cannot be mistaken for completed assertions.
     if group == "catalog":
         script = SCRIPT.with_name("catalog_check.py")
+    elif group == "fixture-query":
+        script = SCRIPT.with_name("fixture_query.py")
     elif group == "rules":
         script = SCRIPT.with_name("rule_corpus.py")
     elif group == "bundle":
@@ -209,7 +211,7 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
             env["BLAST_PROBE_CPU"] = str(cpu_limit)
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(impact._module_name(p) for p in path.split(","))
-        if (group != "catalog" or "sqlglot" not in sys.modules) and warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
+        if group != "fixture-query" and (group != "catalog" or "sqlglot" not in sys.modules) and warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
             result = warm_replay.run(script, group, cases, overlay, deadline,
                                    env.get("BLAST_CHANGED_MODULE", ""), receipt, phase, cpu_limit)
             replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
@@ -509,6 +511,12 @@ def probe_profiles(group):
 @functools.lru_cache(maxsize=256)
 def stage_edit(text, group):
     files = parse(text)
+    if (group == "ds" and len(files) == 1
+            and files[0].path == "tests/fixtures/optimizer/tpc-ds/tpc-ds.sql"
+            and files[0].paths == {files[0].path} and files[0].hunks
+            and not (files[0].is_new or files[0].is_deleted or files[0].is_rename
+                     or files[0].is_binary or files[0].mode_change)):
+        return "fixture-query", "", verify.apply_patch(text), []
     if not files or not all(eligible_file(f, "ds") for f in files):
         return None
     changes = verify.apply_patch(text)
@@ -624,7 +632,7 @@ def economics(mode, cases):
     if mode == "dialects":
         return 0.79, 0.22 + 0.025 * len(cases)
     return {
-        "unreached": (0.99, 0.005), "imported": (0.90, 0.09),
+        "fixture-query": (0.75, 0.18), "unreached": (0.99, 0.005), "imported": (0.90, 0.09),
         "tokens": (0.60, 0.22), "corpus": (0.86, 0.46),
         "small": (0.75, 0.29), "scaled": (0.67, 0.61),
         "generator": (0.28, 1.35),
@@ -655,6 +663,11 @@ def options(patch, catalog, targets, dur):
         if gain <= 0 or number in set().union(*workers):
             continue
         edit = stage_edit(patch.text, group)
+        from .cheap_proofs import proven
+        if proven(patch.text, group, edit):
+            yield Probe(patch, group, number, "unreached", "", [], (req, pl, workers),
+                        gain, 1.0, 0.005)
+            continue
         if edit:
             mode, paths, changes, cases = edit
             probability, estimate = economics(mode, cases)
@@ -685,19 +698,22 @@ def options(patch, catalog, targets, dur):
                 0.30, setup_cost + 0.16 + 0.55 * load)
 
 
-def run(patches, catalog, dur, t0):
+def run(patches, catalog, dur, t0, *, deadline=None):
     from .probe_session import PatchSession
     started = cpu()
     # Admission consumes pin-derived estimates, independent of machine load.
     allowance = min(96.0, max(18.0, 1.75 * len(patches)))
     cpu_ceiling = max(30.0, min(144.0, 2.4 * len(patches)))
-    deadline = t0 + min(180, 3 * max(40, len(patches)))
+    if deadline is None:
+        deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
     queue = []
     attempted = set()
     bundle_wins = bundle_tries = 0
     session = None
+    speculative_cpu = 0.0
+    speculative_limit = max(1.6, 0.044 * len(patches))
 
     def enqueue(patch):
         try:
@@ -728,9 +744,13 @@ def run(patches, catalog, dur, t0):
         warm_replay.prepare_core()
     active = None
     with contextlib.ExitStack() as stack:
-        while queue:
+        while queue and time.monotonic() < deadline:
             queue.sort(key=lambda p: (p.priority, p.patch is active, p.patch.commit))
             probe = queue.pop()
+            if probe.group != "collection" and probe.mode != "unreached":
+                remaining = speculative_limit - speculative_cpu
+                if remaining < 0.12 or probe.estimate > max(0.75, remaining):
+                    continue
             if probe.group == "bundle":
                 # Start with three pseudocounts. As outcomes arrive, expensive
                 # worker checks must still pay for their observed failure rate.
@@ -738,14 +758,15 @@ def run(patches, catalog, dur, t0):
                 if probability * probe.gain < probe.estimate:
                     continue
             patch = probe.patch
-            if probe.estimate > allowance:
+            if probe.group != "collection" and probe.estimate > allowance:
                 continue
-            allowance -= probe.estimate
+            if probe.group != "collection":
+                allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
             phase = probe.mode
             attempted.add((patch, probe.group))
             try:
-                if active is not patch:
+                if active is not patch and probe.mode != "unreached":
                     stack.close()
                     session = None
                     active = None
@@ -771,6 +792,8 @@ def run(patches, catalog, dur, t0):
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1:
                     break
+                if probe.group != "collection" and probe.mode != "unreached":
+                    cpu_limit = min(cpu_limit, remaining, max(0.32, 1.3 * probe.estimate))
                 cpu_limit = min(cpu_limit, remaining_cpu)
                 if probe.mode == "unreached":
                     result = "pass"
@@ -793,10 +816,11 @@ def run(patches, catalog, dur, t0):
                         selection["execute"] = sorted(forced.intersection(selection["worker"]))
                         mode, args = "slice", [json.dumps(selection)]
                         price = economics(mode, selection)[1]
-                    if price <= min(allowance, probe.gain):
+                    if price <= min(allowance, probe.gain, remaining - (cpu() - began)):
                         allowance -= price
                         limit = min(max(4, 2.5 * price + 1),
                                     cpu_ceiling - (cpu() - started) - (session.charged if session else 0))
+                        limit = min(limit, remaining - (cpu() - began))
                         if limit < 0.1:
                             break
                         if session:
@@ -828,12 +852,14 @@ def run(patches, catalog, dur, t0):
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
-            if result == "timeout":
+            if result == "timeout" and probe.group != "collection":
                 allowance -= max(0.0, cpu_limit - probe.estimate)
             if probe.group == "bundle":
                 bundle_tries += 1
                 bundle_wins += result == "pass"
             cost = cpu() + (session.charged if session else 0) - began
+            if probe.group != "collection":
+                speculative_cpu += max(0, cost)
             print("heavy", patch.commit, probe.group, result, probe.mode, f"{cost:.4f}",
                   round(1000 * probe.gain) if result == "pass" and probe.group != "collection" else 0,
                   phase, f"{probe.probability:.2f}", file=sys.stderr)
@@ -853,7 +879,8 @@ def bounded_run(patches, catalog, dur, t0, *, deadline=None):
         def work():
             limit = 1800 * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-            run(patches, catalog, dur, t0)
+            # Give a cooperative worker time to return completed proofs to the parent.
+            run(patches, catalog, dur, t0, deadline=deadline - 4.0)
             json.dump([p.workers for p in patches], result)
             result.flush()
 

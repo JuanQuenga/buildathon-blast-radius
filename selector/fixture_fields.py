@@ -38,6 +38,19 @@ def load_fields(text, paired):
     return rows
 
 
+TPC_FIXTURES = {"optimizer/tpc-ds/tpc-ds.sql", "optimizer/tpc-h/tpc-h.sql"}
+
+
+def tpc_consumers(new, entry):
+    """Shared executor setup materializes both lists. Only one is passed to each test."""
+    rows = load_fields(new, paired=True)
+    # The pin's _extract_meta splits each leading directive at its first colon.
+    # A missing SQL line or malformed directive raises during shared class setup.
+    if not rows or any(":" not in line for meta, _, _ in rows for line in meta):
+        raise ValueError("invalid TPC fixture metadata")
+    return set(entry["raw"]) | set(entry["reads"])
+
+
 def binary_result(lines, old):
     # git binary patches use the Git/base85 alphabet, zlib, and either raw
     # target bytes or a pack-format delta against the pristine blob.
@@ -139,10 +152,15 @@ def project(fp, readers, tests, apply_hunks):
             new, _ = apply_hunks(old, fp.hunks)
             # Edits touching separators, meta directives or comment lines are
             # structurally ambiguous even if the total pair count is unchanged.
-            for h in fp.hunks:
-                for tag, line in h.lines:
-                    if tag != " " and (";" in line or line.lstrip().startswith(("#", "--"))):
-                        return readers
+            structural = any(
+                tag != " " and (";" in line or line.lstrip().startswith(("#", "--")))
+                for hunk in fp.hunks for tag, line in hunk.lines
+            )
+            if structural:
+                if name not in TPC_FIXTURES:
+                    return readers
+                keep = tpc_consumers(new, entry)
+                return readers & sum(1 << i for i, node in enumerate(tests) if node in keep)
             before, after = (load_fields(s, entry["paired"]) for s in (old,new))
             if len(before) != len(after) or len(before) != entry["size"]:
                 return readers
