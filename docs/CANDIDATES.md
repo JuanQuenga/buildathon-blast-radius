@@ -6,7 +6,7 @@
 
 ### Candidate-8 validation
 
-Compared with candidate-6, candidate-8 saved 75.085 total seconds on tuning and 86.373 on holdout. It missed zero patches on both matched partitions and the 48 additional audited reverts. The 60-patch dual-probe and stalled-probe runs both completed within 84 seconds. The [candidate record](CANDIDATE8.md) includes the per-probe timings, plan changes, generated outcomes and forecast assumptions.
+Compared with candidate-6, candidate-8 saved 76.085 total seconds on tuning and 86.373 on holdout. It missed zero patches on both matched partitions and the 48 additional audited reverts. The 60-patch dual-probe and stalled-probe runs both completed within 84 seconds. The [candidate record](CANDIDATE8.md) includes the per-probe timings, plan changes, generated outcomes and forecast assumptions.
 
 ### Candidate-7 validation
 
