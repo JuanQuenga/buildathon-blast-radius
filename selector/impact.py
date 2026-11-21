@@ -1224,6 +1224,9 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
                 top = a.name.split(".")[0]
                 if a.name not in ns_mod and top not in importable:
                     return f"import {a.name}"
+                if top in ("sqlglot", "tests") and a.name not in ns_mod and (
+                        _static_names(a.name) is None):
+                    return f"import {a.name} (no such module)"
             continue
         if isinstance(st, ast.ImportFrom):
             if st.level:
@@ -1236,6 +1239,15 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
                 for a in st.names:
                     if a.name != "*" and a.name not in ns_mod[modname] and (
                             f"{modname}.{a.name}" not in ns_mod):
+                        return f"from {modname} import {a.name}"
+            elif modname.split(".")[0] in ("sqlglot", "tests"):
+                static = _static_names(modname)
+                if static is None:
+                    return f"from {modname} (no such module)"
+                for a in st.names:
+                    if (a.name != "*" and a.name not in static and "*" not in static
+                            and "__getattr__" not in static
+                            and _static_names(f"{modname}.{a.name}") is None):
                         return f"from {modname} import {a.name}"
             elif modname.split(".")[0] not in importable:
                 return f"from {modname}"
@@ -1266,6 +1278,29 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
                     if n.attr not in ns_cls[full]:
                         return f"{n.value.id}.{n.attr} L{n.lineno}"
     return None
+
+
+def _static_names(modname: str):
+    """Top-level names of a module of the pinned sources (None: no such
+    module).  '*' / '__getattr__' in the result mean "anything may exist"."""
+    cache = _sources().setdefault("_static_ns", {})
+    if modname in cache:
+        return cache[modname]
+    srcs = _sources()["src"]
+    base = modname.replace(".", "/")
+    path = base + ".py" if base + ".py" in srcs else (
+        base + "/__init__.py" if base + "/__init__.py" in srcs else None)
+    if path is None:
+        known = _sources()["files"]
+        # namespace package (directory without __init__.py)
+        res = set() if any(f.startswith(base + "/") for f in known) else None
+    else:
+        try:
+            res = _toplevel_names(ast.parse(srcs[path]))
+        except SyntaxError:
+            res = {"*"}
+    cache[modname] = res
+    return res
 
 
 def _eval_time_nodes(st):
