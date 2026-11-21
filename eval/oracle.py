@@ -10,7 +10,7 @@ report (crash, renamed/deleted test) are counted as failing and listed under
 
 Usage:
   eval/oracle.py label PATCH...            # print labels
-  eval/oracle.py label-dir DIR [-j 6]      # DIR/commits/*.patch -> DIR/answers.json (+ DIR/oracle.json)
+  eval/oracle.py label-dir DIR [-j 2]      # DIR/commits/*.patch -> DIR/answers.json (+ DIR/oracle.json)
   eval/oracle.py baseline [-n 2]           # clean runs, report non-passing tests (flakes)
 """
 
@@ -38,7 +38,7 @@ TEST_TIMEOUT_S = int(os.environ.get("BR_TEST_TIMEOUT", "300"))
 CASE_TIMEOUT_S = int(os.environ.get("BR_CASE_TIMEOUT", "3600"))
 PLUGIN_DIR = EVAL / "oracle_plugin"
 # Pin all oracle pytest runs to a core range (duckdb spawns threads); "" disables.
-_CORES = os.environ.get("BR_ORACLE_CORES", "10-15")
+_CORES = os.environ.get("BR_ORACLE_CORES", "10-13")
 TASKSET = ["taskset", "-c", _CORES] if _CORES and shutil.which("taskset") else []
 COPY_ITEMS = None  # everything except .git
 
@@ -88,6 +88,13 @@ def run_pytest(work: Path, out: Path, log: Path) -> dict:
         "PYTHONPATH": f"{work}:{PLUGIN_DIR}",
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONHASHSEED": "0",
+        # The executor and optimizer suites create their own process pools.
+        # Python 3.13 reads this override in the pytest parent and its children.
+        "PYTHON_CPU_COUNT": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
         "BR_ORACLE_OUT": str(out),
         "TMPDIR": str(work / ".tmp"),
     }
@@ -245,7 +252,7 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
     return res
 
 
-def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True, quiet=False,
+def label_many(patches: dict[str, bytes], jobs: int = 2, use_cache: bool = True, quiet=False,
                on_result=None) -> dict[str, dict]:
     tests, skipped = load_catalog()
     results: dict[str, dict] = {}
@@ -383,13 +390,13 @@ def main(argv=None):
     p.set_defaults(fn=_cmd_label)
     p = sub.add_parser("label-dir")
     p.add_argument("dir")
-    p.add_argument("-j", "--jobs", type=int, default=6)
+    p.add_argument("-j", "--jobs", type=int, choices=(1, 2), default=2)
     p.add_argument("--only")
     p.add_argument("--no-cache", action="store_true")
     p.set_defaults(fn=_cmd_label_dir)
     p = sub.add_parser("baseline")
     p.add_argument("-n", type=int, default=2)
-    p.add_argument("-j", "--jobs", type=int, default=2)
+    p.add_argument("-j", "--jobs", type=int, choices=(1, 2), default=2)
     p.set_defaults(fn=_cmd_baseline)
     a = ap.parse_args(argv)
     a.fn(a)
