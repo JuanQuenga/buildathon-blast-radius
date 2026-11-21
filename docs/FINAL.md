@@ -1,0 +1,22 @@
+# Final-entry decision
+
+**Candidate 8 has the best completed official result, 174.6 seconds with zero misses.** Candidate 10 failed the official build and has no score. Candidate 11 forecasts 150.7 practice seconds with zero misses. A human choosing before another official result has to decide whether the local gain transfers and whether it covers any additional miss risk. One missed patch costs 300 seconds.
+
+| Entry | Evidence for a 40-patch practice batch | Estimate for 60 similar patches, conditional on no misses | Registered holdout total scaled to 60 patches |
+|---|---:|---:|---:|
+| Candidate 4, static only | About 178 s, using candidate 5's 177.8 s official run as a proxy | About 267 s | 609 s |
+| Candidate 5, conservative with rare replay | 177.8 s official | About 267 s | 607 s |
+| Candidate 8, probing | 174.6 s official | About 262 s | 566 s using the paired C8 timing |
+| Candidate 11, probing | 146.1 simulated + 4.6 CPU forecast | About 226 s | 544 s |
+
+The static-only entry is candidate 4. Candidate 5 actually attempted one expensive replay on the 197 registered holdouts and none on the sample or tuning in its matched release run. The final two columns are scenarios for different patch mixes. A simulated score above 270 seconds is valid. The 270-second deadline measures real time spent producing the selector output.
+
+**Expected score with misses.** For a practice-like final mix, add approximately `18,000 × p` seconds to each conditional 60-patch estimate, where `p` is that entry's average per-patch miss probability. This expectation does not require independence. Candidate 11's roughly 41-second advantage over the conservative entry disappears at about **0.23 percentage points of additional miss risk per patch**. A single additional miss outweighs the projected saving several times over. Removing one expensive TPC-DS opportunity from the practice forecast can move the score by roughly 21 seconds. Entrypoint timing alone changed small-worker decisions across runs.
+
+**What the labels establish.** Both conservative and probing selectors missed zero of 197 registered holdouts. Under independent representative sampling, zero in 197 gives a one-sided 95% upper bound of 1.51% per patch. The patches share mutation families, the same holdout has informed successive designs, and some probe priors use those aggregate results. That bound does not establish a 0.23-point difference or predict the failure rate of a new kind. The generated matrix exercised 125 failing targets without a false drop. Individual tests and mutations are correlated there as well.
+
+**Unseen kinds.** All entries depend on finite pin coverage. Dynamic attribute reads, import order and cross-test state can defeat static selection. Candidate 11 additionally relies on isolated pytest collection, pin-derived value-read traces, and some scaled or differential replays of expensive tests. New machinery that changes plugin behavior, reflects on module contents or interacts with earlier tests could invalidate an exclusion. The conservative selector pays for broader coverage and avoids the additional probe assumptions. Neither the frequency of these cases nor their conditional miss probability has been measured. A defensible unconditional expected final score is unavailable.
+
+**Real wall time for 60 patches.** Candidate 4 took 21.274 and 24.596 seconds on the two stress batches. Candidate 11 took 22.695 and 21.420 seconds. These include container startup. The conservative static phase has a 60-second global selection budget with five seconds per patch. Candidate 11's probe loop normally stops by 105 seconds from selector start, and its independent supervisor stops waiting at 180 seconds for 60 patches. Output validation and container startup add time. The observed maxima are 24.596 and 22.695 seconds respectively. There is no proven end-to-end upper bound below the official 270-second cutoff for arbitrary patches, host stalls, or blocked I/O. An expired cutoff or failed build yields no final entry.
+
+**Build risk.** Candidate 10's official rejection makes cold-build evidence part of the entry decision. With four CPUs and 8 GiB, candidate 8's original tag built and loaded from scratch in 269 seconds locally. Candidate 11's revised image took 56 seconds and passed the starter sample from that cold image. Both fit the six-minute local release timeout. Candidate 11 removes the long recording stages. Its first official build and score are still pending.

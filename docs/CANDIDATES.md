@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Please submit candidate-10 at the next available practice slot.** Its forecast is **146.3 simulated + 5.7 CPU = 152.0 seconds**. Candidate-8 officially scored 155.649 simulated + 18.99 median CPU with zero misses. Candidate-10 kept every observed failure on the matched sample, tuning, holdout, additional tuning and generated checks. It reduced the paired holdout total by 48.778 seconds and regressed the paired tuning total by 19.808 seconds. The [candidate record](CANDIDATE10.md) includes stage costs, calibration, two 40-patch scenarios, missed CPU targets and sensitivity to a lost TPC-DS saving.
+**Please submit candidate-11 at the 4:33 AM ET practice slot.** The forecast is **146.1 simulated + 4.6 CPU = 150.7 seconds**, conditional on zero misses. Candidate 10 was rejected at the rule-corpus build step. Candidate 8 remains the official best at 174.6 seconds. Candidate 11 builds from committed pin recordings and uses the per-file collection result and profiled date-unit lookups. Its registered holdout saved 25.250 total seconds versus candidate 10, with a 29.156-second tuning regression. The [candidate record](CANDIDATE11.md) includes the clean-build gate, full-plan audit and validation. The [final-entry comparison](FINAL.md) gives the score scenarios, miss break-even and wall-time limits.
+
+### Candidate-10 build rejection
+
+The 3:30 AM ET official build stopped at the rule-corpus recording step. Candidate 10 has no official score. Its [matched runtime measurements](CANDIDATE10.md) remain the comparison for candidate 11.
 
 ### Candidate-9 validation
 
