@@ -32,8 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from paths import BASE, CACHE, CATALOG, EVAL, PYTHON, WORKBENCH  # noqa: E402
 
 ORACLE_VERSION = "v1"
-TEST_TIMEOUT_S = int(os.environ.get("BR_TEST_TIMEOUT", "180"))
-CASE_TIMEOUT_S = int(os.environ.get("BR_CASE_TIMEOUT", "1500"))
+TEST_TIMEOUT_S = int(os.environ.get("BR_TEST_TIMEOUT", "300"))
+CASE_TIMEOUT_S = int(os.environ.get("BR_CASE_TIMEOUT", "3600"))
 PLUGIN_DIR = EVAL / "oracle_plugin"
 # Pin all oracle pytest runs to a core range (duckdb spawns threads); "" disables.
 _CORES = os.environ.get("BR_ORACLE_CORES", "10-15")
@@ -78,7 +78,8 @@ def patch_key(patch: bytes) -> str:
 
 def run_pytest(work: Path, out: Path, log: Path) -> dict:
     env = {
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        # test_dialect.py::test_lazy_load shells out to `python`: make that the 3.13 venv
+        "PATH": f"{PYTHON.parent}:" + os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(work),
         "LANG": "C.UTF-8",
         "SKIP_INTEGRATION": "0",
@@ -94,6 +95,9 @@ def run_pytest(work: Path, out: Path, log: Path) -> dict:
         "-p", "no:cacheprovider", "-p", "br_oracle_plugin",
         "-q", "-rN", "--no-header", "--tb=short",
         f"--timeout={TEST_TIMEOUT_S}",
+        # without this a collection error in ANY file aborts the whole session; the official
+        # rule is "unimportable test file -> all tests in that file fail", others still run
+        "--continue-on-collection-errors",
     ]
     t0 = time.time()
     with open(log, "wb") as lf:

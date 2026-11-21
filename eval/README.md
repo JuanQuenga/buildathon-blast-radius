@@ -56,7 +56,7 @@ git clone blast-radius/sqlglot $WB/base && git -C $WB/base checkout eb11aec4be8c
 Env overrides: `BR_WORKBENCH`, `BR_BASE`, `BR_PYTHON`, `BR_STARTER`, `BR_CATALOG`,
 `BR_ORACLE_CORES` (taskset range for oracle pytest runs, default `10-15`),
 `BR_RUN_CORES` (2 cores for the selector, default `8,9`), `BR_TEST_TIMEOUT` (per-test
-pytest-timeout, default 180 s).
+pytest-timeout, default 300 s; raised from 180 because the shared machine hit load 58).
 
 ## Running
 
