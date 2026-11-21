@@ -553,6 +553,10 @@ def stage_edit(text, group):
         return "tokens", paths, changes, []
     if paths == "sqlglot/tokens.py" and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
         return "tokens", paths, changes, []
+    if not regions and paths.startswith("sqlglot/optimizer/") and len(changes) == 1:
+        from .optimizer_config import overridden_defaults
+        if overridden_defaults(paths, (Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
+            return "unreached", paths, changes, []
     if paths == "sqlglot/optimizer/optimizer.py":
         from .optimizer_config import literal_change
         config = literal_change((Path(verify.PRISTINE) / paths).read_text(), changes[paths])
