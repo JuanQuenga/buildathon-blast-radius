@@ -1,6 +1,25 @@
 # Verified candidates
 
-**Candidate-3 is the practice candidate for human review. Candidate-2 is the conservative fallback.** The candidate-1 and candidate-2 comparison below predates the operand profile. Both tags produce the same simulated totals and miss counts on the matched measurements below. Candidate-2 also covers compiler and discovery effects demonstrated on independent source edits. The choice reflects a judgment about unseen patches. The measurements do not establish a lower contest score.
+## Please submit
+
+**Submit candidate-4 next. Expected official practice score 177.7 seconds.** The point estimate keeps candidate-3’s 177.103 simulated seconds and budgets roughly 0.6 seconds for server CPU. Candidate-3 scored 178.2 officially. A qualifying branch or fallback could save more. The new candidate had no simulated advantage on sample or holdout.
+
+### Candidate-4 validation
+
+Selector implementation cd45dbf. The clean git archive image ran under the exact starter linux/amd64 flags, including read-only root, unprivileged user and no network. The official sample validator returned 115.613 seconds with zero misses and zero fallbacks. Sample process CPU near exit was 0.38 and 0.42 seconds. All 16 inherited regression tests passed. Build inputs contain only selector code and pin-derived maps.
+
+| Partition at label revision faaea19 | Patches | Candidate-3 sim s | Candidate-4 sim s | Candidate-4 host CPU s | Candidate-4 Docker CPU s | Misses, both | Fallbacks, 3 → 4 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Official sample | 30 | 115.613 | 115.613 | — | 0.42 | 0 | 0 → 0 |
+| Tuning including sample | 110 | 1085.946 | 1010.187 | 3.870 | 3.19 | 0 | 7 → 4 |
+| Registered holdout | 188 | 1775.023 | 1775.023 | 4.727 | 4.24 | 0 | 4 → 4 |
+
+Docker and host emitted identical worker plans on every measured patch. CPU totals sum over separate batches of up to 40 within each case set. Host CPU is process-tree rusage. Docker CPU is rounded self CPU logged before exit. The sub-0.4-second CPU target was reached on one sample run and exceeded on others, particularly reverts. The [cost attribution and risk record](CANDIDATE4.md) gives rule precision, the tuning ablation and limitations.
+
+## Earlier candidates
+
+
+**Candidate-3 was the first official practice submission. Candidate-2 is the conservative fallback.** The candidate-1 and candidate-2 comparison below predates the operand profile. Both tags produce the same simulated totals and miss counts on the matched measurements below. Candidate-2 also covers compiler and discovery effects demonstrated on independent source edits. The choice reflects a judgment about unseen patches. The measurements do not establish a lower contest score.
 
 | Tag | Selector commit | Official sample, exact Docker simulated s | Docker process CPU near exit, s | Misses | Full-suite fallbacks |
 | --- | --- | ---: | ---: | ---: | ---: |
