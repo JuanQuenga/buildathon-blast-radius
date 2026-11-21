@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Please submit `candidate-15` (`1dca6d6`) for the 9:23 AM ET practice slot.** The coordinator submits. Candidate 14 remains the selected final entry. The production-intent selector removes full-data TPC-DS probes, retains both real sample failures and requires complete evidence for each TPC-DS omission. [Measurements and forecast](CANDIDATE15.md)
+**Please submit `diagnostic-d2-attempted` (`0406efd`) at 10:23 AM ET if the production hybrid has not passed its release gates by 10:10.** D2 measures the worker cost of inconclusive TPC-DS probes that actually ran. Candidate 14 remains selected for the final. [Diagnostic interpretation](PRACTICE-DIAGNOSTICS.md)
+
+### Candidate-15 official result
+
+Practice receipt BB-43C95F5F scored **173.0 seconds** with 171.957 simulated seconds, 1.05–1.06 CPU seconds and zero missed commits. Relative to C14, C15 saved about 23 CPU seconds and scheduled 21.454 more simulated seconds. D1 remains the fastest measured practice entry at 154.9 seconds. [Candidate 15 measurements](CANDIDATE15.md)
 
 ### D1 official result
 

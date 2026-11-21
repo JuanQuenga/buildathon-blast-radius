@@ -106,3 +106,7 @@ A separate timing replay selected all 15 successful production TPC-DS receipts i
 | Complete parser corpus | 1 | 0.692 |
 
 The first attempt to record dialect access on the pin ran out of DuckDB memory at a 1,150 MB container limit. A fresh 2,500 MB run completed the real test and all 57 executed-query subtests. The published map uses the successful process receipts. Neither recording is part of the image build.
+
+## Official practice
+
+Receipt BB-43C95F5F scored **173.0 seconds**, with 171.957 simulated seconds, 1.05–1.06 selector CPU seconds and zero missed commits. Compared with C14, the worker plan cost 21.454 seconds more. The organizer provides batch totals. They establish the cost difference while leaving the changed patch identities and probe mechanisms unknown.
