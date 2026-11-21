@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Please submit candidate-6 in its reserved slot, then candidate-7 in the next open practice slot. Candidate-7 is estimated at 154.7 seconds.** The updated forecast starts from candidate-5's official 177.8 seconds. Candidate-6's updated forecast is 164.2 seconds.
+**Please submit candidate-6 in its reserved 02:29 ET slot, then candidate-8 in the next open practice slot. Candidate-8 is estimated at 146.7 seconds.** Candidate-7 is the validated fallback at 154.7 seconds. Both projections use candidate-5's official 177.8 seconds and an updated 164.2-second estimate for candidate-6.
+
+### Candidate-8 validation
+
+Compared with candidate-6, candidate-8 saved 75.085 total seconds on tuning and 86.373 on holdout. It missed zero patches on both matched partitions and the 48 additional audited reverts. The 60-patch dual-probe and stalled-probe runs both completed within 84 seconds. The [candidate record](CANDIDATE8.md) includes the per-probe timings, plan changes, generated outcomes and forecast assumptions.
 
 ### Candidate-7 validation
 

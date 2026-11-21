@@ -18,7 +18,7 @@ The build observes public parse calls, their concrete dialects, arguments and re
 
 Each overlay starts with freshly imported SQLGlot. A six-iteration Docker microbenchmark measured 0.631 CPU seconds for a fresh SQLGlot and executor-fixture import, 0.188 after forking with pandas and DuckDB preloaded, and 0.004 after forking with SQLGlot and the fixtures preloaded. The last figure measures the pristine pin. An overlay would also have to replace references retained by registries, dispatch tables and fixture globals. The release precompiles unchanged modules and caches verdicts by overlay contents within a batch.
 
-The scheduler prices one through four workers, including the two-second fee on each occupied worker. It rebuilds the plan after every accepted drop and prices remaining probes again. Dropping the parser can make a TPC-DS probe profitable on the same patch.
+The scheduler prices one through eight workers, including the two-second fee on each occupied worker. It rebuilds the plan after every accepted drop and prices remaining probes again. Dropping the parser can make a TPC-DS probe profitable on the same patch.
 
 ## Why candidate 6 kept heavy selections on holdout
 
