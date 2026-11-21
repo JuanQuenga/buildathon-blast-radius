@@ -53,6 +53,12 @@ FINAL_EXTRA_KINDS = ["test", "newfile", "delete", "rename", "nonpy", "export", "
 def load_cases(sets: list[str], split: str, kinds: set[str] | None, ignore_missing: bool = False):
     cases = {}
     id2num = {t["id"]: t["number"] for t in json.loads(Path(CATALOG).read_text())["tests"]}
+    development = set()
+    if split != "dev":
+        for path in CASES.glob("*/meta.json"):
+            for cid, entry in json.loads(path.read_text()).items():
+                if entry.get("split") == "dev":
+                    development.add((path.parent / "commits" / f"{cid}.patch").read_bytes())
     for s in sets:
         d = Path(s) if "/" in s else CASES / s
         ans_path = d / "answers.json"
@@ -64,6 +70,8 @@ def load_cases(sets: list[str], split: str, kinds: set[str] | None, ignore_missi
         det_p = WORKBENCH / "oracle-details" / f"{d.name}.json"
         details = json.loads(det_p.read_text()) if ignore_missing and det_p.exists() else {}
         for cid, a in answers.items():
+            if a.get("basis"):
+                continue
             m = meta.get(cid, {})
             sp = m.get("split", "holdout" if d.name == "holdout" else "dev")
             if split != "all" and sp != split:
@@ -71,13 +79,20 @@ def load_cases(sets: list[str], split: str, kinds: set[str] | None, ignore_missi
             kind = m.get("kind", a.get("kind", "unknown"))
             if kinds and kind not in kinds:
                 continue
+            patch = (d / "commits" / f"{cid}.patch").read_bytes()
+            if sp == "holdout" and patch in development:
+                continue
             if cid in cases:
                 raise ValueError(f"Duplicate case ID {cid}; run the sets separately")
-            key = cid
-            cases[key] = {
-                "id": cid, "set": d.name, "split": sp, "patch": (d / "commits" / f"{cid}.patch").read_bytes(),
-                "failing": sorted(set(a["failing"]) - {id2num[i] for i in (details.get(cid) or {}).get("missing") or []
-                                                         if i in id2num}) if ignore_missing else a["failing"],
+            failing = a["failing"]
+            if ignore_missing:
+                absent = a.get("missing")
+                if absent is None:
+                    absent = [id2num[i] for i in (details.get(cid) or {}).get("missing") or [] if i in id2num]
+                failing = sorted(set(failing) - set(absent))
+            cases[cid] = {
+                "id": cid, "set": d.name, "split": sp, "patch": patch,
+                "failing": failing,
                 "kind": kind,
                 "family": m.get("family", kind), "op": m.get("op", kind), "area": m.get("area", "?"),
                 "desc": m.get("desc", ""),

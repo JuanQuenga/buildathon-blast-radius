@@ -92,27 +92,27 @@ bootstraps (`--mix practice` draws kinds in the sample's 16/8/3/3 proportions,
 
 Command (per case, own copy of the pin, cwd = copy, `PYTHONPATH=<copy>`,
 `SKIP_INTEGRATION=0`, Python 3.13 + `requirements.lock`):
-`python -m pytest tests -p no:cacheprovider -p br_oracle_plugin -q --timeout=180`.
+`python -m pytest tests -p no:cacheprovider -p br_oracle_plugin -q --timeout=300 --continue-on-collection-errors`.
 
 A catalog test is labelled failing when any of its reports failed (setup, call,
 teardown, or any subtest — pytest 9 reports the parent `PASSED` next to
 `SUBFAILED`), when its module/class failed to collect (every catalog test in
-that file), or when it never reported at all (`missing`: crash, deleted or
-renamed test). The last rule is our conservative guess; the official handling
+that file), or when it never reported in an otherwise complete session (a deleted or
+renamed test can cause this). The last rule is our conservative guess; the official handling
 of renamed/deleted catalog tests is unpublished — `oracle-details/<set>.json`
 lists such tests under `missing` so they can be excluded.
 
 ## Comparing frozen selector commits
 
-Run `python3 eval/candidate_report.py candidate-1` to measure the tagged selector tree and write its report under `eval/REPORTS/`. The script snapshots labels at startup and reuses measured plans for the same tree, catalog and batch. Rerun it after a labelling checkpoint. Reports disclose the number of unavailable labels and exclude exact copies of development patches from held-out measurements. The four fresh transfer cases are held out. Archived selector output and timings stay in the workbench. This host runner assumes the image starts Python with the selector module and default settings.
+Run `python3 eval/candidate_report.py candidate-1` to measure the tagged selector tree and write its report under `eval/REPORTS/`. The script snapshots labels at startup and reuses measured plans for the same tree, catalog and batch. Rerun it after a labelling checkpoint. Reports disclose the number of unavailable labels and exclude exact copies of development patches from held-out measurements. The four fresh transfer cases are held out. Archived selector output and timings stay in the workbench. Early selectors use the pinned host environment. Selectors with baked runtime artifacts use the registered image and its default command.
 
-For a test rename or deletion, primary evaluation uses the fixed catalog and counts a missing ID as failing. `run.py --ignore-missing` gives the alternate convention when oracle details are available. For a root conftest import error before pytest has collected any tests, the label file marks the all-catalog interpretation as inferred. Candidate reports omit that case. Whole-job timeouts, crashes and interrupted collection require a successful rerun. The per-test timeout currently defaults to 300 seconds.
+For a test rename or deletion, primary evaluation uses the fixed catalog and counts a missing ID as failing. `run.py --ignore-missing` uses the missing numbers recorded in the compact labels or the local audit details. For a root conftest import error before pytest has collected any tests, the label file marks the all-catalog interpretation as inferred. Candidate reports omit that case. Whole-job timeouts, crashes and interrupted collection require a successful rerun. The per-test timeout currently defaults to 300 seconds.
 
-Selector comparisons on holdout may disclose only aggregates. The development-only miss traces in the reports include the selector's logged decision and the omitted tests. Per-patch CPU is unavailable, so subgroup CPU is a share of the measured batch total.
+Selector comparisons on holdout may disclose only aggregates. The development-only miss traces in the reports include the selector's logged decision and the omitted tests. Bootstrap draws allocate batch CPU evenly to their constituent patches.
 
 Use `--labels-ref COMMIT` to compare candidates against the same committed, audited label snapshot. These reports replay each row's patches as a group to measure its local CPU time, including process startup. The main simulation and bootstraps continue to use the shuffled batches. The committed labels may also record the numbers of missing catalog tests for the alternate-convention calculation.
 
 
-The shared host budget for the complete benchmark is four CPU-bound processes and 4 GB of memory. The active queue runs at nice 10 inside one cgroup with a 2.5-CPU quota, a 4,000,000,000-byte memory cap and swap disabled. It runs one pytest parent. Two simultaneous large parser tests caused sustained memory pressure above the 3.2 GB soft limit. Python 3.13's PYTHON_CPU_COUNT=1 limits the implicit ProcessPoolExecutor in each parent to one worker. BLAS, OpenMP and NumExpr also receive a one-thread setting. Run timeout_audit.py within the same service after labelling to repeat timeout-affected patches serially once host load, memory pressure and paging settle.
+The shared host budget for the complete benchmark is four CPU-bound processes and 4 GB of memory. The serial queue runs at nice 10 with a CPU quota and swap disabled. Concurrent jobs reserve shares of a combined 4,000,000,000-byte memory budget before starting. It runs one pytest parent. Two simultaneous large parser tests caused sustained memory pressure above the 3.2 GB soft limit. Python 3.13's PYTHON_CPU_COUNT=1 limits the implicit ProcessPoolExecutor in each parent to one worker. BLAS, OpenMP and NumExpr also receive a one-thread setting. Run timeout_audit.py within the same service after labelling to repeat timeout-affected patches serially once host load, memory pressure and paging settle.
 
 For candidates that execute built-in regression cases, register the locally built image with `python3 eval/image_runtime.py candidate-N IMAGE` before running a report. Registration compares the image selector files with the Git tree. The harness executes the exported root filesystem in a network-isolated mount namespace, with only the catalog and patch directory mounted as data. It restores the image environment, default command, UID and GID and provides a 64 MiB temporary filesystem. A wait4 parent inside the namespace measures the default command and its reaped descendants. Run the report inside the benchmark cgroup for the resource limits described above.
