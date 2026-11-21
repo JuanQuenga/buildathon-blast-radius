@@ -188,7 +188,7 @@ def cached_result(path: Path):
     if not path.exists():
         return None
     result = json.loads(path.read_text())
-    if result.get("status") == "root_conftest_inferred":
+    if result.get("status") in ("root_conftest_inferred", "iterator_crosschecked"):
         return result
     # Legacy runs before --continue-on-collection-errors can have an
     # end-of-session record and still have interrupted the entire suite.
@@ -312,7 +312,7 @@ def _label_dir(a):
 
     def write(res):
         for cid, r in res.items():
-            inferred = r.get("status") == "root_conftest_inferred"
+            inferred = r.get("status") in ("root_conftest_inferred", "iterator_crosschecked")
             if not inferred and (r.get("status") != "ok" or r.get("rc") not in (0, 1, 5)):
                 bad[cid] = r["status"]
                 answers.pop(cid, None)
@@ -323,7 +323,7 @@ def _label_dir(a):
             if r.get("missing") and not inferred:
                 answers[cid]["missing"] = sorted(numbers[nid] for nid in r["missing"])
             if inferred:
-                answers[cid]["basis"] = "root_conftest_inferred"
+                answers[cid]["basis"] = r["status"]
             oracle[cid] = {k: r.get(k) for k in ("status", "key", "missing", "collect_errors", "rc", "wall", "slow")}
             oracle[cid]["reasons"] = r.get("reasons", {})
         # answers.json is written atomically so readers never see a partial file
