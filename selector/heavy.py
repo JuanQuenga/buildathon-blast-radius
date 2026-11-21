@@ -282,6 +282,18 @@ def tail_cases(path, source, fd):
     if not lines or any(not h.old_len or not h.new_len for h in fd.hunks):
         return all_cases
     before = (Path(verify.PRISTINE) / path).read_text()
+    removed = tuple(n for h in fd.hunks for n in h.removed_old_lines)
+    proof = method_region(path, removed, before, source)
+    if proof:
+        first, end, name = proof[1]
+        method = name.rsplit(".", 1)[-1]
+        if "<locals>" not in name and not method.startswith("__"):
+            if path.startswith("sqlglot/executor/") and not method.startswith(
+                ("scan", "join", "aggregate", "sort", "execute", "generate")
+            ):
+                return all_cases
+            return [i for i, row in enumerate(rows)
+                    if any(p == path and first <= n <= end for p, n in row["calls"])]
     old = ast.parse(before)
     for fn in ast.walk(old):
         if (
@@ -415,8 +427,14 @@ def eligible_file(f, group):
 
 
 def method_spans(path, fd, original, source):
-    """Prove the module prefix and suffix identical before comparing a single method."""
-    removed = [n for h in fd.hunks for n in h.removed_old_lines]
+    removed = tuple(n for h in fd.hunks for n in h.removed_old_lines)
+    proof = method_region(path, removed, original, source)
+    return proof[0] if proof else None
+
+
+@functools.lru_cache(maxsize=4)
+def method_region(path, removed, original, source):
+    """Prove the module prefix and suffix identical before comparing a complete method."""
     if not removed:
         return None
     scopes = impact._index()["scopes"].get(path)
@@ -439,7 +457,7 @@ def method_spans(path, fd, original, source):
                                   for line in lines))
         ranges = query_slice.spans(*chunks)
         if ranges:
-            return [(lo+start-1, hi+start-1) for lo, hi in ranges]
+            return [(lo+start-1, hi+start-1) for lo, hi in ranges], (start, end, name)
         return None
     return None
 
@@ -713,7 +731,7 @@ def options(patch, catalog, targets, dur, *, price_collection=False):
 
 # (attempts, clearances, total CPU / attempts). Development and mutation
 # receipts only. A group below eight observations uses C14's admission.
-HYBRID_DS_CPU_SECONDS = 12.5
+HYBRID_DS_CPU_SECONDS = 23.454
 
 HYBRID_PRICES = {
     ("ds", "different-or-incomplete", "corpus"): (15, 4, 0.836),

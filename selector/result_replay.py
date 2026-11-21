@@ -21,6 +21,7 @@ def result_sizes():
 
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
+    from query_budget import query_budget
 
     execute = ex.PythonExecutor.execute
 
@@ -36,7 +37,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 return None
         mark("execute")
         ran = True
-        return execute(engine, plan)
+        with query_budget(i):
+            return execute(engine, plan)
 
     reference_setup = contextlib.ExitStack()
     changed_reference = set()
