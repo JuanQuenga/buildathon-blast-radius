@@ -54,3 +54,9 @@ never put them (or tables derived from them) into the selector or the image.
   shifts every following input/expected pair in that file.
 - `test_dialect_entry_points.py` clears `Dialect._classes` in setUp/tearDown —
   potential order dependence if tests are run in a different order/subset.
+
+## Audited development labels at 60c75b8
+
+- Identify the expensive parser test by its full catalog ID. Number 1490 in TestParser costs 28.817 s and exercises the default parser's AST budget on a million-node expression. TestAthena has a separate test_max_nodes, number 9, costing 0.001 s. None of the completed development exotic runs with exit 1 and fewer than 1,620 failures failed number 1490. Missing or broken shared imports can still prevent collection.
+- Among those same development runs, three broke number 1106 (TPC-DS). The recorded exceptions in executor workers traced to a Trino parser rename, a missing Presto typing module and invalid Trino generator syntax. Fifteen broke number 1224 (generator memory) through failed imports, deletions, renames or missing dialect registration.
+- The previous load-58 run exceeded a 180-second timeout on the large parser test. A timeout retry replaces the first outcome, so wall time and first-run timeout evidence matter. An interrupted pytest session can produce many missing reports. Those rows require separate treatment.
