@@ -52,8 +52,10 @@ never put them (or tables derived from them) into the selector or the image.
   `#` lines are metadata only at the start of a statement (`key: value`); a
   `#` line without `:` raises. Statements are split on `;`, so an extra `;`
   shifts every following input/expected pair in that file.
-- `test_dialect_entry_points.py` clears `Dialect._classes` in setUp/tearDown —
-  potential order dependence if tests are run in a different order/subset.
+- The team observed parser and time tests pass in isolation and fail in a full
+  session after a dialect registration edit. Earlier entry-point tests clear
+  `Dialect._classes`, changing how later tests resolve dialects. A passing
+  isolated replay can therefore miss a full-session failure.
 
 ## Audited development labels at 60c75b8
 
