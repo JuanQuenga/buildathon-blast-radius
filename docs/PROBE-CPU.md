@@ -38,7 +38,9 @@ Every labeled local patch where candidate 13 selected TPC-DS was included. Addit
 | Ineligible for replay | 18 | 26 |
 | DuckDB reference SQL changed | 3 | 1 |
 
-The table includes one extra generated executor control. The original 221 had zero false clearances. The extra control raises when an input table exceeds 512 rows. No reduced table triggered it, but the real pinned TPC-DS test on full data failed in 5.93 seconds. The production proof therefore uses full fixture data. A matching reduced run alone would have incurred a 300-second penalty on this control.
+The table includes one extra generated executor control. The original 221 had zero false clearances. The extra control raises when an input table exceeds 512 rows. No reduced table triggered it, but the real pinned TPC-DS test on full data failed in 5.93 seconds. A separate rerun using the host-mounted study tool reproduced the false clearance. The reference file is the optional reduced fixture emitted by the CPU experiment’s offline recorder. Run the study tool inside the pin image with that file and a directory of patches, then compare its JSONL to full-test labels on the host. [Reduced-data study tool](../tools/study_reduced_tpcds.py)
+
+The production proof therefore uses full fixture data. A matching reduced run alone would have incurred a 300-second penalty on this control.
 
 ### Forty-patch reconstruction
 
