@@ -590,6 +590,8 @@ class PyDiff:
         nd = [_dump(s) for s in news]
         if od == nd:
             return
+        if scope == "func":
+            self.an.plaus |= entry  # cheap insurance: everyone entering the block
         sm = difflib.SequenceMatcher(None, od, nd, autojunk=False)
         for tag, i1, i2, j1, j2 in sm.get_opcodes():
             if tag == "equal":
@@ -867,9 +869,63 @@ class PyDiff:
                                " (import users)")
             return
         risky = self.risky_bits(n_other, None)
+        # PEP 562 lazy exports / __all__: string data names the module's exports
+        if self.has_dynamic_exports():
+            so, sn = _str_consts(o_other), _str_consts(n_other)
+            dyn_removed = {x for x in so - sn if x.isidentifier()}
+            dyn_added = {x for x in sn - so if x.isidentifier()}
+            if dyn_removed or dyn_added:
+                self.an.reasons.append(f"{self.path}: dynamic exports -{sorted(dyn_removed)[:3]}"
+                                       f" +{sorted(dyn_added)[:3]}")
+                names = names | dyn_removed | dyn_added
+                risky |= self.name_refs(dyn_removed, depth=0, exclude=o_other,
+                                        removed=frozenset(dyn_removed))
+        new_edges = self.new_import_edges(o_other, n_other)
+        if new_edges:
+            risky |= _import_state_observers(self.an)
+            self.an.reasons.append(f"{self.path}: new import edge(s) {sorted(new_edges)[:3]}"
+                                   " -> import-state observers")
         gone = names - self.module_names_new()
         self.add(risky | self.name_refs(names, depth=0, exclude=o_other, removed=gone),
                  f"module-level binding(s) {sorted(names)[:4]}")
+
+    def has_dynamic_exports(self) -> bool:
+        for tree in (self.old_tree, self.new_tree):
+            for st in tree.body:
+                if isinstance(st, _DEFS) and st.name in ("__getattr__", "__dir__"):
+                    return True
+                if isinstance(st, (ast.Assign, ast.AnnAssign, ast.AugAssign)) and (
+                        "__all__" in _bound_names(st)):
+                    return True
+        return False
+
+    def new_import_edges(self, o_other, n_other) -> set:
+        """Modules the new statements import that this module did not already
+        import (transitively) at the pin: import side effects move."""
+        graph = self.an.idx.get("imports", {})
+        reach, stack = set(), [self.module]
+        while stack:
+            m = stack.pop()
+            if m in reach:
+                continue
+            reach.add(m)
+            stack.extend(graph.get(m, ()))
+        out = set()
+        for st in n_other:
+            if isinstance(st, ast.Import):
+                tg = [a.name for a in st.names]
+            elif isinstance(st, ast.ImportFrom):
+                base = st.module or ""
+                if st.level:
+                    base = _resolve_rel("." * st.level + base, self.path)
+                tg = [base] + [f"{base}.{a.name}" for a in st.names
+                               if f"{base}.{a.name}" in graph]
+            else:
+                continue
+            for t in tg:
+                if t.startswith(("sqlglot", "tests")) and t not in reach:
+                    out.add(t)
+        return out
 
     # ------------------------------------------------------------ references
     def name_refs(self, names, depth, exclude=(), removed=frozenset()) -> int:
@@ -886,6 +942,37 @@ class PyDiff:
             self.an.reasons.append(f"{self.path}: import risk ({why})")
             return self.an.import_break(self.path, f"import risk ({why})")
         return 0
+
+
+_OBSERVER_RE = re.compile(r"sys\.modules|\b_classes\b|subprocess|import_module|importlib"
+                          r"|\.classes\b|entry_points|__import__")
+
+
+def _import_state_observers(an: Analysis) -> int:
+    """Tests whose own code inspects import state (sys.modules, the dialect
+    registry, lazy loading in a subprocess, ...)."""
+    if "_observers" in an.idx:
+        return an.idx["_observers"]
+    bits = 0
+    for path, text in _sources()["src"].items():
+        if not path.startswith("tests/"):
+            continue
+        for k, line in enumerate(text.split("\n"), 1):
+            if _OBSERVER_RE.search(line):
+                sc = _scope_at(an, path, k)
+                if sc is not None and sc[0] == "def":
+                    bits |= an.lines_bits(path, sc[4], sc[2])
+    an.idx["_observers"] = bits
+    return bits
+
+
+def _str_consts(stmts) -> set:
+    out = set()
+    for st in stmts:
+        for n in ast.walk(st):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                out.add(n.value)
+    return out
 
 
 def _toplevel_names(tree) -> set[str]:

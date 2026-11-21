@@ -113,7 +113,8 @@ def module_imports(bundle: dict) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--trace", required=True)
+    ap.add_argument("--trace", required=True, action="append",
+                    help="trace dir (repeatable: runs are unioned)")
     ap.add_argument("--src", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--ns", help="output of tools/namespaces.py")
@@ -122,15 +123,28 @@ def main() -> int:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    tests_data = []
+    by_ctx: dict[str, dict] = {}
     collects = []
-    for f in sorted(glob.glob(os.path.join(a.trace, "*.json"))):
-        d = json.load(open(f))
-        if d["context"] == "collect":
-            collects.append(d)
-        else:
-            tests_data.append(d)
-    tests_data.sort(key=lambda d: d["context"])
+    for tdir in a.trace:
+        for f in sorted(glob.glob(os.path.join(tdir, "*.json"))):
+            d = json.load(open(f))
+            if d["context"] == "collect":
+                collects.append(d)
+                continue
+            prev = by_ctx.get(d["context"])
+            if prev is None:
+                by_ctx[d["context"]] = d
+                continue
+            # union of runs (fork/cold + sequential/warm, several hash seeds)
+            for path, lines in d["lines"].items():
+                prev["lines"][path] = sorted(set(prev["lines"].get(path, [])) | set(lines))
+            for k in ("opens", "listdirs", "classes"):
+                prev[k] = sorted(set(prev.get(k, [])) | set(d.get(k, [])))
+            prev.setdefault("mro", {}).update(d.get("mro", {}))
+            for w, o in d.get("outcome", {}).items():
+                if o != "passed":
+                    prev.setdefault("outcome", {})[w + "@" + tdir] = o
+    tests_data = sorted(by_ctx.values(), key=lambda d: d["context"])
     tests = [d["context"] for d in tests_data]
     tix = {t: i for i, t in enumerate(tests)}
     bad = [d["context"] for d in tests_data

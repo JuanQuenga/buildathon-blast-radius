@@ -30,6 +30,8 @@ def main() -> int:
     ap.add_argument("--jobs", type=int, default=12)
     ap.add_argument("--chunk", type=int, default=25)
     ap.add_argument("--only", default="")
+    ap.add_argument("--fork", default="1", help="1: fork per test (cold), 0: sequential")
+    ap.add_argument("--seed", default=None, help="PYTHONHASHSEED for the traced run")
     a = ap.parse_args()
 
     cat = json.loads(Path(a.catalog).read_text())
@@ -45,6 +47,8 @@ def main() -> int:
         for k in range(0, len(lst), a.chunk):
             part = lst[k:k + a.chunk]
             chunks.append((sum(secs.get(i, 0) for i in part), part))
+    if a.fork == "0":  # keep whole files together: realistic order and state
+        chunks = [(sum(secs.get(i, 0) for i in lst), lst) for lst in by_file.values()]
     chunks.sort(key=lambda c: -c[0])
     out = Path(a.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -52,7 +56,9 @@ def main() -> int:
     logs.mkdir(exist_ok=True)
     env = dict(os.environ, SKIP_INTEGRATION="0", PYTHONDONTWRITEBYTECODE="1",
                TRACE_OUT=str(out), TRACE_ROOT=str(Path(a.src).resolve()),
-               PYTHONPATH=str(HERE))
+               PYTHONPATH=str(HERE), TRACE_FORK=a.fork)
+    if a.seed is not None:
+        env["PYTHONHASHSEED"] = a.seed
 
     def run(c):
         n, (_, part) = c

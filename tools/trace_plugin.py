@@ -258,6 +258,21 @@ def pytest_runtest_protocol(item, nextitem):
 
     path = os.path.join(OUT, "test--" + _safe(item.nodeid) + ".json")
     t0 = time.time()
+    if os.environ.get("TRACE_FORK", "1") != "1":
+        # sequential mode: normal pytest order, warm caches/shared class setup
+        _reset()
+        reports = runtestprotocol(item, nextitem=nextitem, log=True)
+        data = _snapshot()
+        data["context"] = item.nodeid
+        data["outcome"] = {r.when: r.outcome for r in reports}
+        cls = getattr(item, "cls", None)
+        data["test_mro"] = [
+            f"{b.__module__}.{b.__qualname__}" for b in (cls.__mro__ if cls else ())
+            if (b.__module__ or "").startswith(("sqlglot", "tests"))
+        ]
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return True
     pid = os.fork()
     if pid == 0:
         code = 0
