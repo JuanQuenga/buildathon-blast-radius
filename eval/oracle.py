@@ -293,6 +293,7 @@ def _label_dir(a):
     answers = json.loads(ans_path.read_text())["commits"] if ans_path.exists() else {}
     oracle = json.loads(oracle_path.read_text()) if oracle_path.exists() else {}
     bad = {}
+    numbers = {t["id"]: t["number"] for t in load_catalog()[0]}
 
     def write(res):
         for cid, r in res.items():
@@ -304,6 +305,8 @@ def _label_dir(a):
                 continue
             m = meta.get(cid, {})
             answers[cid] = {"failing": r["failing"], "kind": m.get("kind", "unknown")}
+            if r.get("missing") and not inferred:
+                answers[cid]["missing"] = sorted(numbers[nid] for nid in r["missing"])
             if inferred:
                 answers[cid]["basis"] = "root_conftest_inferred"
             oracle[cid] = {k: r.get(k) for k in ("status", "key", "missing", "collect_errors", "rc", "wall", "slow")}

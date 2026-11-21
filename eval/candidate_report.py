@@ -20,7 +20,7 @@ def git(*args):
     return subprocess.check_output(["git", *args], cwd=REPO)
 
 
-def measure(ref):
+def measure(ref, labels_ref=None):
     sha = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     cache = WORKBENCH / "candidate-runs" / sha
     cache.mkdir(parents=True, exist_ok=True)
@@ -29,6 +29,7 @@ def measure(ref):
     durations = {t["number"]: score.duration_ms(t["seconds"]) for t in tests}
     names = {t["number"]: t["id"] for t in tests}
     full = score.best_schedule(list(durations), durations)[0]
+    label_commit = git("rev-parse", "--verify", labels_ref + "^{commit}").decode().strip() if labels_ref else None
     records, missing, duplicates = [], defaultdict(int), defaultdict(int)
     seen = set()
     sets = []
@@ -36,17 +37,25 @@ def measure(ref):
         directory = CASES / name
         meta = json.loads((directory / "meta.json").read_text())
         answers = directory / "answers.json"
-        labels = json.loads(answers.read_text())["commits"] if answers.exists() else {}
+        if label_commit:
+            blob = subprocess.run(["git", "show", f"{label_commit}:eval/cases/{name}/answers.json"],
+                                  cwd=REPO, capture_output=True)
+            labels = json.loads(blob.stdout)["commits"] if blob.returncode == 0 else {}
+        else:
+            labels = json.loads(answers.read_text())["commits"] if answers.exists() else {}
         details = WORKBENCH / "oracle-details" / (name + ".json")
-        audit = json.loads(details.read_text()) if details.exists() else {}
+        audit = json.loads(details.read_text()) if not label_commit and details.exists() else {}
         for path in sorted((directory / "commits").glob("*.patch")):
             cid = path.stem
             case = dict(meta[cid], id=cid, patch=path.read_bytes(), set=name)
             result = audit.get(cid, {})
             valid = (result.get("status") == "ok" and result.get("rc") in (0, 1, 5))
+            if label_commit:
+                valid = cid in labels and not labels[cid].get("basis")
             if name == "sample" or valid:
                 case["answer"] = labels.get(cid)
-                case["absent"] = set(result.get("missing") or [])
+                case["absent"] = ({names[t] for t in (labels.get(cid) or {}).get("missing", [])}
+                                  if label_commit else set(result.get("missing") or []))
             sets.append(case)
             if case["split"] == "dev":
                 seen.add(case["patch"])
@@ -97,6 +106,8 @@ def measure(ref):
               "", "Incomplete or unaudited patches excluded by set: " + str(dict(missing)) + ". Byte-identical development patches excluded from held-out results: " + str(dict(duplicates)) + ".",
               "", "| Set / kind | N | Clean | Miss | Sim s | CPU s | Full | Bound s | Full suite s |",
               "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    if label_commit:
+        output.insert(2, f"Label revision: `{label_commit}`.\n")
     def row(label, rows):
         output.append(f"| {label} | {len(rows)} | {sum(r['clean'] for r in rows)} | {sum(bool(r['missed']) for r in rows)} | {sum(r['sim'] for r in rows):.3f} | {sum(r['cpu'] for r in rows):.3f} | {sum(r['full'] for r in rows)} | {sum(r['lower'] for r in rows):.3f} | {len(rows)*full/1000:.3f} |")
     for name in SETS:
@@ -161,4 +172,6 @@ def measure(ref):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("ref")
-    measure(ap.parse_args().ref)
+    ap.add_argument("--labels-ref", help="use a frozen evaluation commit containing audited labels")
+    args = ap.parse_args()
+    measure(args.ref, args.labels_ref)
