@@ -228,3 +228,51 @@ def keyword_bits(an, bits, keys):
         if bits & (1 << i) and test in profiles and keys.isdisjoint(profiles[test]):
             bits &= ~(1 << i)
     return bits
+
+
+@functools.cache
+def date_reads():
+    return json.loads((Path(__file__).parent / "maps" / "date-reads.json").read_text())
+
+
+def date_unit_bits(diff, bits, old, new):
+    """Account for both the direct mapping and the derived interval-unit sets."""
+    if len(old) != 1 or len(new) != 1:
+        return bits
+    before, after = old[0], new[0]
+    if not (isinstance(before, ast.Assign) and isinstance(after, ast.Assign)
+            and isinstance(before.value, ast.Dict) and isinstance(after.value, ast.Dict)):
+        return bits
+    restored = copy.copy(after)
+    restored.value = before.value
+    if ast.dump(restored) != ast.dump(before):
+        return bits
+    value = after.value
+    try:
+        after.value = before.value
+        if ast.dump(diff.old_tree) != ast.dump(diff.new_tree):
+            return bits
+    finally:
+        after.value = value
+    maps = []
+    for node in (before.value, after.value):
+        if not all(isinstance(x, ast.Constant) and type(x.value) is str
+                   for x in node.keys + node.values):
+            return bits
+        mapping = ast.literal_eval(node)
+        if len(mapping) != len(node.keys):
+            return bits
+        maps.append(mapping)
+    a, b = maps
+    # DuckDB removes this inherited key during its module import.
+    if "WEEKDAY" in a and "WEEKDAY" not in b:
+        return bits
+    keys = {k for k in a.keys() | b.keys() if a.get(k) != b.get(k)}
+    # A subclass may override another alias to the same unit. Retain both
+    # values even when another base-class key still maps to that unit.
+    affected = keys | {m[k] for k in keys for m in maps if k in m}
+    profiles = date_reads()
+    for i, test in enumerate(diff.an.idx["tests"]):
+        if test in profiles and affected.isdisjoint(profiles[test]):
+            bits &= ~(1 << i)
+    return bits

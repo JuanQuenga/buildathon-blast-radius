@@ -407,13 +407,19 @@ def _changed_call_semantics(path, patched_code):
     # at the edited line says nothing about either change.
     protocols = inspect.CO_GENERATOR | inspect.CO_COROUTINE | inspect.CO_ASYNC_GENERATOR
     pinned = _pinned_scopes(path)
+    closure_roots = set()
     for name, new_group in _code_scopes(patched_code).items():
         old_group = pinned.get(name, ())
         for old, new in zip(old_group, new_group):
             if (old.co_flags ^ new.co_flags) & protocols:
                 return True
             if old.co_freevars != new.co_freevars or old.co_cellvars != new.co_cellvars:
-                return True
+                root = name.split(".<locals>.", 1)[0]
+                outer = pinned.get(root, ())
+                if (len(outer) != 1 or not outer[0].co_flags & inspect.CO_OPTIMIZED
+                        or outer[0].co_flags & protocols):
+                    return True
+                closure_roots.add(root)
             candidates = (set(old.co_varnames) ^ set(new.co_varnames)) & (set(old.co_names) | set(new.co_names))
             if candidates:
                 # LOAD_ATTR and LOAD_METHOD use co_names too. Neither reads a
@@ -422,7 +428,7 @@ def _changed_call_semantics(path, patched_code):
                     if any(i.opname.endswith(("_GLOBAL", "_NAME", "_GLOBALS"))
                            and i.argval in candidates for i in dis.get_instructions(code)):
                         return True
-    return False
+    return closure_roots
 
 
 @functools.lru_cache(maxsize=1)
@@ -554,6 +560,46 @@ def _local_raising_fixtures(body):
                 and not error.keywords and fn.body[0].cause is None):
             return False
     return True
+
+
+def _isolated_test_module(source):
+    """Allow only unittest definitions with no import-time user expressions."""
+    for stmt in ast.parse(source).body:
+        if _is_docstring(stmt):
+            continue
+        if isinstance(stmt, ast.Import) and all(a.name == "unittest" and not a.asname for a in stmt.names):
+            continue
+        if not (isinstance(stmt, ast.ClassDef) and not stmt.decorator_list and not stmt.keywords
+                and len(stmt.bases) == 1 and ast.unparse(stmt.bases[0]) == "unittest.TestCase"):
+            return False
+        for fn in stmt.body:
+            if _is_docstring(fn):
+                continue
+            if not (isinstance(fn, ast.FunctionDef) and fn.name.startswith("test")
+                    and not fn.decorator_list and not fn.returns and not fn.type_params
+                    and ast.unparse(fn.args) == "self"):
+                return False
+            for statement in fn.body:
+                if _is_docstring(statement) or isinstance(statement, ast.Pass):
+                    continue
+                call = statement.value if isinstance(statement, ast.Expr) else None
+                if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                        and isinstance(call.func.value, ast.Name) and call.func.value.id == "self"
+                        and call.func.attr in {"assertEqual", "assertTrue", "assertFalse", "assertIsNone"}
+                        and not call.keywords and all(isinstance(arg, ast.Constant) for arg in call.args)):
+                    return False
+    return True
+
+
+def _without_pytest_discovery(doc):
+    import copy
+    config = copy.deepcopy(doc.get("tool", {}).get("pytest", {}))
+    options = config.get("ini_options", {})
+    for key in ("python_files", "python_functions", "python_classes"):
+        options.pop(key, None)
+    if not options:
+        config.pop("ini_options", None)
+    return config, doc.get("build-system")
 
 
 class Analysis:
@@ -689,6 +735,9 @@ class Analysis:
                     (filename.startswith("test_") or filename.endswith("_test.py"))):
                 # Pytest imports new test modules even without catalog entries.
                 # Top-level code and decorators can affect the collection session.
+                if os.environ.get("BLAST_HEAVY") == "1" and _isolated_test_module(source):
+                    self.check_imports = True
+                    return
                 raise Unsupported(f"new pytest module {newp}")
         if fp.binary:
             self.data_file(fp)
@@ -728,6 +777,10 @@ class Analysis:
             keep = lambda d: {"pytest": d.get("tool", {}).get("pytest"),
                               "build": d.get("build-system")}
             same = keep(o) == keep(n)
+            if not same and os.environ.get("BLAST_HEAVY") == "1":
+                if self.single_file and _without_pytest_discovery(o) == _without_pytest_discovery(n):
+                    self.check_imports = True
+                    same = True
         else:
             import configparser
 
@@ -806,7 +859,16 @@ class Analysis:
             self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
                      f"{oldp} no longer compiles")
             return
-        if _changed_call_semantics(oldp, patched_code):
+        semantics = _changed_call_semantics(oldp, patched_code)
+        if isinstance(semantics, set) and semantics:
+            scopes = self.idx["scopes"].get(oldp, [None, []])[1]
+            functions = {name: (body, end) for kind, _, end, name, body in scopes if kind == "def"}
+            if semantics <= functions.keys():
+                for name in semantics:
+                    self.add(self.lines_bits(oldp, *functions[name]), f"closure bindings in {name}")
+            else:
+                semantics = True
+        if semantics is True:
             self.add(self.import_break(oldp, "function protocol or variable binding changed"),
                      f"{oldp} changed function call semantics")
             return
@@ -987,8 +1049,10 @@ class PyDiff:
                     if okeys[i1 + k][0] in "dc" and ot[i1 + k] != nt[j1 + k]:
                         if scope == "func":
                             self.func_stmt(o, n, entry)
-                        else:
+                        elif isinstance(o, _DEFS + (ast.ClassDef,)):
                             self.named_pair(o, n, scope, owner)
+                        else:
+                            self.named_range(olds, news, i1+k, i1+k+1, j1+k, j1+k+1, entry, scope, owner)
                 continue
             if scope == "func":
                 self.func_range(olds, news, i1, i2, j1, j2, entry)
@@ -1158,11 +1222,23 @@ class PyDiff:
             self.add(self.class_family(owner) | self.all_bits(o),
                      f"{owner[0]}.{o.name} removed L{o.lineno}")
         else:
-            b = self.all_bits(o) if isinstance(o, _DEFS) else 0
+            b = 0
+            if isinstance(o, _DEFS):
+                # Defining a function loads the module. Calling it reaches its
+                # body. Preserve header execution when defaults, annotations
+                # or decorators can perform work at import time.
+                b = self.lb(o.body[0].lineno, o.end_lineno)
+                header = [*o.decorator_list, *o.args.defaults, *o.args.kw_defaults,
+                          o.returns, *(arg.annotation for arg in ast.walk(o.args)
+                                       if isinstance(arg, ast.arg))]
+                if o.decorator_list or any(expr is not None and not isinstance(expr, (ast.Constant, ast.Name))
+                                          for expr in header):
+                    b |= self.all_bits(o)
+                b |= _import_state_observers(self.an)
             if isinstance(o, ast.ClassDef):
                 b |= self.an.family(self.module, o.name, self.path, o)
             gone = {o.name} - self.module_names_new()
-            b |= self.name_refs({o.name}, depth=0, removed=gone)
+            b |= self.name_refs({o.name}, depth=0, exclude=[o], removed=gone)
             self.add(b, f"top-level {o.name} removed L{o.lineno}")
 
     def named_added(self, n, scope, owner, olds):
@@ -1230,7 +1306,7 @@ class PyDiff:
                                         for n in names):
             b = _attr_refs(self.an, names, self.path, f"{self.module}.{q}", q, fam,
                            o_other)
-            if (self.an.single_file and q.split(".")[-1] == "Tokenizer" and
+            if (self.an.one_code_edit and q.split(".")[-1] == "Tokenizer" and
                     (self.path == "sqlglot/tokens.py" or self.path.startswith("sqlglot/dialects/"))):
                 from . import token_options
                 keys = token_options.changed_keywords(o_other, n_other)
@@ -1243,6 +1319,10 @@ class PyDiff:
                     if name == "NUMERIC_ESCAPES":
                         b = token_options.keyed_bits(self.an, b, f"{self.module}.{q}",
                                                      o_other[0], n_other[0])
+            if (self.an.one_code_edit and self.path == "sqlglot/dialects/dialect.py"
+                    and q == "Dialect" and names == {"DATE_PART_MAPPING"}):
+                from .token_options import date_unit_bits
+                b = date_unit_bits(self, b, o_other, n_other)
             self.an.excluded |= fam & ~b  # for offline validation of the refinement
             how = "readers"
         else:
@@ -2090,6 +2170,10 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         if not files:
             raise Unsupported("no file diffs found")
         an.single_file = len(files) == 1
+        # Existing fixture edits contribute their own observed readers. They
+        # cannot introduce new Python code before those reads.
+        an.one_code_edit = sum(not (f.status == "M" and f.path.startswith("tests/fixtures/")
+                                    and not f.path.endswith(".py")) for f in files) == 1
         for fp in files:
             an.analyze(fp)
     except Unsupported as e:

@@ -1,4 +1,4 @@
-"""Check every catalog node is present after a real patched pytest collection."""
+"""Record missing catalog nodes after a complete patched pytest collection."""
 import json
 from pathlib import Path
 import sys
@@ -6,14 +6,34 @@ import sys
 sys.path.insert(0, str(Path.cwd()))
 import pytest
 
+
 class Catalog:
-    matched = False
+    collected = None
+
+    def __init__(self):
+        self.errors = set()
+
+    def pytest_collectreport(self, report):
+        if report.failed:
+            self.errors.add(report.nodeid)
 
     def pytest_collection_finish(self, session):
-        required = {row["id"] for row in json.loads(Path("/data/tests.json").read_text())["tests"]}
-        self.matched = required <= {item.nodeid for item in session.items}
+        self.collected = {item.nodeid for item in session.items}
+
 
 if __name__ == "__main__":
+    import sqlglot
+
+    if not Path(sqlglot.__file__).is_relative_to(Path.cwd()):
+        raise RuntimeError("wrong package")
     catalog = Catalog()
-    if pytest.main(["--collect-only", "-qq", "-p", "no:cacheprovider", "tests"], plugins=[catalog]) or not catalog.matched:
-        raise RuntimeError("incomplete pytest collection")
+    tests = json.loads(Path("/data/tests.json").read_text())["tests"]
+    status = pytest.main(["--collect-only", "--continue-on-collection-errors",
+                          "-qq", "-p", "no:cacheprovider", "tests"], plugins=[catalog])
+    files = {row["file"] for row in tests}
+    if (catalog.collected is None or catalog.errors - files
+            or status != (pytest.ExitCode.TESTS_FAILED if catalog.errors else pytest.ExitCode.OK)):
+        raise RuntimeError("incomplete collection")
+    missing = [row["number"] for row in tests
+               if row["file"] in catalog.errors or row["id"] not in catalog.collected]
+    Path(".blast-missing.json").write_text(json.dumps(missing))

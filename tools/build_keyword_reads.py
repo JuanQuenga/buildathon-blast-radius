@@ -6,10 +6,11 @@ import subprocess
 import sys
 import tempfile
 
-def profile(args):
+def profile(args, family="keyword"):
+    trace_var = "BR_" + family.upper() + "_TRACE"
     with tempfile.TemporaryDirectory() as work:
-        env = dict(os.environ, BR_KEYWORD_TRACE=work, PYTHON_CPU_COUNT="1",
-                   PYTHONPATH=str(Path(__file__).parent / "keyword_trace") + ":/app/sqlglot")
+        env = dict(os.environ, **{trace_var: work}, PYTHON_CPU_COUNT="1",
+                   PYTHONPATH=str(Path(__file__).parent / (family + "_trace")) + ":/app/sqlglot")
         proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *args],
                               cwd="/app/sqlglot", env=env, capture_output=True, timeout=170)
         files = sorted(Path(work).glob("*.json"))
@@ -19,10 +20,10 @@ def profile(args):
         installed = False
         for f in files:
             loaded, observed = json.loads(f.read_text())
-            installed |= loaded
+            installed |= bool(loaded)
             keys.update(observed)
         if not installed:
-            raise ValueError("tokenizer was not instrumented")
+            raise ValueError("pin was not instrumented")
         return keys
 
 if __name__ == "__main__":

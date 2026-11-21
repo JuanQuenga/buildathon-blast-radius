@@ -209,7 +209,7 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
             env["BLAST_PROBE_CPU"] = str(cpu_limit)
         if path:
             env["BLAST_CHANGED_MODULE"] = ",".join(p[:-3].replace("/", ".") for p in path.split(","))
-        if warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
+        if (group != "catalog" or "sqlglot" not in sys.modules) and warm_replay.ready and warm_replay.compatible(env.get("BLAST_CHANGED_MODULE", "")) and group not in {"ds", "parser", "generator", "dialects"}:
             result = warm_replay.run(script, group, cases, overlay, deadline,
                                    env.get("BLAST_CHANGED_MODULE", ""), receipt, phase, cpu_limit)
             replay.phase = os.pread(phase.fileno(), 16, 0).decode().strip() or group
@@ -544,7 +544,7 @@ def economics(mode, cases):
     # Smoothed rates from tuning, pooled by verification mechanism.
     if mode == "rules":
         from .rule_corpus import estimate
-        return 0.78, estimate(cases)
+        return 0.53, estimate(cases)
     if mode == "slice":
         exe = cases["execute"]
         cost = 0.18 + 0.010 * len(cases["active"]) + 0.038 * len(cases["worker"])
@@ -557,7 +557,7 @@ def economics(mode, cases):
         "unreached": (0.99, 0.005), "imported": (0.90, 0.09),
         "tokens": (0.60, 0.22), "corpus": (0.86, 0.46),
         "small": (0.75, 0.29), "scaled": (0.67, 0.61),
-        "generator": (0.79, 1.35),
+        "generator": (0.28, 1.35),
     }[mode]
 
 
@@ -565,18 +565,14 @@ def options(patch, catalog, targets, dur):
     if patch.full:
         if not patch.alt:
             return
-        files = parse(patch.text)
-        if not files or not all(eligible_file(f, "ds") for f in files):
-            return
-        changes = verify.apply_patch(patch.text)
-        for path, source in changes.items():
-            compile(source, path, "exec", dont_inherit=True)
-        # Successful collection alone permits no exclusions. Price this as an
-        # opportunity to verify the high-cost tests on the next iteration.
-        req = set(dur)
-        workers = schedule(req, set(), dur)
-        yield Probe(patch, "collection", None, "catalog", ",".join(changes), [],
-                    (req, set(), workers), 5, 0.60, 1.1)
+        req, pl = patch.alt
+        workers = schedule(req, pl, dur)
+        full = plan_cost(schedule(set(dur), set(), dur), dur)
+        gain = (full - plan_cost(workers, dur)) / 1000
+        # Even if the alternative fills every worker, collection may admit
+        # a subsequent individual proof for an expensive test.
+        yield Probe(patch, "collection", None, "catalog", "", [],
+                    (req, pl, workers), max(gain, 5), 0.65, 1.35)
         return
     if not patch.req:
         return
@@ -616,14 +612,14 @@ def options(patch, catalog, targets, dur):
             break
     yield Probe(patch, "bundle", None, "bundle", ",".join(f.path for f in files),
                 cases, (set(), set(), []), plan_cost(patch.workers, dur) / 1000,
-                0.25, setup_cost + 0.12 + 0.55 * load)
+                0.30, setup_cost + 0.16 + 0.55 * load)
 
 
 def run(patches, catalog, dur, t0):
     from .probe_session import PatchSession
     started = cpu()
     stop = min(t0 + 105, time.monotonic() + 53)
-    base = max(2.3, len(patches) * 0.0575)
+    base = max(0.40, len(patches) * 0.065)
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
     saved = 0.0
@@ -631,11 +627,12 @@ def run(patches, catalog, dur, t0):
     paid = 0
     queue = []
     attempted = set()
+    bundle_wins = bundle_tries = 0
     session = None
 
     def remaining():
         credit = 0.35 * saved if paid >= 2 else 0.0
-        budget = min(45.0, base + successful_cpu + credit)
+        budget = min(max(2.85, 0.07125 * len(patches)), base + successful_cpu + credit)
         return min(stop - time.monotonic(), budget - (cpu() - started)
                    - (session.charged if session else 0))
 
@@ -658,6 +655,8 @@ def run(patches, catalog, dur, t0):
         if probe.estimate <= 1.4 and probe.group not in {"bundle", "collection"}:
             value = probe.gain * probe.probability - probe.estimate
             best_gain[probe.patch] = max(best_gain.get(probe.patch, 0), value)
+    if any(probe.group == "collection" and probe.gain >= 10 for probe in queue):
+        base = max(base, 2.65)
     base += min(4.0, 0.045 * max(0.0, sum(best_gain.values()) - 60.0))
     print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
     active = None
@@ -665,6 +664,12 @@ def run(patches, catalog, dur, t0):
         while queue and remaining() > 0.05:
             queue.sort(key=lambda p: p.priority)
             probe = queue.pop()
+            if probe.group == "bundle":
+                # Start with three pseudocounts. As outcomes arrive, expensive
+                # worker checks must still pay for their observed failure rate.
+                probability = (0.9 + bundle_wins) / (3 + bundle_tries)
+                if probability * probe.gain < 1.25 * probe.estimate:
+                    continue
             patch = probe.patch
             if probe.estimate > 1.5 * remaining() and probe.mode != "unreached":
                 continue
@@ -701,8 +706,32 @@ def run(patches, catalog, dur, t0):
                     replay.phase = phase
                     result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
                     phase = replay.phase
+                if result == "failed" and probe.mode == "rules":
+                    # Isolated rule replay can diverge before the assertion.
+                    # Trace every affected query through its downstream stages.
+                    selection = query_slice.query_cases(changed_regions(patch.text))
+                    if (selection and len(selection["worker"]) <= 5
+                            and time.monotonic() < deadline and remaining() > 0.25):
+                        selection["execute"] = []
+                        args = [json.dumps(selection)]
+                        spent = cpu() + (session.charged if session else 0) - began
+                        left = min(cpu_limit - spent, remaining())
+                        if left > 0.20:
+                            if session:
+                                result, phase = session.check("slice", args, deadline, left)
+                            else:
+                                result = replay("slice", args, work, deadline, probe.paths, left)
+                                phase = replay.phase
                 if result == "pass":
-                    patch.req, patch.pl, patch.workers = probe.proposed
+                    if probe.mode == "catalog":
+                        missing = json.loads((Path(work) / ".blast-missing.json").read_text())
+                        if not isinstance(missing, list) or any(type(n) is not int or n not in dur for n in missing):
+                            raise ValueError("invalid collection result")
+                        req, pl = patch.alt
+                        req = req.union(missing)
+                        patch.req, patch.pl, patch.workers = req, pl - req, schedule(req, pl - req, dur)
+                    else:
+                        patch.req, patch.pl, patch.workers = probe.proposed
                     patch.full = False
                     if probe.group != "collection":
                         saved += probe.gain
@@ -711,6 +740,9 @@ def run(patches, catalog, dur, t0):
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
+            if probe.group == "bundle":
+                bundle_tries += 1
+                bundle_wins += result == "pass"
             cost = cpu() + (session.charged if session else 0) - began
             if result == "pass" and probe.group not in {"bundle", "collection"}:
                 successful_cpu += min(max(0, cost), 0.4 * probe.gain)
