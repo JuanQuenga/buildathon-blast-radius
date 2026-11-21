@@ -1,6 +1,6 @@
 # Final entry
 
-**Recommend candidate-13 for the final. Candidate-5 is the conservative alternative.** C13 matched C12's 95.064 simulated seconds on the official sample, preserved all recorded C8 heavy drops on 1,101 local patches, and scored 396.015 simulated seconds with zero misses on the fixed 60-patch mix. C12 took 401.446 simulated seconds and C5 took 507.053 on that mix. C5 has a verified official practice score of 177.8 with only 0.67 CPU seconds. C8 holds the team's best observed practice score, 174.6. C13's official practice performance remains unknown. [C13 release record](CANDIDATE13.md)
+**Use candidate-14 for the next practice measurement. Keep the final choice provisional pending that result.** It retains candidate 13's probes and attributes SQL fixture edits to the tests that consume each changed field. Candidate 13 officially scored 174.6 with zero misses, 150.503 simulated seconds and about 24.1 CPU seconds. The hidden fixture mix is unknown. Candidate-14-static is the low-CPU alternative. [Candidate 14 release measurements](CANDIDATE14.md)
 
 ## Candidate-12 sixty-patch scenarios
 
