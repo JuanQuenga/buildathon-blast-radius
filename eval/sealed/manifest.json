@@ -1,0 +1,7 @@
+{
+  "frozen_after": "bfd42e7446341d9a469603e03bc218e42263b5dd",
+  "patches": 24,
+  "sample_kinds": 19,
+  "additional_mechanisms": 5,
+  "plaintext_tar_sha256": "277305588a32b670437514726df01b0e4c2b2ad60bd351951c805f2921383eae"
+}
