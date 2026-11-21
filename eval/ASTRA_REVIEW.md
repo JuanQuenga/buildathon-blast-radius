@@ -29,3 +29,5 @@ Across all splits, five held-out patches have exact development copies. The mech
 The selector team recorded one aggregate evaluation of candidate-2 on 18 mechanical and 22 audited exotic holdout patches. Future candidate comparisons therefore reuse a validation set. The remaining blind evidence comes from newly labelled cases and the separately frozen transfer set. [Team request log](../docs/REQUESTS.md)
 
 The downloaded scoring rules (including the inline version) and starter archive matched the archived local bytes during this review. On the 30 official patches, full-suite LPT scored 1,104.510 seconds in both the local harness and the organizer's scorer. The oracle lower bound of 94.351 seconds is attainable on every official patch.
+
+I compared every string literal in the Python selector sources at candidate-1 and candidate-2 against all 882 patch stems. Neither tree contains a matching ID or a literal containing a catalog class node ID (`::Test`). This check covers direct source literals only. The selector uses compressed maps and has been tuned using development failures. Evidence for transfer still comes from its measured performance on new cases.
