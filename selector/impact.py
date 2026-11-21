@@ -38,11 +38,14 @@ import ast
 import bisect
 import builtins
 import difflib
+import functools
+import inspect
 import os
 import pickle
 import re
 import zlib
 from pathlib import Path
+from types import CodeType
 
 MAPS_DIR = Path(os.environ.get("BLAST_MAPS", str(Path(__file__).resolve().parent / "maps")))
 
@@ -367,6 +370,41 @@ _IDENT_CACHE: dict = {}
 # --------------------------------------------------------------------------- analysis
 
 
+def _code_scopes(code):
+    """Index nested code by lexical name, preserving repeated definitions."""
+    scopes = {}
+    pending = [code]
+    while pending:
+        item = pending.pop()
+        scopes.setdefault(item.co_qualname, []).append(item)
+        pending.extend(c for c in item.co_consts if isinstance(c, CodeType))
+    return scopes
+
+
+@functools.lru_cache(maxsize=12)
+def _pinned_scopes(path):
+    source = _sources()["src"][path]
+    return _code_scopes(compile(source.encode(), path, "exec", dont_inherit=True))
+
+
+def _changed_call_semantics(path, patched_code):
+    # An unexecuted yield changes what a call returns. A new assignment can
+    # turn an earlier global read into an uninitialized local. Old coverage
+    # at the edited line says nothing about either change.
+    protocols = inspect.CO_GENERATOR | inspect.CO_COROUTINE | inspect.CO_ASYNC_GENERATOR
+    pinned = _pinned_scopes(path)
+    for name, new_group in _code_scopes(patched_code).items():
+        old_group = pinned.get(name, ())
+        for old, new in zip(old_group, new_group):
+            if (old.co_flags ^ new.co_flags) & protocols:
+                return True
+            if old.co_freevars != new.co_freevars or old.co_cellvars != new.co_cellvars:
+                return True
+            if (set(old.co_varnames) ^ set(new.co_varnames)) & (set(old.co_names) | set(new.co_names)):
+                return True
+    return False
+
+
 class Analysis:
     def __init__(self):
         self.idx = _index()
@@ -600,10 +638,14 @@ class Analysis:
         # ast.parse accepts errors such as a break outside a loop. Compile the
         # complete module first so the fast path cannot hide collection errors.
         try:
-            compile(new_src.encode(), oldp, "exec", dont_inherit=True)
+            patched_code = compile(new_src.encode(), oldp, "exec", dont_inherit=True)
         except (SyntaxError, ValueError) as e:
             self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
                      f"{oldp} no longer compiles")
+            return
+        if _changed_call_semantics(oldp, patched_code):
+            self.add(self.import_break(oldp, "function protocol or variable binding changed"),
+                     f"{oldp} changed function call semantics")
             return
         if self.fast_function_path(oldp, old_src, new_src, placed):
             return
