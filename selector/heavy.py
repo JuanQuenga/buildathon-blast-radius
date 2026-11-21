@@ -506,7 +506,7 @@ def probe_profiles(group):
         return json.load(stream)
 
 
-@functools.lru_cache(maxsize=48)
+@functools.lru_cache(maxsize=256)
 def stage_edit(text, group):
     files = parse(text)
     if not files or not all(eligible_file(f, "ds") for f in files):
@@ -592,7 +592,9 @@ class Probe:
 
     @property
     def priority(self):
-        return self.gain / self.estimate
+        # Subsecond estimates omit part of the cost of starting an overlay.
+        # Rank cheap checks by recoverable schedule time once in that range.
+        return self.gain / max(0.9, self.estimate)
 
 
 @functools.cache
@@ -687,8 +689,8 @@ def run(patches, catalog, dur, t0):
     from .probe_session import PatchSession
     started = cpu()
     # Admission consumes pin-derived estimates, independent of machine load.
-    allowance = min(70.0, max(18.0, 1.75 * len(patches)))
-    cpu_ceiling = max(30.0, min(96.0, 2.4 * len(patches)))
+    allowance = min(96.0, max(18.0, 1.75 * len(patches)))
+    cpu_ceiling = max(30.0, min(144.0, 2.4 * len(patches)))
     deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
     ids = {t["number"]: t["id"] for t in catalog}
@@ -699,7 +701,8 @@ def run(patches, catalog, dur, t0):
 
     def enqueue(patch):
         try:
-            for probe in options(patch, ids, targets, dur):
+            for probe in options(patch, ids, [(n, g) for n, g in targets
+                                              if (patch, g) not in attempted], dur):
                 if (patch, probe.group) in attempted:
                     continue
                 if probe.estimate > max(1.0, probe.gain):
@@ -726,7 +729,7 @@ def run(patches, catalog, dur, t0):
     active = None
     with contextlib.ExitStack() as stack:
         while queue:
-            queue.sort(key=lambda p: p.priority)
+            queue.sort(key=lambda p: (p.priority, p.patch is active, p.patch.commit))
             probe = queue.pop()
             if probe.group == "bundle":
                 # Start with three pseudocounts. As outcomes arrive, expensive
