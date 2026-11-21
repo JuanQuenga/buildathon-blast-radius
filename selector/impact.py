@@ -874,13 +874,13 @@ class PyDiff:
         return owner[0] if owner else None
 
     def class_family(self, owner) -> int:
-        q, node = owner
+        q, node = owner[0], owner[1]
         return self.an.family(self.module, q, self.path, node)
 
     def named_pair(self, o, n, scope, owner):
         if isinstance(o, ast.ClassDef) and isinstance(n, ast.ClassDef):
             q = f"{owner[0]}.{o.name}" if owner else o.name
-            own = (q, o)
+            own = (q, o, n)
             if _class_header(o) != _class_header(n):
                 self.add(self.class_family(own) | self.risky_bits([n], o),
                          f"class {q} header (bases/decorators) L{o.lineno}")
@@ -957,7 +957,7 @@ class PyDiff:
             raise Unsupported(f"{self.path}: copy removed in class body of {q} "
                               "(shared state aliasing across tests)")
         fam = self.class_family(owner)
-        risky = self.risky_bits(n_other, None, class_scope=owner[1])
+        risky = self.risky_bits(n_other, None, class_scope=owner[2])
         names = set()
         simple = True
         for s in o_other + n_other:
@@ -967,6 +967,20 @@ class PyDiff:
                 simple = False
             names |= _bound_names(s)
         # generator dispatch finds ``*_sql`` attributes through dir(cls)
+        # attributes that disappear: qualified class-level reads (``Cls.NAME``
+        # in other class bodies / module level) now raise at import
+        gone = set()
+        for st in owner[1].body:
+            gone |= _bound_names(st)
+        for st in owner[2].body:
+            gone -= _bound_names(st)
+        gone &= names
+        if gone:
+            risky |= self.removed_class_attrs(gone, q)
+        # enum members are also read by iteration (``for d in Dialects``)
+        if any(re.search(r"Enum|AutoName|Flag", _dump(b)) for b in owner[1].bases):
+            risky |= self.name_refs({q.rsplit(".", 1)[-1]}, depth=0)
+            self.an.reasons.append(f"{self.path}: {q} is an enum: all users of the class")
         if simple and names and not any(n.endswith("_sql") or n.startswith("__")
                                         for n in names):
             b = _attr_refs(self.an, names, self.path, f"{self.module}.{q}", q, fam,
@@ -978,6 +992,22 @@ class PyDiff:
             how = "family"
         self.add(b | risky, f"class attribute(s) {sorted(names)[:3]} of {q} ({how}) "
                             f"L{o_other[0].lineno if o_other else '+'}")
+
+    def removed_class_attrs(self, gone, q) -> int:
+        simple = q.rsplit(".", 1)[-1]
+        b = 0
+        for name in gone:
+            qual = re.compile(r"\b" + re.escape(simple) + r"\s*\.\s*" + re.escape(name) + r"\b")
+            for path, ln, lo, hi, sc in _name_sites(self.an, name):
+                if path == self.path and sc is not None and sc[3] == q:
+                    continue
+                if sc is not None and sc[0] == "def" and ln >= sc[4]:
+                    b |= self.an.lines_bits(path, lo, hi)
+                    continue
+                if qual.search("\n".join(_src_lines(path)[lo - 1: hi])):
+                    b |= self.an.import_break(path, f"reads removed {simple}.{name}")
+        self.an.reasons.append(f"{self.path}: removed class attribute(s) {sorted(gone)[:3]} of {q}")
+        return b
 
     # ------------------------------------------------------------ module level
     def module_names_old(self):
