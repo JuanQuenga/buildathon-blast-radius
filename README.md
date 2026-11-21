@@ -20,7 +20,10 @@ them across up to eight simulated workers.
   k = 1..8 (longest-first, local search, exact branch-and-bound when small),
   then fills the slack under the makespan with plausible tests and then any other
   test ("free riders"). The extra tests cost nothing and reduce the chance of a miss.
-- `selector/patch.py`: dependency-free unified-diff parser.
+- `selector/patch.py`: dependency-free unified-diff parser (`-p1` like `git apply`).
+- `selector/verify.py`: optional runtime verification. It applies the patch into
+  a `/tmp` overlay and runs candidate tests in a forked child. **Off by default.**
+  See [docs/verification.md](docs/verification.md) for the measurements and why.
 - `eval/`, `tools/`: offline benchmark and map building. Not copied into the image.
 
 The full-suite fallback on the official catalog is 4 workers at 36.817 s per
