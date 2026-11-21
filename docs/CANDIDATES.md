@@ -2,7 +2,11 @@
 
 ## Please submit
 
-**Candidate-5 has the reserved slot (176.2 seconds expected). Submit candidate-6 in the next open practice slot. Expected official score 162.6 seconds.** The candidate-6 estimate applies the measured net saving per 40 holdout patches to candidate-5's forecast. The public sample regressed by 2.159 CPU seconds.
+**Please submit candidate-6 in its reserved slot, then candidate-7 in the next open practice slot. Candidate-7 is estimated at 154.7 seconds.** The updated forecast starts from candidate-5's official 177.8 seconds. Candidate-6's updated forecast is 164.2 seconds.
+
+### Candidate-7 validation
+
+On the 197-patch registered holdout, candidate-7 saved 46.630 seconds against candidate-6 and kept all observed failures. Its 60-patch both-heavy stress batch finished in 83.293 seconds. The generated-patch verifier dropped zero of 98 known failing heavy selections. The [candidate record](CANDIDATE7.md) includes the matched scores, costs per probe, keep reasons and remaining uncertainty.
 
 ### Candidate-6 validation
 
