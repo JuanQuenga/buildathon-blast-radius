@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -104,12 +105,17 @@ def run_pytest(work: Path, out: Path, log: Path) -> dict:
     ]
     t0 = time.time()
     with open(log, "wb") as lf:
-        try:
-            p = subprocess.run(cmd, cwd=work, env=env, stdout=lf, stderr=subprocess.STDOUT,
-                               timeout=CASE_TIMEOUT_S)
-            rc = p.returncode
-        except subprocess.TimeoutExpired:
-            rc = "case_timeout"
+        with subprocess.Popen(cmd, cwd=work, env=env, stdout=lf,
+                              stderr=subprocess.STDOUT, start_new_session=True) as proc:
+            try:
+                rc = proc.wait(timeout=CASE_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.wait()
+                rc = "case_timeout"
     return {"rc": rc, "wall": round(time.time() - t0, 2)}
 
 
