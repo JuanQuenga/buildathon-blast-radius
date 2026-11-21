@@ -46,6 +46,7 @@ def measure(ref):
             valid = (result.get("status") == "ok" and result.get("rc") in (0, 1, 5))
             if name == "sample" or valid:
                 case["answer"] = labels.get(cid)
+                case["absent"] = set(result.get("missing") or [])
             sets.append(case)
             if case["split"] == "dev":
                 seen.add(case["patch"])
@@ -84,7 +85,9 @@ def measure(ref):
                     failures = c["answer"]["failing"]
                     missed = set(failures) - sel
                     log = " ".join(l.strip() for l in m["log"] if l.strip().startswith(c['id'] + ': '))
-                    records.append(dict(c, missed=sorted(names[n] for n in missed),
+                    missed_ids = sorted(names[n] for n in missed)
+                    records.append(dict(c, missed=missed_ids,
+                                        missed_reported=bool(set(missed_ids) - c["absent"]),
                                         clean=not failures, selected=len(sel), reason=log,
                                         sim=score.commit_cost_ms(ws, durations)/1000 + 300*bool(missed),
                                         cpu=m["cpu"]/1e6/len(batch), full=len(sel)==len(tests),
@@ -105,6 +108,12 @@ def measure(ref):
                 groups[r['kind']].append(r)
         for kind, rs in sorted(groups.items()):
             row(f"{name} / {kind} (dev)", rs)
+    ambiguous = [r for r in records if r["absent"]]
+    rescued = sum(bool(r["missed"]) and not r["missed_reported"] for r in ambiguous)
+    output += ["", f"{len(ambiguous)} labelled patches have catalog IDs with no pytest report. "
+               f"Treating those IDs as out of scope removes {rescued} missed-patch penalties "
+               f"({300*rescued} simulated seconds) across the measured sets. "
+               "The group schedules and CPU stay the same under either convention."]
     output += ["", "## Batch scenarios", "",
                "Each reference uses the official 16/8/3/3 weights. Held-out mutation scenarios require all four original kinds to have labels. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
                "", "| N | Unseen share | P10 s | Median s | P90 s | Mean misses |", "|---:|---:|---:|---:|---:|---:|"]
