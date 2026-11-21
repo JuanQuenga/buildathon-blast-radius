@@ -97,8 +97,8 @@ class Patch:
         self.alt = None  # (required, plausible) valid only if collection succeeds
 
 
-def _plan(req: set[int], pl: set[int], dur: dict[int, int]) -> list[list[int]]:
-    ws = [sorted(w) for w in schedule(req, pl, dur) if w]
+def _plan(req: set[int], pl: set[int], dur: dict[int, int], *, free_riders=True) -> list[list[int]]:
+    ws = [sorted(w) for w in schedule(req, pl, dur, free_riders=free_riders) if w]
     covered = {t for w in ws for t in w}
     if not req <= covered:
         raise ValueError("schedule dropped a required test")
@@ -143,7 +143,7 @@ def _impact_pass(patches, select, catalog, dur, valid, t0) -> None:
                 if not req <= valid:
                     raise ValueError("unknown test numbers in required")
                 pl &= valid
-                P.workers = _plan(req, pl, dur)
+                P.workers = _plan(req, pl, dur, free_riders=not res.get("precise_fixture"))
                 P.req, P.pl, P.full = req, pl - req, False
                 P.why = f"req={len(req)} plaus={len(pl)} sel={sum(map(len, P.workers))}"
             reasons = res.get("reasons")

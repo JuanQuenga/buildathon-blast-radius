@@ -110,13 +110,14 @@ class Hunk:
 
 
 class FilePatch:
-    __slots__ = ("old_path", "new_path", "status", "hunks", "binary")
+    __slots__ = ("old_path", "new_path", "status", "hunks", "binary", "payload")
 
     def __init__(self):
         self.old_path = self.new_path = None
         self.status = "M"
         self.hunks: list[Hunk] = []
         self.binary = False
+        self.payload = None
 
     @property
     def path(self):
@@ -205,6 +206,11 @@ def parse_patch(text: str) -> list[FilePatch]:
                 cur.status = "C"
             elif line.startswith("Binary files") or line.startswith("GIT binary patch"):
                 cur.binary = True
+                if line == "GIT binary patch":
+                    end = i + 1
+                    while end < n and lines[end] and not lines[end].startswith("diff --git "):
+                        end += 1
+                    cur.payload = lines[i+1:end]
             elif line.startswith("@@"):
                 m = _HUNK_RE.match(line)
                 if not m:
@@ -560,6 +566,7 @@ class Analysis:
     def __init__(self):
         self.check_imports = False
         self.single_file = False
+        self.fixture_only = self.precise_fixture = False
         self.idx = _index()
         self.req = 0
         self.plaus = 0
@@ -760,6 +767,11 @@ class Analysis:
                     sid = dirs.get(d)
                     if sid is not None:
                         b |= self.sets(sid)
+        if b and self.fixture_only:
+            from .fixture_fields import project
+            observed = project(fp, b, self.idx["tests"], apply_hunks)
+            self.precise_fixture |= observed != b
+            b = observed
         self.add(b, f"data {fp.path} ({fp.status}) readers")
         p = fp.path or ""
         if p.startswith("sqlglot/") and not b and fp.status != "M":
@@ -2077,6 +2089,7 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         if not files:
             raise Unsupported("no file diffs found")
         an.single_file = len(files) == 1
+        an.fixture_only = all(f.path and f.path.startswith("tests/fixtures/") for f in files)
         for fp in files:
             an.analyze(fp)
     except Unsupported as e:
@@ -2090,4 +2103,5 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         return {"full": True, "if_collects": {"required": req | unknown, "plausible": plaus - req},
                 "reasons": an.reasons}
     return {"required": req | unknown, "plausible": plaus - req - unknown, "full": False,
+            "precise_fixture": an.precise_fixture,
             "reasons": an.reasons}
