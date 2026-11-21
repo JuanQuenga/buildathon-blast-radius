@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 import random
+import re
 import shutil
 import statistics
 import subprocess
@@ -22,6 +23,17 @@ SETS = ("sample", "dev", "exotic", "revert", "holdout", "transfer")
 
 def git(*args):
     return subprocess.check_output(["git", *args], cwd=REPO)
+
+
+def documented_holdout_ids():
+    # Anchor the exposure audit to the original release notes even if the team
+    # later removes individual examples from its checked-out documentation.
+    paths = ("docs/CANDIDATE11.md", "docs/CANDIDATE12.md", "docs/GAP.md", "docs/verification.md")
+    exposed = set()
+    for path in paths:
+        note = git("show", f"bfd42e744634:{path}").decode()
+        exposed.update(re.findall(r"(?<![A-Za-z0-9_])[a-z0-9]{4,}(?![A-Za-z0-9_])", note))
+    return exposed
 
 
 def missed_catalog_ids(node_ids, numbers):
@@ -66,7 +78,7 @@ def prepare_tree(sha, tmp, cache):
     (tmp / "pin-cache").symlink_to(prepared, target_is_directory=True)
 
 
-def measure_batch(name, batch, tmp, cache, catalog, tests):
+def measure_batch(name, batch, tmp, cache, catalog, tests, isolated_host=False):
     key = hashlib.sha256(catalog)
     for c in batch:
         key.update(c['id'].encode() + b'\0' + c['patch'])
@@ -74,17 +86,24 @@ def measure_batch(name, batch, tmp, cache, catalog, tests):
     image = tmp / "image-runtime"
     if image.exists():
         runtime = "childcpu-" + json.loads((image / "config.json").read_text())["image"][7:23] + "-"
+    elif isolated_host:
+        runtime = "namespace-" + runtime
     cached = cache / f"{runtime}{name}-{key.hexdigest()[:16]}.json"
     if not cached.exists():
         data = run.make_batch_dir(tmp / cached.stem, batch, catalog)
-        cmd = image_runtime.runtime_command(image, data) if image.exists() else [str(PYTHON), "-m", "selector.main"]
+        if image.exists():
+            cmd = image_runtime.runtime_command(image, data)
+        elif isolated_host:
+            cmd = image_runtime.isolated_host_command(tmp, data)
+        else:
+            cmd = [str(PYTHON), "-m", "selector.main"]
         r = run.run_selector(cmd, tmp, data,
                              180, "10,11", {})
         v = score.evaluate(r["stdout"], tests, [c["id"] for c in batch])
         if not v["ok"] or r["exit"] or r["timeout"] or r["stdout_over"]:
             raise RuntimeError(f"Rejected {name} batch {cached.stem}: {v.get('code')}, exit {r['exit']}")
         logs = r["stderr"].decode(errors="replace").splitlines()
-        if image.exists():
+        if image.exists() or isolated_host:
             measurements = [int(line[len(image_runtime.CPU_MARKER):]) for line in logs
                             if line.startswith(image_runtime.CPU_MARKER)]
             if len(measurements) != 1 or measurements[0] <= 0:
@@ -114,6 +133,9 @@ def matched_report(current_ref, previous_ref, records, catalog, tests, durations
                 "Holdout excluding historical exotic runs": [
                     r for r in records if r["split"] == "holdout" and r["set"] != "exotic"
                 ],
+                "Holdout excluding exotic and individual examples in release notes": [
+                    r for r in records if r["split"] == "holdout" and r["set"] != "exotic" and not r["documented"]
+                ],
             }
             for label, cases in cohorts.items():
                 sim = misses = full = changed = changed_selection = cpu = 0
@@ -124,7 +146,7 @@ def matched_report(current_ref, previous_ref, records, catalog, tests, durations
                         run_data = measure_batch(name, batch, tmp, cache, catalog, tests)
                         cpu += run_data["cpu"]
                         for row in batch:
-                            key = (name, row["id"])
+                            key = (label, name, row["id"])
                             plan = run_data["plans"][row["id"]]
                             normalized = tuple(sorted(tuple(sorted(worker)) for worker in plan))
                             selected = frozenset(t for worker in plan for t in worker)
@@ -156,6 +178,7 @@ def measure(ref, labels_ref=None):
     records, missing, duplicates = [], defaultdict(int), defaultdict(int)
     seen = set()
     sets = []
+    exposed = documented_holdout_ids()
     # Labels and the patch bytes used to produce them must share one revision.
     snapshot = {}
     if label_commit:
@@ -181,7 +204,7 @@ def measure(ref, labels_ref=None):
         details = WORKBENCH / "oracle-details" / (name + ".json")
         audit = json.loads(details.read_text()) if not label_commit and details.exists() else {}
         for cid, patch in sorted(patches.items()):
-            case = dict(meta[cid], id=cid, patch=patch, set=name)
+            case = dict(meta[cid], id=cid, patch=patch, set=name, documented=cid in exposed)
             result = audit.get(cid, {})
             valid = (result.get("status") == "ok" and result.get("rc") in (0, 1, 5))
             if label_commit:
@@ -289,15 +312,15 @@ def measure(ref, labels_ref=None):
                f"({300*rescued} simulated seconds) across the measured sets. "
                "The group schedules and CPU stay the same under either convention."]
     output += ["", "## Batch scenarios", "",
-               "Each reference uses the official 16/8/3/3 weights. Held-out mutation scenarios require all four original kinds to have labels. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. The unseen pool excludes the exotic set because its nominal holdout was used in earlier mixed runs. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
+               "Each reference uses the official 16/8/3/3 weights. Held-out mutation scenarios require all four original kinds to have labels. For unseen draws, choose uniformly among represented non-sample kinds on held-out cases, then uniformly within kind. Held-out scenario pools exclude the exotic set and individual examples found in the candidate-11 and candidate-12 release notes or earlier gap and verification notes. Repeated aggregate evaluations can still influence selection. CPU uses batch allocations. Quantiles describe these resamplings only. Repeated draws can include the same patch.",
                "", "| N | Unseen share | P10 s | Median s | P90 s | Mean misses |", "|---:|---:|---:|---:|---:|---:|"]
     official = [r for r in records if r['set']=='sample']
     unseen = defaultdict(list)
     for r in records:
-        if r['split']=='holdout' and r['set'] != 'exotic' and r['kind'] not in run.PRACTICE_KINDS:
+        if r['split']=='holdout' and r['set'] != 'exotic' and not r["documented"] and r['kind'] not in run.PRACTICE_KINDS:
             unseen[r['kind']].append(r)
     references = {"Official sample": official, "Held-out mutations": [
-        r for r in records if r["split"] == "holdout" and r["kind"] in run.PRACTICE_KINDS
+        r for r in records if r["split"] == "holdout" and not r["documented"] and r["kind"] in run.PRACTICE_KINDS
     ]}
     output[-2:] = ["| Reference | N | Unseen share | P10 s | Median s | P90 s | Mean misses |",
                    "|---|---:|---:|---:|---:|---:|---:|"]
@@ -331,6 +354,8 @@ def measure(ref, labels_ref=None):
         if index > 1:
             previous = f"candidate-{index - 1}"
             output.extend(matched_report(ref, previous, records, catalog, tests, durations))
+    from sealed_reserve import report_lines
+    output.extend(report_lines(sha))
     dest = EVAL / "REPORTS" / (sha + ".md")
     dest.parent.mkdir(exist_ok=True)
     dest.write_text("\n".join(output)+"\n")

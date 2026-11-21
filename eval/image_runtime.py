@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import tarfile
 
-from paths import REPO, WORKBENCH
+from paths import BASE, PYTHON, REPO, WORKBENCH
 
 
 def command(*args):
@@ -110,6 +110,29 @@ def runtime_command(image, data):
         key, value = spec.split("=", 1)
         cmd.extend(["--setenv", key, value])
     return cmd + ["--setenv", "HOME", "/tmp", "--", "python", "-c", WAIT, *conf["cmd"]]
+
+
+def isolated_host_command(tree, data):
+    """Expose only the early selector, clean pin, Python runtime and input batch."""
+    interpreter = PYTHON.resolve()
+    runtime = interpreter.parent.parent
+    site_packages = next((PYTHON.parent.parent / "lib").glob("python*/site-packages"))
+    cmd = ["bwrap", "--die-with-parent", "--unshare-all", "--uid", "65534", "--gid", "65534",
+           "--ro-bind", "/usr", "/usr", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib", "/lib64",
+           "--dev", "/dev", "--proc", "/proc", "--size", str(64 * 1024**2), "--tmpfs", "/tmp",
+           "--ro-bind", str(runtime), "/runtime", "--ro-bind", str(site_packages), "/packages",
+           "--ro-bind", str(tree / "selector"), "/app/selector", "--ro-bind", str(BASE), "/app/sqlglot",
+           "--ro-bind", str(data / "commits"), "/data/commits",
+           "--ro-bind", str(data / "tests.json"), "/data/tests.json"]
+    if (tree / "pin-cache").is_dir():
+        cmd.extend(["--ro-bind", str((tree / "pin-cache").resolve()), "/app/pin-cache"])
+    exe = "/runtime/bin/" + interpreter.name
+    return cmd + ["--chdir", "/app", "--clearenv", "--setenv", "PATH", "/runtime/bin:/usr/bin",
+                  "--setenv", "HOME", "/tmp", "--setenv", "BLAST_DATA", "/data",
+                  "--setenv", "BLAST_SQLGLOT", "/app/sqlglot", "--setenv", "PYTHONPATH", "/packages",
+                  "--setenv", "PYTHONHASHSEED", "0", "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
+                  "--setenv", "OPENBLAS_NUM_THREADS", "1", "--setenv", "PYTHON_CPU_COUNT", "1",
+                  "--", exe, "-c", WAIT, exe, "-m", "selector.main"]
 
 
 if __name__ == "__main__":

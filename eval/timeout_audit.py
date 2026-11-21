@@ -1,4 +1,5 @@
 """Repeat timeout-affected patches serially after host load and swapping settle."""
+import argparse
 import json
 import os
 import subprocess
@@ -27,6 +28,9 @@ def wait_for_quiet():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cases-root", type=Path, default=oracle.EVAL / "cases")
+    args = parser.parse_args()
     tests, skipped = oracle.load_catalog()
     quarantine = oracle.WORKBENCH / "timeout-quarantine"
     pending = {p.stem for p in quarantine.glob("*.json")}
@@ -45,7 +49,7 @@ def main():
                     pending.add(log.stem)
     touched = defaultdict(list)
     results = {}
-    for p in sorted((oracle.EVAL / "cases").glob("*/commits/*.patch")):
+    for p in sorted(args.cases_root.glob("*/commits/*.patch")):
         patch = p.read_bytes()
         key = oracle.patch_key(patch)
         if key not in pending:
