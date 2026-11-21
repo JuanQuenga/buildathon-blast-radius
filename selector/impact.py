@@ -401,6 +401,17 @@ class Analysis:
             raise Unsupported(f"{why}: {path} is imported during collection")
         return self.file_bits(path)
 
+    def test_module_gone(self, path: str) -> int:
+        """A test module disappears: its own tests vanish (cheap to keep), and
+        every module importing it fails to import."""
+        me = _module_name(path)
+        b = self.tests_in_file(path)
+        files = {_module_name(f): f for f in _sources()["src"]}
+        for mod, deps in self.idx.get("imports", {}).items():
+            if mod != me and me in deps and mod in files:
+                b |= self.import_break(files[mod], f"imports removed test module {me}")
+        return b
+
     def family(self, module: str, qualname: str, path: str | None = None,
                node=None) -> int:
         b = 0
@@ -529,8 +540,11 @@ class Analysis:
         old_src = srcs[oldp]
         if fp.status in ("D", "R") or (newp is None):
             # old module vanishes: everything that imported/executed it
-            self.add(self.import_break(oldp, "module removed/renamed"),
-                     f"{oldp} removed/renamed: all its importers")
+            if oldp.startswith("tests/"):
+                self.add(self.test_module_gone(oldp), f"test module {oldp} removed/renamed")
+            else:
+                self.add(self.import_break(oldp, "module removed/renamed"),
+                         f"{oldp} removed/renamed: all its importers")
             self.add(self._name_users_of_module(oldp), "")
             return
         if not fp.hunks:
@@ -799,6 +813,9 @@ class PyDiff:
         if not executed and o_other:
             self.an.reasons.append(f"{self.path}: class {q} body never executed")
             return
+        if _copies(o_other) > _copies(n_other):
+            raise Unsupported(f"{self.path}: copy removed in class body of {q} "
+                              "(shared state aliasing across tests)")
         fam = self.class_family(owner)
         risky = self.risky_bits(n_other, None, class_scope=owner[1])
         names = set()
@@ -844,6 +861,9 @@ class PyDiff:
         if not executed:
             self.an.reasons.append(f"{self.path}: module statement never executed by any test")
             return
+        if _copies(o_other) > _copies(n_other):
+            raise Unsupported(f"{self.path}: copy removed at module level "
+                              "(shared state aliasing across tests)")
         simple = all(isinstance(s, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Import,
                                     ast.ImportFrom)) or _is_docstring(s)
                      for s in o_other + n_other)
@@ -964,6 +984,29 @@ def _import_state_observers(an: Analysis) -> int:
                     bits |= an.lines_bits(path, sc[4], sc[2])
     an.idx["_observers"] = bits
     return bits
+
+
+_COPY_FUNCS = {"copy", "deepcopy", "dict", "list", "set", "tuple", "frozenset",
+               "MappingProxyType", "OrderedDict", "defaultdict"}
+
+
+def _copies(stmts) -> int:
+    """Number of explicit copies (x.copy(), copy(x), dict(x), {**x}, [*x]) in
+    statements; removing one at import time aliases shared state."""
+    k = 0
+    for st in stmts:
+        for n in ast.walk(st):
+            if isinstance(n, ast.Call):
+                f = n.func
+                if (isinstance(f, ast.Attribute) and f.attr in ("copy", "deepcopy")) or (
+                        isinstance(f, ast.Name) and f.id in _COPY_FUNCS and n.args):
+                    k += 1
+            elif isinstance(n, ast.Dict) and any(key is None for key in n.keys):
+                k += 1
+            elif isinstance(n, (ast.List, ast.Set, ast.Tuple)) and any(
+                    isinstance(e, ast.Starred) for e in n.elts):
+                k += 1
+    return k
 
 
 def _str_consts(stmts) -> set:
