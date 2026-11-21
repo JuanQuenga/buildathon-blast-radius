@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures as cf
+import fcntl
 import hashlib
 import json
 import os
@@ -230,7 +231,9 @@ def label(patch: bytes, tests, skipped, *, keep_log: bool = True, use_cache: boo
                 res["status"] = "ok"
             if not keep_log:
                 log.unlink(missing_ok=True)
-    cache_file.write_text(json.dumps(res))
+    with tempfile.NamedTemporaryFile(dir=CACHE, mode="w", delete=False) as f:
+        json.dump(res, f)
+    Path(f.name).replace(cache_file)
     return res
 
 
@@ -268,6 +271,15 @@ def label_many(patches: dict[str, bytes], jobs: int = 6, use_cache: bool = True,
 
 
 def _cmd_label_dir(a):
+    locks = WORKBENCH / "oracle-locks"
+    locks.mkdir(exist_ok=True, parents=True)
+    key = hashlib.sha256(os.fsencode(Path(a.dir).resolve())).hexdigest()
+    with (locks / key).open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        _label_dir(a)
+
+
+def _label_dir(a):
     d = Path(a.dir)
     meta_path = d / "meta.json"
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
