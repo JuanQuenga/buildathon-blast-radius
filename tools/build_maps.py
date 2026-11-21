@@ -6,8 +6,8 @@ Inputs come only from the pinned checkout (per-test coverage, fixture opens,
 class instantiations, collection imports) - never from labelled answers.
 
 Output (all stdlib-loadable):
-  maps/index.pkl.xz   tests, sets, per-file line->set ids, opens, families, ...
-  maps/src.pkl.xz     pinned sources of sqlglot/**.py and tests/**.py plus the
+  maps/index.pkl.z   tests, sets, per-file line->set ids, opens, families, ...
+  maps/src.pkl.z     pinned sources of sqlglot/**.py and tests/**.py plus the
                       list of every file of the checkout (to diff against)
 """
 
@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import lzma
+import zlib
 import os
 import pickle
 import subprocess
@@ -241,14 +241,13 @@ def main() -> int:
         index["importable"] = frozenset(ns["importable"])
         index["mro"] = ns.get("mro", {})
 
-    blob = lzma.compress(pickle.dumps(index, protocol=5), preset=9 | lzma.PRESET_EXTREME)
-    (out / "index.pkl.xz").write_bytes(blob)
+    blob = zlib.compress(pickle.dumps(index, protocol=5), 9)
+    (out / "index.pkl.z").write_bytes(blob)
     print(f"index: {len(sets)} unique sets, {sum(len(v) for v in cov_ids.values())} lines, "
           f"{len(blob) / 1e6:.2f} MB")
 
-    sblob = lzma.compress(pickle.dumps({"files": sorted(files), "src": bundle, "config": config}, protocol=5),
-                          preset=9 | lzma.PRESET_EXTREME)
-    (out / "src.pkl.xz").write_bytes(sblob)
+    sblob = zlib.compress(pickle.dumps({"files": sorted(files), "src": bundle, "config": config}, protocol=5), 9)
+    (out / "src.pkl.z").write_bytes(sblob)
     print(f"src: {len(bundle)} py files of {len(files)}, {len(sblob) / 1e6:.2f} MB")
     return 0
 

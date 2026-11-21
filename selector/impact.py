@@ -38,10 +38,10 @@ import ast
 import bisect
 import builtins
 import difflib
-import lzma
 import os
 import pickle
 import re
+import zlib
 from pathlib import Path
 
 MAPS_DIR = Path(os.environ.get("BLAST_MAPS", str(Path(__file__).resolve().parent / "maps")))
@@ -69,14 +69,14 @@ CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 def _index() -> dict:
     global _IDX
     if _IDX is None:
-        _IDX = pickle.loads(lzma.decompress((MAPS_DIR / "index.pkl.xz").read_bytes()))
+        _IDX = pickle.loads(zlib.decompress((MAPS_DIR / "index.pkl.z").read_bytes()))
     return _IDX
 
 
 def _sources() -> dict:
     global _SRC
     if _SRC is None:
-        _SRC = pickle.loads(lzma.decompress((MAPS_DIR / "src.pkl.xz").read_bytes()))
+        _SRC = pickle.loads(zlib.decompress((MAPS_DIR / "src.pkl.z").read_bytes()))
     return _SRC
 
 
@@ -374,6 +374,7 @@ class Analysis:
         self.plaus = 0
         self.full = False
         self.reasons: list[str] = []
+        self.excluded = 0  # tests a cruder sound rule would add (validation only)
         self._file_bits: dict[str, int] = {}
 
     # -- map access
@@ -970,6 +971,7 @@ class PyDiff:
                                         for n in names):
             b = _attr_refs(self.an, names, self.path, f"{self.module}.{q}", q, fam,
                            o_other)
+            self.an.excluded |= fam & ~b  # for offline validation of the refinement
             how = "readers"
         else:
             b = fam
@@ -1045,7 +1047,9 @@ class PyDiff:
             self.an.reasons.append(f"{self.path}: new import edge(s) {sorted(new_edges)[:3]}"
                                    " -> import-state observers")
         gone = names - self.module_names_new()
-        self.add(risky | self.name_refs(names, depth=0, exclude=o_other, removed=gone),
+        refs = self.name_refs(names, depth=0, exclude=o_other, removed=gone)
+        self.an.excluded |= executed & ~refs
+        self.add(risky | refs,
                  f"module-level binding(s) {sorted(names)[:4]}")
 
     def has_dynamic_exports(self) -> bool:
