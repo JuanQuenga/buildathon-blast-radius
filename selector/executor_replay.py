@@ -5,6 +5,7 @@ from pathlib import Path
 import pickle
 
 from phase import mark
+from query_budget import execution_costs, query_budget
 from result_replay import table_digest
 
 ROOT = Path("/app/pin-cache")
@@ -26,14 +27,15 @@ def check(selection):
     plans, prefixes = execution_inputs()
     reference = json.loads(Path("/app/staged.json").read_text())["ds"]
     checked = set()
-    for i in selection["active"]:
+    for i in sorted(selection["active"], key=execution_costs().__getitem__):
         if i not in selection["cached"] or i not in plans or any(lo <= line <= hi for path, line in prefixes[i]
                                   for lo, hi in regions.get(path, ())):
             continue
         mark("execute")
         plan, names = pickle.loads(plans[i])
         tables = ensure_tables({n: full_table(n) for n in names})
-        result = PythonExecutor(tables=tables).execute(plan)
+        with query_budget(i):
+            result = PythonExecutor(tables=tables).execute(plan)
         if table_digest(pickle.loads(pickle.dumps(result))) != reference[i][-1]:
             raise ValueError("full fixture result changed")
         checked.add(i)

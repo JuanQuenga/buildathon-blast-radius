@@ -124,7 +124,9 @@ def check_optimized(i, expression):
     _, names = pickle.loads(plans[i])
     mark("execute")
     engine = PythonExecutor(tables=ensure_tables({n: full_table(n) for n in names}))
-    table = pickle.loads(pickle.dumps(engine.execute(plan)))
+    from query_budget import query_budget
+    with query_budget(i):
+        table = pickle.loads(pickle.dumps(engine.execute(plan)))
     if table_digest(table) != reference_rows()[i][-1]:
         raise ValueError("full fixture result changed")
 

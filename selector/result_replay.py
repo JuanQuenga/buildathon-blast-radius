@@ -1,7 +1,16 @@
 """Compare the reference SQL and the observable result of each executed query."""
 import contextlib
+import functools
+import gzip
 import hashlib
+from pathlib import Path
 import pickle
+
+
+@functools.cache
+def reference_frames():
+    with gzip.open(Path(__file__).parent / "maps/duckdb-frames.pkl.gz", "rb") as stream:
+        return pickle.load(stream)
 
 
 def table_digest(table):
@@ -13,6 +22,7 @@ def table_digest(table):
 
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
+    from query_budget import query_budget
     import json
     import os
     from pathlib import Path
@@ -46,7 +56,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         ran = True
         inside = True
         try:
-            return execute(engine, plan, *args, **kwargs)
+            with query_budget(i):
+                return execute(engine, plan, *args, **kwargs)
         finally:
             inside = False
 
@@ -69,7 +80,19 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         mark("generate")
         for i, meta, sql, expr, parsed_matches in inputs:
             if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
-                changed_reference.add(i)
+                if live_reference is None:
+                    from tests.test_executor import TestExecutor
+                    if hasattr(test, "tpcds_conn"):
+                        live_reference = test
+                    else:
+                        live_reference = TestExecutor("test_execute_tpcds")
+                        live_reference.setUpClass()
+                        reference_setup.callback(live_reference.tearDownClass)
+                frame = live_reference.cached_execute(sql, tpch=False)
+                # Only byte-identical frame contents, dtype, index, and column
+                # metadata may reuse the pinned reference comparison.
+                if pickle.dumps(frame, protocol=4) != pickle.dumps(reference_frames()[i], protocol=4):
+                    changed_reference.add(i)
         for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
             mark("optimize")
@@ -85,15 +108,6 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 raise ValueError("missing result")
             table = pickle.loads(pickle.dumps(table))
             if i in changed_reference:
-                if live_reference is None:
-                    # Run the original assertion when its DuckDB SQL changes.
-                    from tests.test_executor import TestExecutor
-                    if hasattr(test, "tpcds_conn"):
-                        live_reference = test
-                    else:
-                        live_reference = TestExecutor("test_execute_tpcds")
-                        live_reference.setUpClass()
-                        reference_setup.callback(live_reference.tearDownClass)
                 live_reference.subtestHelper(i, table, tpch=False)
             elif table_digest(table) != reference[-1]:
                 raise ValueError("result changed")
