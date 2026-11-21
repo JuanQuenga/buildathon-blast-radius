@@ -164,10 +164,10 @@ if __name__ == "__main__":
         else:
             sys.path.insert(0, str(Path(__file__).parent))
             from phase import mark
-            from staged import rule_query_check
+            from staged import sliced_query_check
 
             def check_query(query):
                 mark("divergent")
-                rule_query_check()(query)
+                sliced_query_check()({"active": [query], "worker": [query]}, [])
 
             replay(indices, verify_query=check_query)

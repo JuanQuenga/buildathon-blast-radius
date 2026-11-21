@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-from .schedule import MAX_WORKERS, duration_ms, plan_cost, schedule
+from .schedule import BatchDurations, MAX_WORKERS, duration_ms, plan_cost, schedule
 
 DATA = Path(os.environ.get("BLAST_DATA", "/data"))
 # Whole-batch budget for impact selection (practice limit 180 s, final 270 s).
@@ -321,7 +321,7 @@ def _verify_pass(patches, catalog, dur, t0) -> None:
 def main() -> int:
     t0 = time.monotonic()
     catalog = json.loads((DATA / "tests.json").read_text(encoding="utf-8"))["tests"]
-    dur = {int(t["number"]): duration_ms(float(t["seconds"])) for t in catalog}
+    dur = BatchDurations({int(t["number"]): duration_ms(float(t["seconds"])) for t in catalog})
     valid = set(dur)
     full_workers = None
 

@@ -657,7 +657,7 @@ def economics(mode, cases):
     }[mode]
 
 
-def options(patch, catalog, targets, dur):
+def options(patch, catalog, targets, dur, *, price_collection=False):
     if patch.full:
         if not patch.alt:
             return
@@ -668,7 +668,7 @@ def options(patch, catalog, targets, dur):
         # Even if the alternative fills every worker, collection may admit
         # a subsequent individual proof for an expensive test.
         yield Probe(patch, "collection", None, "catalog", "", [],
-                    (req, pl, workers), max(gain, 5), 0.80, 1.8)
+                    (req, pl, workers), gain if price_collection else max(gain, 5), 0.80, 1.8)
         return
     if not patch.req:
         return
@@ -755,7 +755,7 @@ def run(patches, catalog, dur, t0, hybrid=False):
             if hybrid and not patch.full:
                 refine([patch], catalog, dur, bundles=False, evidence_by_target=evidence)
             for probe in options(patch, ids, [(n, g) for n, g in targets
-                                              if (patch, g) not in attempted], dur):
+                                              if (patch, g) not in attempted], dur, price_collection=hybrid):
                 price = hybrid_price(probe, evidence) if hybrid else None
                 frontend = evidence.get((patch, probe.group)) == "combined-frontend"
                 if price and not frontend:

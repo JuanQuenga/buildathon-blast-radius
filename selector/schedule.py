@@ -180,7 +180,7 @@ def _fill(bins: list[list[int]], cap: int, candidates: list[int],
             break
 
 
-def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int],
+def _schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int],
              *, free_riders: bool = True,
              plausible_order: list[int] | None = None) -> list[list[int]]:
     """Return nonempty workers covering all ``required`` tests at minimum cost,
@@ -205,7 +205,9 @@ def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int
                     key=lambda t: (dur[t], t))
     pl_set = set(pl)
     rest = []
-    if free_riders:
+    if free_riders and isinstance(dur, BatchDurations):
+        rest = [t for t in dur.ordered if t not in required and t not in pl_set]
+    elif free_riders:
         rest = sorted((t for t in dur if t not in required and t not in pl_set),
                       key=lambda t: (dur[t], t))
 
@@ -239,3 +241,26 @@ def schedule(required: set[int], plausible: set[int], duration_ms: dict[int, int
         bins[a].extend(bins[b])
         del bins[b]
     return bins
+
+
+class BatchDurations(dict):
+    """Own the catalog ordering and recent schedules for one selector invocation."""
+
+    def __init__(self, durations):
+        super().__init__(durations)
+        self.ordered = sorted(self, key=lambda number: (self[number], number))
+        self.plans = {}
+
+
+def schedule(required, plausible, duration_ms, *, free_riders=True, plausible_order=None):
+    if not isinstance(duration_ms, BatchDurations) or plausible_order is not None:
+        return _schedule(required, plausible, duration_ms, free_riders=free_riders,
+                         plausible_order=plausible_order)
+    key = (frozenset(required), frozenset(plausible), free_riders)
+    cached = duration_ms.plans.get(key)
+    if cached is None:
+        cached = _schedule(required, plausible, duration_ms, free_riders=free_riders)
+        if len(duration_ms.plans) >= 128:
+            duration_ms.plans.clear()
+        duration_ms.plans[key] = cached
+    return [worker.copy() for worker in cached]

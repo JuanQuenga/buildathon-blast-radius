@@ -76,11 +76,11 @@ def plan_digest(plan):
 
 
 @functools.cache
-def rule_query_check():
+def sliced_query_check():
     """Set up the pin's worker function without importing the DataFrame comparator.
 
-    Rule replay is restricted to edits inside optimizer methods. Setup, teardown
-    and execution-tail coverage must exclude them before admission.
+    The caller checks coverage of setup and teardown before using pinned inputs.
+    Restrict the lazy worker context to optimizer method changes.
     """
     import ast
     import types
@@ -111,9 +111,8 @@ def rule_query_check():
                                   mp_execute=scope["mp_execute"])
     reference = json.loads(BASE.read_text())["ds"]
 
-    def check(i):
-        selection = {"active": [i], "worker": [i]}
-        run(test, tests, ex, reference, [], selection, digest, plan_digest)
+    def check(selection, full):
+        run(test, tests, ex, reference, full, selection, digest, plan_digest)
 
     return check
 
@@ -269,7 +268,11 @@ def main():
         pinned(Recorder(False), {"parser:0", "parser:1", "parser:3"})
     elif group == "slice":
         selection = json.loads(sys.argv[2])
-        executor(False, data["ds"], selection["execute"], selection)
+        modules = os.environ.get("BLAST_CHANGED_MODULE", "").split(",")
+        if all(module.startswith("sqlglot.optimizer.") for module in modules):
+            sliced_query_check()(selection, selection["execute"])
+        else:
+            executor(False, data["ds"], selection["execute"], selection)
     elif group == "scaled":
         if parser() != data["parser"]:
             raise ValueError("scaled parser outcomes changed")
