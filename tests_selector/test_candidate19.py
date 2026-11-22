@@ -1239,5 +1239,47 @@ class TestCandidate19(unittest.TestCase):
                 sys.path.remove(verify.PRISTINE)
 
 
+    def test_c37_tpcds_fast_paths_and_jsonpath_narrowing(self):
+        """tpcds_opt_parse and tpcds_opt_gen stage & pass on pin, and JSON_PATH_PART_TRANSFORMS
+        narrows via dict_keys instead of hitting all 1,618 tests."""
+        import os, sys
+        from selector import heavy, impact, staged, verify
+
+        # 1. JSON_PATH_PART_TRANSFORMS narrowing
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        jlines = impact._sources()["src"]["sqlglot/jsonpath.py"].splitlines()
+        ln = next(i for i, l in enumerate(jlines, 1) if '"" if p is False' in l)
+        jpatch = (
+            "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\n"
+            "--- a/sqlglot/jsonpath.py\n"
+            "+++ b/sqlglot/jsonpath.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{jlines[ln-1]}\n"
+            f'+{jlines[ln-1].replace("False", "0")}\n'
+        )
+        res = impact.select(jpatch, cat)
+        self.assertFalse(res["full"])
+        self.assertLess(len(res["required"]), 100)
+
+        # 2. tpcds_opt_gen and tpcds_opt_parse live probes pass on pin
+        added = False
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        try:
+            staged._tpcds_opt_parse()
+            staged._tpcds_opt_gen()
+        finally:
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
+        # 3. Medium targets are not excluded from bundle/trim
+        self.assertNotIn(
+            "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs",
+            heavy._BUNDLE_EXCLUDE_NODES,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

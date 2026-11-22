@@ -728,6 +728,47 @@ def _deep_ann_scaled():
         raise ValueError("deep_ann binary mismatch")
 
 
+def _tpcds_opt_parse():
+    """Fast 99-query verification of TestOptimizer.test_tpcds for parser/tokenizer-only
+    edits: verifies parse_one(sql).dump() matches pin on all 99 queries (~0.35s) and
+    runs full optimize only on queries whose parse diverged (aborting if > 12)."""
+    import sqlglot
+
+    rows = json.loads((BASE.with_name("pin-cache") / "tpcds-opt-digests.json").read_text())
+    fast = pickle.loads((BASE.with_name("pin-cache") / "tpcds-opt-fast.pkl").read_bytes())
+    pdigs = fast["parse_digests"]
+    if len(rows) != 99 or len(pdigs) != 99:
+        raise ValueError("incomplete tpcds-opt fast cache")
+    diverged = []
+    for qi, (meta, sql, _exp_d) in enumerate(rows):
+        parsed = sqlglot.parse_one(sql, read=meta.get("dialect"))
+        if digest(parsed.dump()) != pdigs[qi]:
+            diverged.append(qi)
+            if len(diverged) > 12:
+                raise ValueError("too many tpcds_opt parse divergences")
+    if diverged:
+        _tpcds_opt(diverged)
+
+
+def _tpcds_opt_gen():
+    """Fast 99-query verification of TestOptimizer.test_tpcds for generator-only edits:
+    runs full optimize on the 6 queries that invoke generator during optimize, and
+    verifies .sql(pretty=True) on the 93 pre-optimized ASTs (~0.25s total)."""
+    rows = json.loads((BASE.with_name("pin-cache") / "tpcds-opt-digests.json").read_text())
+    fast = pickle.loads((BASE.with_name("pin-cache") / "tpcds-opt-fast.pkl").read_bytes())
+    asts = fast["opt_asts"]
+    gen_in_opt = set(fast["gen_in_opt"])
+    if len(rows) != 99 or len(asts) != 99:
+        raise ValueError("incomplete tpcds-opt fast cache")
+    if gen_in_opt:
+        _tpcds_opt(sorted(gen_in_opt))
+    for qi, (meta, _sql, exp_d) in enumerate(rows):
+        if qi in gen_in_opt:
+            continue
+        if digest(asts[qi].sql(pretty=True, dialect=meta.get("dialect"))) != exp_d:
+            raise ValueError(f"tpcds_opt_gen diverged on query {qi}")
+
+
 def _run_fast_one(mode, sub_args):
     if mode == "imported":
         return
@@ -737,6 +778,10 @@ def _run_fast_one(mode, sub_args):
         _tpch_exec()
     elif mode == "tpcds_opt":
         _tpcds_opt(sub_args)
+    elif mode == "tpcds_opt_parse":
+        _tpcds_opt_parse()
+    elif mode == "tpcds_opt_gen":
+        _tpcds_opt_gen()
     elif mode == "agg_order":
         _agg_order()
     elif mode in {"scope_scaled", "scope_full"}:
@@ -782,7 +827,8 @@ def main():
         _multi(json.loads(sys.argv[2]))
         return
     if group in {
-        "tpch_opt", "tpch_exec", "agg_order", "scope_scaled", "scope_full",
+        "tpch_opt", "tpch_exec", "tpcds_opt_parse", "tpcds_opt_gen",
+        "agg_order", "scope_scaled", "scope_full",
         "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann",
     }:
         _run_fast_one(group, None)

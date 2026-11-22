@@ -39,31 +39,71 @@ TARGETS = {
 }
 
 # Opt-medium tests eligible for zero-CPU unreached/imported proofs ONLY (stay in bundle/trim when reached).
+# Tuple: (profile_key, own_test_file, own_fixtures)
 _OPT_MEDIUM_TESTS = {
     "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": (
         "test_qualify_columns",
+        "tests/test_optimizer.py",
         ("tests/fixtures/optimizer/qualify_columns.sql", "tests/fixtures/optimizer/qualify_columns_ddl.sql"),
     ),
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": ("test_optimize_in_nulls", ()),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": (
+        "test_optimize_in_nulls", "tests/test_optimizer.py", (),
+    ),
     "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": (
         "test_merge_subqueries",
+        "tests/test_optimizer.py",
         ("tests/fixtures/optimizer/merge_subqueries.sql",),
     ),
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": ("test_optimize_correlated_all", ()),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": (
+        "test_optimize_correlated_all", "tests/test_optimizer.py", (),
+    ),
     "tests/test_optimizer.py::TestOptimizer::test_simplify": (
         "test_simplify",
+        "tests/test_optimizer.py",
         ("tests/fixtures/optimizer/simplify.sql",),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize": (
+        "test_optimize",
+        "tests/test_optimizer.py",
+        ("tests/fixtures/optimizer/optimizer.sql",),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_semi_anti_join_alias_shadowing_column": (
+        "test_qualify_semi_anti_join_alias_shadowing_column", "tests/test_optimizer.py", (),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_scalar_subquery_predicates": (
+        "test_optimize_scalar_subquery_predicates", "tests/test_optimizer.py", (),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_tpch": (
+        "test_tpch",
+        "tests/test_optimizer.py",
+        ("tests/fixtures/optimizer/tpc-h/tpc-h.sql",),
+    ),
+    "tests/test_optimize_cross_joins.py::TestOptimizeCrossJoins::test_conditional_cross_joins": (
+        "test_conditional_cross_joins", "tests/test_optimize_cross_joins.py", (),
+    ),
+    "tests/test_serde.py::TestSerde::test_serde": (
+        "test_serde", "tests/test_serde.py", ("tests/fixtures/identity.sql",),
+    ),
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": (
+        "test_snowflake", "tests/dialects/test_snowflake.py", (),
+    ),
+    "tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery": (
+        "test_bigquery", "tests/dialects/test_bigquery.py", (),
+    ),
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb": (
+        "test_duckdb", "tests/dialects/test_duckdb.py", (),
     ),
 }
 
 _MULTI_MODES = frozenset({
     "imported", "tpch_opt", "tpch_exec", "agg_order", "scope_scaled",
-    "tpcds_opt", "annotate_funcs", "canonicalize", "cache_schema",
+    "tpcds_opt", "tpcds_opt_parse", "tpcds_opt_gen",
+    "annotate_funcs", "canonicalize", "cache_schema",
     "long_cte", "serde_rec", "deep_ann",
 })
 
 _FAST_COALESCE_GROUPS = frozenset({
-    "tpch_opt", "tpch_exec", "agg_order", "scope", "canonicalize",
+    "tpch_opt", "tpch_exec", "tpcds_opt", "agg_order", "scope", "canonicalize",
     "cache_schema", "long_cte", "serde_rec", "deep_ann",
 })
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
@@ -286,7 +326,8 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
         script = SCRIPT.with_name("generator_cases.py")
     elif group in {
         "imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial",
-        "tpch_opt", "tpch_exec", "tpcds_opt", "scope_scaled", "scope_full", "annotate_funcs", "agg_order",
+        "tpch_opt", "tpch_exec", "tpcds_opt", "tpcds_opt_parse", "tpcds_opt_gen",
+        "scope_scaled", "scope_full", "annotate_funcs", "agg_order",
         "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann", "multi",
     }:
         script = SCRIPT.with_name("stage_check.py")
@@ -2366,6 +2407,17 @@ def stage_edit(text, group):
                 f.path not in tfiles for f in sql_files
             ):
                 return ("unreached" if strict_all else "imported"), paths, changes, []
+            if (APP_DIR / "pin-cache" / "tpcds-opt-fast.pkl").is_file():
+                if all(
+                    re.fullmatch(r"sqlglot/(?:parser|tokens|tokenizer_core|trie|errors|parsers/\w+)\.py", f.path)
+                    for f in sql_files
+                ):
+                    return "tpcds_opt_parse", paths, changes, []
+                if all(
+                    re.fullmatch(r"sqlglot/(?:generator|generators/\w+)\.py", f.path)
+                    for f in sql_files
+                ):
+                    return "tpcds_opt_gen", paths, changes, []
         return "tpcds_opt", paths, changes, list(range(99))
 
     if group == "scope":
@@ -2720,6 +2772,8 @@ def economics(mode, cases):
         "generator": (0.35, 1.85),
         "tpch_opt": (0.90, 0.06),
         "tpch_exec": (0.92, 0.04),
+        "tpcds_opt_parse": (0.88, 0.38),
+        "tpcds_opt_gen": (0.90, 0.25),
         "agg_order": (0.92, 0.03),
         "scope_scaled": (0.90, 0.06),
         "scope_full": (0.75, 1.60),
@@ -2786,12 +2840,17 @@ _MEDIUM_DOCKER_CPU = {
     "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.40,
 }
 
-# Negative-ROI or TPC-setup tests excluded from warm-fork bundle/trim.
+# Truly heavy/TPC/negative-ROI tests excluded from warm-fork bundle/trim.
+# Do NOT exclude medium targets (annotate_funcs, scope, canonicalize, etc.) so
+# bundle/trim remain unblocked when a target's individual gain is masked on multi-worker plans!
 _BUNDLE_EXCLUDE_NODES = frozenset({
-    "tests/test_optimizer.py::TestOptimizer::test_tpcds",
+    "tests/test_parser.py::TestParser::test_max_nodes",
+    "tests/test_executor.py::TestExecutor::test_execute_tpcds",
+    "tests/test_generator.py::TestGenerator::test_generator_memory",
     "tests/test_executor.py::TestExecutor::test_execute_tpch",
     "tests/test_executor.py::TestExecutor::test_optimized_tpch",
-}) | frozenset(TARGETS)
+    "tests/test_optimizer.py::TestOptimizer::test_tpcds",
+})
 
 
 def _test_docker_cpu(node: str, dur_ms: int) -> float:
@@ -2864,10 +2923,12 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
             ranked.append((ratio, dur[n], c_est, n))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[3]))
 
+    max_prefix = 220 if sim_cost >= 8.5 else 120
+    max_run_acc = 3.60 if sim_cost >= 8.5 else 2.60
     prefix = set()
     run_acc = 0.0
     for idx, (_ratio, d_ms, c_est, n) in enumerate(ranked):
-        if len(prefix) >= 120 or run_acc + c_est > 2.60:
+        if len(prefix) >= max_prefix or run_acc + c_est > max_run_acc:
             continue
         prefix.add(n)
         run_acc += c_est
@@ -2931,7 +2992,10 @@ def options(patch, catalog, targets, dur, attempted=()):
                 cases, needs_pygen = cases
             probability, estimate = economics(mode, cases)
             if group == "tpcds_opt" and mode not in {"unreached", "imported"}:
-                if len(cases) > 45 or gain < max(0.30, 1.55 * estimate):
+                if mode in {"tpcds_opt_parse", "tpcds_opt_gen"}:
+                    if gain < max(0.45, 1.55 * estimate):
+                        continue
+                elif len(cases) > 45 or gain < max(0.30, 1.55 * estimate):
                     continue
             elif group == "scope":
                 if mode == "scope_scaled" and gain < 0.20:
@@ -2986,13 +3050,17 @@ def options(patch, catalog, targets, dur, attempted=()):
                 )
                 mleaf = [_leaf_dialect_targets(f.path) for f in msql] if msafe else []
                 mpaths = ",".join(f.path for f in msql)
-                for n, (mkey, mfix) in med_nums:
+                for n, (mkey, mfile, mfix) in med_nums:
                     prof = opt_med.get(mkey)
                     if not prof:
                         continue
-                    # Guard: no tests/test_optimizer.py (unless disjoint), helpers.py, or own fixture edited
+                    # Guard: forbid own test file, tests/dialects/validator.py,
+                    # helpers.py, or own fixtures.
                     if any(
-                        f.path in mfix or (f.path and not _target_unreachable(f, "scope"))
+                        f.path in mfix
+                        or f.path == mfile
+                        or f.path == "tests/dialects/validator.py"
+                        or (f.path and not _target_unreachable(f, "scope"))
                         for f in mnon
                     ):
                         continue
@@ -3077,8 +3145,8 @@ def options(patch, catalog, targets, dur, attempted=()):
             return
         # Fail-fast bundle for cheaper / smaller-sim patches (aborts in ~0.2s on fail).
         is_tiny = (not uses_heavy) and est <= 0.55
-        min_roi = 1.75 if is_tiny else (1.95 if uses_heavy else 1.85)
-        max_run = 3.5 if sim_cost >= 6.5 else (2.4 if sim_cost >= 5.0 else 1.8)
+        min_roi = 1.75 if is_tiny else (2.00 if sim_cost >= 9.0 else (1.95 if uses_heavy else 1.85))
+        max_run = 4.6 if sim_cost >= 9.0 else (3.5 if sim_cost >= 6.5 else (2.4 if sim_cost >= 5.0 else 1.8))
         if run_est <= max_run and sim_cost >= min_roi * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "bundle", None, "bundle", sql_paths,

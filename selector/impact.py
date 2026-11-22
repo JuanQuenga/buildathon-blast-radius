@@ -1943,6 +1943,13 @@ class PyDiff:
             narrowed = dict_keys.narrow_bits("EXPRESSION_METADATA", refs, o_other, n_other)
             if narrowed is not None:
                 refs = narrowed
+        elif self.path == "sqlglot/jsonpath.py" and names == {"JSON_PATH_PART_TRANSFORMS"} and not gone:
+            from . import dict_keys
+            narrowed = dict_keys.narrow_bits(
+                "TRANSFORMS", refs, o_other, n_other, target_name="JSON_PATH_PART_TRANSFORMS"
+            )
+            if narrowed is not None:
+                refs = narrowed
         self.an.excluded |= executed & ~refs
         self.add(risky | refs,
                  f"module-level binding(s) {sorted(names)[:4]}")

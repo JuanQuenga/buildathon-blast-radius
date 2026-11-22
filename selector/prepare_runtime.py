@@ -181,28 +181,36 @@ if Path("/app/ds.json.gz").exists():
     sys.monitoring.use_tool_id(_tid, "c34 pin profiles")
     sys.monitoring.register_callback(_tid, sys.monitoring.events.LINE, _trace_line)
     try:
-        # 1. TestOptimizer.test_tpcds: all 99 queries
+        # 1. TestOptimizer.test_tpcds: all 99 queries (plus fast parse/gen short-circuit cache)
         _tpcds_opt_rows = []
         _tpcds_opt_hits = {}
         _tpcds_opt_files = set()
+        _tpcds_parse_digests = []
+        _tpcds_opt_asts = []
+        _tpcds_gen_in_opt = []
         for _qi, (_meta, _sql, _expected) in enumerate(_load_pairs("optimizer/tpc-ds/tpc-ds.sql")):
+            _d = _meta.get("dialect")
+            _kw = {"schema": _TPCDS_SCHEMA}
+            if _s := _meta.get("schema"):
+                _kw["schema"] = json.loads(_s)
+            if (_lti := _meta.get("leave_tables_isolated")) is not None:
+                _kw["leave_tables_isolated"] = _str_to_bool(_lti)
+            if (_vqc := _meta.get("validate_qualify_columns")) is not None:
+                _kw["validate_qualify_columns"] = _str_to_bool(_vqc)
+            if _d:
+                _kw["dialect"] = _d
+            if (_cta := _meta.get("canonicalize_table_aliases")) is not None:
+                _kw["canonicalize_table_aliases"] = _str_to_bool(_cta)
             _cur_hits = {}
             sys.monitoring.restart_events()
             sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
             try:
-                _d = _meta.get("dialect")
-                _kw = {"schema": _TPCDS_SCHEMA}
-                if _s := _meta.get("schema"):
-                    _kw["schema"] = json.loads(_s)
-                if (_lti := _meta.get("leave_tables_isolated")) is not None:
-                    _kw["leave_tables_isolated"] = _str_to_bool(_lti)
-                if (_vqc := _meta.get("validate_qualify_columns")) is not None:
-                    _kw["validate_qualify_columns"] = _str_to_bool(_vqc)
-                if _d:
-                    _kw["dialect"] = _d
-                if (_cta := _meta.get("canonicalize_table_aliases")) is not None:
-                    _kw["canonicalize_table_aliases"] = _str_to_bool(_cta)
-                _res = _opt_mod.optimize(sqlglot.parse_one(_sql, read=_d), **_kw)
+                _parsed_q = sqlglot.parse_one(_sql, read=_d)
+                _res = _opt_mod.optimize(_parsed_q.copy(), **_kw)
+                _opt_hit_gen = any(
+                    _p == "sqlglot/generator.py" or _p.startswith("sqlglot/generators/")
+                    for _p in _cur_hits
+                )
                 _actual = _res.sql(pretty=True, dialect=_d)
                 assert _actual == _expected
             finally:
@@ -214,9 +222,22 @@ if Path("/app/ds.json.gz").exists():
                 for _ln in _lns:
                     _fh[_ln] = _fh.get(_ln, 0) | _bit
             _tpcds_opt_rows.append([_meta, _sql, _staged_digest(_expected)])
+            _tpcds_parse_digests.append(_staged_digest(_parsed_q.dump()))
+            _tpcds_opt_asts.append(_res)
+            if _opt_hit_gen:
+                _tpcds_gen_in_opt.append(_qi)
         (out / "tpcds-opt-digests.json").write_text(json.dumps(_tpcds_opt_rows, separators=(",", ":")))
         (out / "tpcds-opt-hits.marshal").write_bytes(
             marshal.dumps({"hits": _tpcds_opt_hits, "files": sorted(_tpcds_opt_files)})
+        )
+        (out / "tpcds-opt-fast.pkl").write_bytes(
+            pickle.dumps(
+                {
+                    "parse_digests": _tpcds_parse_digests,
+                    "opt_asts": _tpcds_opt_asts,
+                    "gen_in_opt": _tpcds_gen_in_opt,
+                }
+            )
         )
 
         # 2. TestOptimizer.test_scope stress loops (N=8 captures 100% of executed lines)
@@ -400,16 +421,32 @@ if Path("/app/ds.json.gz").exists():
 
         sqlglot.Dialect.get_or_raise = _track_gor
         _opt_med = {}
+        import tests.test_optimize_cross_joins as _tcj_mod
+        import tests.test_serde as _tserde_mod
+        import tests.dialects.test_snowflake as _tsf_mod
+        import tests.dialects.test_bigquery as _tbq_mod
+        import tests.dialects.test_duckdb as _tdk_mod
+
+        _opt_med_specs = [
+            (_topt_mod.TestOptimizer, "test_qualify_columns"),
+            (_topt_mod.TestOptimizer, "test_optimize_in_nulls"),
+            (_topt_mod.TestOptimizer, "test_merge_subqueries"),
+            (_topt_mod.TestOptimizer, "test_optimize_correlated_all"),
+            (_topt_mod.TestOptimizer, "test_simplify"),
+            (_topt_mod.TestOptimizer, "test_optimize"),
+            (_topt_mod.TestOptimizer, "test_qualify_semi_anti_join_alias_shadowing_column"),
+            (_topt_mod.TestOptimizer, "test_optimize_scalar_subquery_predicates"),
+            (_topt_mod.TestOptimizer, "test_tpch"),
+            (_tcj_mod.TestOptimizeCrossJoins, "test_conditional_cross_joins"),
+            (_tserde_mod.TestSerde, "test_serde"),
+            (_tsf_mod.TestSnowflake, "test_snowflake"),
+            (_tbq_mod.TestBigQuery, "test_bigquery"),
+            (_tdk_mod.TestDuckDB, "test_duckdb"),
+        ]
         try:
             _topt_mod.TestOptimizer.setUpClass()
-            for _mkey in (
-                "test_qualify_columns",
-                "test_optimize_in_nulls",
-                "test_merge_subqueries",
-                "test_optimize_correlated_all",
-                "test_simplify",
-            ):
-                _inst = _topt_mod.TestOptimizer(_mkey)
+            for _mcls, _mkey in _opt_med_specs:
+                _inst = _mcls(_mkey)
                 _inst.setUp()
                 _cur_hits = {}
                 _used_dialects = {""}
