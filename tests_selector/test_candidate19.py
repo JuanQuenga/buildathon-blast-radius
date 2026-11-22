@@ -165,6 +165,38 @@ class TestCandidate19(unittest.TestCase):
         existing = src[:line_end] + "    NORMALIZE_FUNCTIONS = False\n" + src[line_end:]
         self.assertFalse(heavy._inert_new_class_attrs("sqlglot/dialects/dialect.py", existing))
 
+    def test_bundle_no_exec_setup_flag(self):
+        bundle_script = Path(__file__).resolve().parents[1] / "selector" / "bundle.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            tdir = Path(tmp) / "tests"
+            tdir.mkdir()
+            (tdir / "__init__.py").write_text("")
+            (tdir / "test_executor.py").write_text(
+                "import unittest\n"
+                "class TestExecutor(unittest.TestCase):\n"
+                "    @classmethod\n"
+                "    def setUpClass(cls):\n"
+                "        raise RuntimeError('should be skipped for non-TPC tests')\n"
+                "    def test_unit(self):\n"
+                "        self.assertEqual(2, 2)\n"
+                "    def test_execute_tpch(self):\n"
+                "        self.assertEqual(2, 2)\n"
+            )
+            # Non-TPC test skips setUpClass when no-exec-setup flag is passed.
+            r1 = subprocess.run(
+                [sys.executable, str(bundle_script), "bundle",
+                 json.dumps(["tests/test_executor.py::TestExecutor::test_unit"]), "no-exec-setup"],
+                cwd=tmp, capture_output=True, text=True,
+            )
+            self.assertEqual(r1.returncode, 0, r1.stderr)
+            # TPC test MUST NOT skip setUpClass even with no-exec-setup flag.
+            r2 = subprocess.run(
+                [sys.executable, str(bundle_script), "bundle",
+                 json.dumps(["tests/test_executor.py::TestExecutor::test_execute_tpch"]), "no-exec-setup"],
+                cwd=tmp, capture_output=True, text=True,
+            )
+            self.assertNotEqual(r2.returncode, 0)
+
     def test_runtime_paths_defaults(self):
         self.assertIsInstance(runtime_paths.APP_DIR, Path)
         self.assertIsInstance(runtime_paths.DATA_DIR, Path)

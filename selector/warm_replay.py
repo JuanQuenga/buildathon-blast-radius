@@ -60,7 +60,7 @@ def prepare_data_libs():
         return False
     try:
         pin_affinity(2)
-        for module in ("numpy", "pandas", "duckdb"):
+        for module in ("numpy", "pandas", "pandas.testing", "duckdb"):
             importlib.import_module(module)
         clean = not any(name.split(".")[0] in {"sqlglot", "tests"} for name in sys.modules)
         heavy_ready = clean

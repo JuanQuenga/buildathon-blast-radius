@@ -1079,8 +1079,9 @@ def economics(mode, cases):
 
 
 def _order_bundle_cases(required_nums, catalog, dur, files):
-    """Order tests for fast fail-fast: matching module/dialect test files first,
-    then shortest-first within each tier."""
+    """Order tests for fast fail-fast: edited test files & matching module/dialect
+    test files first, then shortest-first within each tier."""
+    edited_tests = {f.path for f in files if f.path and f.path.startswith("tests/")}
     stems = set()
     for f in files:
         if f.path and f.path.startswith("sqlglot/"):
@@ -1091,7 +1092,7 @@ def _order_bundle_cases(required_nums, catalog, dur, files):
     def key(n):
         node = catalog[n]
         tfile = node.split("::", 1)[0]
-        if any(f"test_{s}.py" in tfile or f"_{s}" in node for s in stems):
+        if tfile in edited_tests or any(f"test_{s}.py" in tfile or f"_{s}" in node for s in stems):
             tier = 0
         elif tfile in {"tests/test_executor.py", "tests/test_optimizer.py"}:
             tier = 2
@@ -1102,66 +1103,122 @@ def _order_bundle_cases(required_nums, catalog, dur, files):
     return [catalog[n] for n in sorted(required_nums, key=key)]
 
 
-# Conservative Linux-Docker CPU estimates (seconds) for the 17 medium tests,
-# calibrated at ~1.35x Apple Silicon measurements with _InlinePool.
+# Empirically calibrated Linux-Docker CPU estimates (seconds) at ~1.22x Apple Silicon
+# measurements with _InlinePool (matched to gmktech linux/amd64 Docker gate).
 _MEDIUM_DOCKER_CPU = {
-    "tests/test_optimizer.py::TestOptimizer::test_canonicalize": 0.10,
-    "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries": 0.28,
+    "tests/test_optimizer.py::TestOptimizer::test_canonicalize": 0.06,
+    "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries": 0.19,
+    "tests/test_serde.py::TestSerde::test_serde": 0.21,
+    "tests/test_optimize_cross_joins.py::TestOptimizeCrossJoins::test_conditional_cross_joins": 0.22,
+    "tests/dialects/test_redshift.py::TestRedshift::test_values": 0.25,
+    "tests/test_optimizer.py::TestOptimizer::test_unnest_subqueries": 0.26,
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": 0.27,
+    "tests/test_optimizer.py::TestOptimizer::test_deep_ast_type_annotation": 0.28,
+    "tests/test_optimizer.py::TestOptimizer::test_tpch": 0.34,
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": 0.42,
+    "tests/test_optimizer.py::TestOptimizer::test_optimize": 0.44,
+    "tests/test_serde.py::TestSerde::test_recursion": 0.47,
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": 0.49,
+    "tests/test_optimizer.py::TestOptimizer::test_simplify": 0.53,
+    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.66,
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": 0.78,
+    "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 0.90,
+    "tests/test_executor.py::TestExecutor::test_agg_order": 0.40,
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 1.01,
     "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.30,
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": 0.32,
-    "tests/test_serde.py::TestSerde::test_serde": 0.28,
-    "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 1.10,
-    "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": 0.56,
-    "tests/test_serde.py::TestSerde::test_recursion": 0.56,
-    "tests/test_optimizer.py::TestOptimizer::test_scope": 1.65,
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": 0.88,
-    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.68,
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": 0.56,
-    "tests/test_executor.py::TestExecutor::test_agg_order": 1.12,
-    "tests/test_optimizer.py::TestOptimizer::test_simplify": 0.60,
-    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 1.68,
-    "tests/test_executor.py::TestExecutor::test_optimized_tpch": 4.60,
-    "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.70,
+    "tests/test_optimizer.py::TestOptimizer::test_scope": 1.36,
+    "tests/test_executor.py::TestExecutor::test_optimized_tpch": 4.20,
+    "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.85,
 }
 
-# Subset of high-ROI tests eligible for non-failfast multi-worker trimming.
-_TRIM_CANDIDATES = frozenset({
-    "tests/test_optimizer.py::TestOptimizer::test_canonicalize",
-    "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries",
+# Negative-ROI or TPC-setup tests excluded from warm-fork bundle/trim.
+_BUNDLE_EXCLUDE_NODES = frozenset({
+    "tests/test_optimizer.py::TestOptimizer::test_tpcds",
     "tests/test_executor.py::TestExecutor::test_execute_tpch",
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
-    "tests/test_serde.py::TestSerde::test_serde",
-    "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs",
-    "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain",
-    "tests/test_serde.py::TestSerde::test_recursion",
-    "tests/test_optimizer.py::TestOptimizer::test_scope",
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls",
-    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries",
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all",
-})
+    "tests/test_executor.py::TestExecutor::test_optimized_tpch",
+}) | frozenset(TARGETS)
 
 
 def _test_docker_cpu(node: str, dur_ms: int) -> float:
     known = _MEDIUM_DOCKER_CPU.get(node)
     if known is not None:
         return known
-    return 0.65 * (dur_ms / 1000.0)
+    return 0.66 * (dur_ms / 1000.0)
 
 
-def _bundle_setup_cost(tfiles: set[str], cases: list[str]) -> tuple[float, bool]:
+def _bundle_setup_cost(tfiles: set[str], cases: list[str], *, no_exec_setup: bool = False) -> tuple[float, bool]:
     uses_exec = "tests/test_executor.py" in tfiles
     uses_opt = "tests/test_optimizer.py" in tfiles
-    setup_cost = 0.90 if uses_exec else 0.0
+    setup_cost = 0.0 if (not uses_exec or no_exec_setup) else 0.90
     if not setup_cost:
         for node in cases:
             parts = node.split("::")
             if len(parts) == 3:
                 tpath, cls, _ = parts
+                if no_exec_setup and tpath == "tests/test_executor.py":
+                    continue
                 scopes = impact._index()["scopes"].get(tpath)
                 if scopes and any(name == cls + ".setUpClass" for _, _, _, name, _ in scopes[1]):
-                    setup_cost = 0.12
+                    setup_cost = 0.10
                     break
     return setup_cost, (uses_exec or uses_opt)
+
+
+def _estimate_bundle_set(nums, catalog, dur, *, no_exec_setup: bool = False):
+    cases = [catalog[n] for n in nums]
+    tfiles = {node.split("::", 1)[0] for node in cases}
+    setup_cost, uses_heavy = _bundle_setup_cost(tfiles, cases, no_exec_setup=no_exec_setup)
+    run_est = sum(_test_docker_cpu(catalog[n], dur[n]) for n in nums)
+    est = setup_cost + (0.14 if uses_heavy else 0.0) + 0.12 + run_est
+    return run_est, est, uses_heavy
+
+
+def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup: bool = False):
+    """Pick a high-ROI non-fail-fast subset S <= cand_nums for ``trim``."""
+    best = None  # (score, subset_set, gain, est, uses_heavy)
+
+    # Option 1: trim ALL eligible non-TPC required tests when compact.
+    if cand_nums < patch.req and len(cand_nums) <= 550:
+        run_est, est, uses_heavy = _estimate_bundle_set(
+            cand_nums, catalog, dur, no_exec_setup=no_exec_setup
+        )
+        if run_est <= 4.0:
+            rem = patch.req - cand_nums
+            after = plan_cost(schedule(rem, patch.pl - cand_nums, dur), dur) / 1000 if rem else 0.0
+            gain = sim_cost - after
+            if gain >= 1.40 * est and gain - est >= 0.85:
+                best = (gain - 1.25 * est, cand_nums, gain, est, uses_heavy)
+
+    # Option 2: greedy high-ROI prefix (highest catalog/docker_cpu ratio first).
+    ranked = []
+    for n in cand_nums:
+        node = catalog[n]
+        c_est = _test_docker_cpu(node, dur[n])
+        cat_s = dur[n] / 1000.0
+        ratio = cat_s / max(0.01, c_est)
+        if dur[n] >= 250 or ratio >= 1.25:
+            ranked.append((ratio, dur[n], c_est, n))
+    ranked.sort(key=lambda x: (-x[0], -x[1], x[3]))
+
+    prefix = set()
+    run_acc = 0.0
+    for idx, (_ratio, d_ms, c_est, n) in enumerate(ranked):
+        if len(prefix) >= 120 or run_acc + c_est > 3.00:
+            continue
+        prefix.add(n)
+        run_acc += c_est
+        if d_ms >= 250 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
+            _, est, uses_heavy = _estimate_bundle_set(
+                prefix, catalog, dur, no_exec_setup=no_exec_setup
+            )
+            rem = patch.req - prefix
+            after = plan_cost(schedule(rem, patch.pl - prefix, dur), dur) / 1000 if rem else 0.0
+            gain = sim_cost - after
+            if gain >= 1.45 * est and gain - est >= 0.85:
+                score = gain - 1.30 * est
+                if best is None or score > best[0]:
+                    best = (score, set(prefix), gain, est, uses_heavy)
+    return best
 
 
 def options(patch, catalog, targets, dur, attempted=()):
@@ -1177,11 +1234,10 @@ def options(patch, catalog, targets, dur, attempted=()):
         return
     if not patch.req:
         return
-    heavy_in_req = False
+    heavy_yielded = False
     for number, group in targets:
         if number not in patch.req or number in patch.missing:
             continue
-        heavy_in_req = True
         req, pl = patch.req - {number}, patch.pl - {number}
         workers = schedule(req, pl, dur) if req else []
         gain = (plan_cost(patch.workers, dur) - plan_cost(workers, dur)) / 1000
@@ -1190,6 +1246,7 @@ def options(patch, catalog, targets, dur, attempted=()):
         edit = stage_edit(patch.text, group)
         from .cheap_proofs import proven
         if proven(patch.text, group, edit):
+            heavy_yielded = True
             yield Probe(patch, group, number, "unreached", "", [], (req, pl, workers),
                         gain, 1.0, 0.005)
             continue
@@ -1202,43 +1259,96 @@ def options(patch, catalog, targets, dur, attempted=()):
                 if changed_paths & ds_setup_paths():
                     estimate += 0.9
                     needs_heavy = True
+            heavy_yielded = True
             yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
                         gain, probability, estimate, heavy_mod=needs_heavy)
 
-    # Warm-fork fast verification for cheap, high-ROI 0-failure pure-code patches.
-    if patch.missing or heavy_in_req or not patch.workers:
+    # Warm-fork verification (bundle / trim) once no heavy probes are yielded.
+    if patch.missing or heavy_yielded or not patch.workers:
         return
     files = parse(patch.text)
-    if not patch_verifiable_files(files, sqlglot_only=True):
+    sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
+    if not sql_files:
         return
-    sql_paths = ",".join(f.path for f in files)
-    selected = set().union(*patch.workers)
-    pl_packed = {n for n in (patch.pl & selected) if dur[n] <= 120}
-    target_set = patch.req | pl_packed
+    if not patch_verifiable_files(
+        files,
+        forbid_prefixes=(
+            "tests/helpers.py",
+            "tests/test_executor.py",
+            "tests/fixtures/optimizer/tpc-ds/",
+            "tests/fixtures/optimizer/tpc-h/",
+        ),
+    ):
+        return
+    sql_paths = ",".join(f.path for f in sql_files)
+    no_exec_setup = "sqlglot/executor/table.py" not in {f.path for f in sql_files}
     sim_cost = plan_cost(patch.workers, dur) / 1000
+    if sim_cost < 2.0:
+        return
 
-    if (patch, "bundle") not in attempted and len(target_set) <= 120 and sim_cost >= 2.0:
-        cases = _order_bundle_cases(target_set, catalog, dur, files)
-        if all(len(node.split("::")) == 3 for node in cases):
-            tfiles = {node.split("::", 1)[0] for node in cases}
-            if "tests/test_executor.py" not in tfiles:
-                setup_cost, uses_heavy = _bundle_setup_cost(tfiles, cases)
-                run_est = sum(_test_docker_cpu(catalog[n], dur[n]) for n in target_set)
-                est = setup_cost + (0.20 if uses_heavy else 0.0) + 0.14 + run_est
-                is_tiny = (not uses_heavy) and est <= 0.55
-                min_roi = 1.6 if is_tiny else (2.2 if uses_heavy else 1.9)
-                max_run = 1.6 if uses_heavy else 2.2
-                if run_est <= max_run and sim_cost >= min_roi * est:
-                    yield Probe(patch, "bundle", None, "bundle", sql_paths,
-                                cases, (set(), set(), []), sim_cost,
-                                0.45 if is_tiny else 0.40, est, heavy_mod=uses_heavy)
+    cand_nums = {
+        n for n in patch.req
+        if len(catalog[n].split("::")) == 3
+        and catalog[n] not in _BUNDLE_EXCLUDE_NODES
+        and (no_exec_setup or not catalog[n].startswith("tests/test_executor.py::"))
+    }
+    if not cand_nums:
+        return
+
+    has_fixture_edit = any(f.path and f.path.startswith("tests/fixtures/") for f in files)
+    if has_fixture_edit:
+        return
+
+    # Path A: complete patch.req clearance (zero remaining tests on all-pass).
+    if (
+        cand_nums == patch.req
+        and len(cand_nums) <= 550
+        and (patch, "bundle") not in attempted
+        and (patch, "trim") not in attempted
+    ):
+        run_est, est, uses_heavy = _estimate_bundle_set(
+            cand_nums, catalog, dur, no_exec_setup=no_exec_setup
+        )
+        # Non-fail-fast trim when even a 1-failure patch yields >= 1.30x Docker ROI.
+        if sim_cost >= 4.8 and run_est <= 4.2 and (sim_cost - 2.15) >= 1.30 * est:
+            cases = _order_bundle_cases(cand_nums, catalog, dur, files)
+            yield Probe(patch, "trim", None, "trim", sql_paths,
+                        cases, (set(), set(), []), sim_cost,
+                        0.85, est, heavy_mod=uses_heavy)
+            return
+        # Fail-fast bundle for cheaper / smaller-sim patches.
+        is_tiny = (not uses_heavy) and est <= 0.65
+        min_roi = 1.60 if is_tiny else (1.90 if uses_heavy else 1.80)
+        max_run = 3.6 if sim_cost >= 5.2 else (2.0 if uses_heavy else 2.4)
+        if run_est <= max_run and sim_cost >= min_roi * est:
+            cases = _order_bundle_cases(cand_nums, catalog, dur, files)
+            yield Probe(patch, "bundle", None, "bundle", sql_paths,
+                        cases, (set(), set(), []), sim_cost,
+                        0.45 if is_tiny else 0.40, est, heavy_mod=uses_heavy)
+            return
+
+    # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches
+    # (e.g. patches containing TPC tests, test_tpcds, or >4.2s total run_est).
+    if (patch, "trim") not in attempted and sim_cost >= 4.5:
+        pick = _best_trim_subset(
+            patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
+        )
+        if pick is not None:
+            _score, sub, gain, est, uses_heavy = pick
+            rem_req = patch.req - sub
+            rem_pl = patch.pl - sub
+            rem_workers = schedule(rem_req, rem_pl, dur) if rem_req else []
+            cases = _order_bundle_cases(sub, catalog, dur, files)
+            yield Probe(patch, "trim", None, "trim", sql_paths,
+                        cases, (rem_req, rem_pl, rem_workers), gain,
+                        0.80, est, heavy_mod=uses_heavy)
 
 
 def run(patches, catalog, dur, t0, *, deadline=None):
     from .probe_session import PatchSession
     started = cpu()
     allowance = min(80.0, max(16.0, 1.35 * len(patches)))
-    cpu_ceiling = max(14.0, min(50.0, 0.80 * len(patches)))
+    cpu_ceiling = max(16.0, min(55.0, 0.90 * len(patches)))
     if deadline is None:
         deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
@@ -1247,6 +1357,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
     attempted = set()
     small_wins = small_tries = 0
     med_wins = med_tries = 0
+    trim_wins = trim_tries = 0
     session = None
 
     def enqueue(patch):
@@ -1290,6 +1401,8 @@ def run(patches, catalog, dur, t0, *, deadline=None):
         while queue and time.monotonic() < deadline:
             queue.sort(key=lambda p: (p.priority, p.patch is active, p.patch.commit))
             probe = queue.pop()
+            if probe.group == "trim" and trim_tries >= 4 and (2 + trim_wins) / (2 + trim_tries) < 0.40:
+                continue
             if probe.group == "bundle":
                 is_small = (not probe.heavy_mod) and probe.estimate <= 0.55
                 if is_small:
@@ -1311,6 +1424,8 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                 else:
                     ds_cap = 10.0 if probe.gain >= 14.0 else 5.5
                     cpu_limit = min(ds_cap, max(2.5, 2.0 * probe.estimate + 1.0))
+            elif probe.group in {"bundle", "trim"}:
+                cpu_limit = min(7.0, max(2.2, 2.0 * probe.estimate + 1.0))
             else:
                 cpu_limit = min(4.5, max(1.5, 2.2 * probe.estimate + 0.8))
             # Skip ds probes that require heavy forced execution exceeding cpu_limit.
@@ -1325,6 +1440,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     continue
                 allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
+            sim_before = plan_cost(patch.workers, dur) / 1000 if patch.workers else 0.0
             phase = probe.mode
             attempted.add((patch, probe.group))
             try:
@@ -1356,6 +1472,8 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         {"partial", "slice", "rules", "dialects", "bundle", "trim"} else [])
                 if probe.mode == "rules":
                     args.append("verify-results")
+                elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
+                    args.append("no-exec-setup")
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1 and probe.mode != "unreached":
                     break
@@ -1421,7 +1539,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             if result == "timeout" and probe.group != "collection":
                 allowance -= max(0.0, cpu_limit - probe.estimate)
             if probe.group == "bundle":
-                is_small = (not probe.heavy_mod) and probe.estimate <= 0.55
+                is_small = (not probe.heavy_mod) and probe.estimate <= 0.65
                 if is_small:
                     small_tries += 1
                     small_wins += result == "pass"
@@ -1429,8 +1547,13 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     med_tries += 1
                     med_wins += result == "pass"
             cost = cpu() + (session.charged if session else 0) - began
+            sim_after = plan_cost(patch.workers, dur) / 1000 if patch.workers else 0.0
+            realized_gain = max(0.0, sim_before - sim_after) if result in {"pass", "partial"} else 0.0
+            if probe.group == "trim":
+                trim_tries += 1
+                trim_wins += realized_gain > cost
             print("heavy", patch.commit, probe.group, result, probe.mode, f"{cost:.4f}",
-                  round(1000 * probe.gain) if result == "pass" and probe.group != "collection" else 0,
+                  round(1000 * realized_gain) if probe.group != "collection" else 0,
                   phase, f"{probe.probability:.2f}", file=sys.stderr)
     print("probe-cpu", f"{cpu()-started:.4f}", file=sys.stderr)
 

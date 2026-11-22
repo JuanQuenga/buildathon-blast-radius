@@ -66,11 +66,27 @@ def main():
     mode = sys.argv[1]
     is_trim = mode == "trim"
     ids = json.loads(sys.argv[2])
+    tpc_exec_nodes = {
+        "tests/test_executor.py::TestExecutor::test_execute_tpcds",
+        "tests/test_executor.py::TestExecutor::test_execute_tpch",
+        "tests/test_executor.py::TestExecutor::test_optimized_tpch",
+    }
+    skip_exec_setup = (
+        "no-exec-setup" in sys.argv[3:]
+        and not (tpc_exec_nodes & set(ids))
+    )
     suite = unittest.TestSuite()
     nodes = {}
+    exec_stubbed = False
     for node in ids:
         path, cls, method = node.split("::")
         module = importlib.import_module(path[:-3].replace("/", "."))
+        if skip_exec_setup and not exec_stubbed and path == "tests/test_executor.py":
+            tcls = getattr(module, "TestExecutor", None)
+            if tcls is not None:
+                tcls.setUpClass = classmethod(lambda c: None)
+                tcls.tearDownClass = classmethod(lambda c: None)
+                exec_stubbed = True
         case = getattr(module, cls)(method)
         if not isinstance(case, unittest.TestCase):
             raise TypeError(node)
