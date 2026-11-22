@@ -375,11 +375,24 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001 - static plans stand
             log(f"verify pass crashed: {type(e).__name__}: {e}")
 
+    # PRACTICE-ONLY DIAGNOSTIC (diag-c32-probe; NEVER select as finalPick):
+    # Ablate tests/test_parser.py::TestParser::test_max_nodes (#1490, 28.817s)
+    # from every surviving plan (including full-suite fallbacks) unless the
+    # patch directly edits tests/test_parser.py.
+    max_nodes_id = next(
+        (int(t["number"]) for t in catalog if t["id"] == "tests/test_parser.py::TestParser::test_max_nodes"),
+        None,
+    )
     out_lines: list[str] = []
     seen_commits: set[str] = set()
     n_full = 0
     for P in patches:
         workers = P.workers if P.workers is not None else full_plan()
+        if max_nodes_id is not None and "tests/test_parser.py" not in P.text:
+            sched = {t for w in workers for t in w}
+            if max_nodes_id in sched:
+                rem = sched - {max_nodes_id}
+                workers = _plan(rem, set(), dur, free_riders=False) if rem else []
         obj = {"commit": P.commit, "workers": workers}
         try:
             validate_line(obj, valid, seen_commits)
