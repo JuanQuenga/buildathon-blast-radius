@@ -136,6 +136,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             raise ValueError("incomplete fixtures")
         inputs = []
         live_reference = None
+        digest_fallbacks = 0
         active = set(selection["active"]) if selection is not None else range(99)
         mark("parse")
         for i in sorted(active):
@@ -177,7 +178,11 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             if not ran or table is None:
                 raise ValueError("missing result")
             table = pickle.loads(pickle.dumps(table))
-            if i in changed_reference:
+            if i in changed_reference or table_digest(table) != reference[-1]:
+                if i not in changed_reference:
+                    digest_fallbacks += 1
+                    if digest_fallbacks > 16:
+                        raise ValueError("broad result change")
                 if live_reference is None:
                     from tests.test_executor import TestExecutor
                     if hasattr(test, "tpcds_conn"):
@@ -187,8 +192,6 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                         live_reference.setUpClass()
                         reference_setup.callback(live_reference.tearDownClass)
                 live_reference.subtestHelper(i, table, tpch=False)
-            elif table_digest(table) != reference[-1]:
-                raise ValueError("result changed")
     finally:
         ex.PythonExecutor.execute = execute
         if orig_nlj is not None:

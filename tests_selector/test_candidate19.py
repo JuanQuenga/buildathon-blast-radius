@@ -276,6 +276,54 @@ class TestCandidate19(unittest.TestCase):
         self.assertGreater(cost_all, 5.0)
         self.assertEqual(rule_corpus._divergent_exec_cost(set()), 0.0)
 
+    def test_full_branch_and_operand_maps_loaded(self):
+        sites, _tail = impact._branch_map()
+        ops = impact._operand_map()
+        self.assertGreater(len(sites), 5000)
+        self.assertGreater(len(ops), 400)
+        # Verify test_execute_tpcds (exact single-process baseline) is represented
+        tpcds_i = impact._index()["tests"].index(
+            "tests/test_executor.py::TestExecutor::test_execute_tpcds"
+        )
+        tpcds_bit = 1 << tpcds_i
+        self.assertTrue(any((b0 | b1) & tpcds_bit for b0, b1 in sites.values()))
+
+    def test_dict_keys_fromkeys_and_sql_method_bits(self):
+        import ast
+        from selector import dict_keys
+
+        o = ast.parse('FUNCTIONS = {**Parser.FUNCTIONS, "A": f1, "B": f2}\n').body
+        n = ast.parse('FUNCTIONS = {**Parser.FUNCTIONS, **dict.fromkeys(("A", "B", "C"), f1)}\n').body
+        self.assertEqual(dict_keys.changed_keys("FUNCTIONS", o, n), {"S:B", "S:C"})
+        # sql_method_bits narrows brand-new unknown expr key to bulk-only (very small)
+        brand_new = dict_keys.sql_method_bits("nonexistentexprxyz_sql")
+        self.assertIsNotNone(brand_new)
+        self.assertLess(bin(brand_new).count("1"), 20)
+        # Known expr key includes tests that look up E:CurrentTime in TRANSFORMS
+        ct_bits = dict_keys.sql_method_bits("currenttime_sql")
+        self.assertIsNotNone(ct_bits)
+        self.assertLess(bin(ct_bits).count("1"), 80)
+        self.assertGreater(bin(ct_bits).count("1"), 0)
+
+    def test_named_added_brand_new_helper_and_sql_dispatch(self):
+        # Adding a brand-new private helper on Parser must NOT pull in all 1618 Parser tests.
+        p_src = impact._sources()["src"]["sqlglot/parser.py"].splitlines()
+        idx = next(i for i, ln in enumerate(p_src) if ln.startswith("    def _parse("))
+        diff = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            f"@@ -{idx+1},1 +{idx+1},4 @@\n"
+            "+    def _brand_new_helper_xyz(self):\n"
+            "+        return None\n"
+            "+\n"
+            f" {p_src[idx]}\n"
+        )
+        cat = [{"number": i, "id": t, "seconds": 0.01} for i, t in enumerate(impact._index()["tests"])]
+        res = impact.select(diff, cat)
+        self.assertFalse(res.get("full"))
+        self.assertEqual(len(res.get("required", ())), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

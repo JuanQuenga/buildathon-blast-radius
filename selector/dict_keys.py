@@ -119,6 +119,22 @@ def _extract_entries(node: ast.AST, table: str) -> tuple[list[str], dict[str, st
                     if ek is None:
                         return None
                     entries[ek] = val_dump
+            elif (
+                isinstance(v, ast.Call)
+                and isinstance(v.func, ast.Attribute)
+                and isinstance(v.func.value, ast.Name)
+                and v.func.value.id == "dict"
+                and v.func.attr == "fromkeys"
+                and len(v.args) == 2
+                and not v.keywords
+                and isinstance(v.args[0], (ast.Set, ast.Tuple, ast.List))
+            ):
+                val_dump = ast.dump(v.args[1], include_attributes=False)
+                for elt in v.args[0].elts:
+                    ek = _decode_key(elt, table)
+                    if ek is None:
+                        return None
+                    entries[ek] = val_dump
             else:
                 unpacks.append(ast.dump(v, include_attributes=False))
         else:
@@ -182,3 +198,55 @@ def narrow_bits(table: str, bits: int, o_stmts: list[ast.stmt], n_stmts: list[as
     for k in delta:
         obs |= tmap.get(k, 0)
     return bits & obs
+
+
+@functools.cache
+def _expr_key_to_classes() -> dict[str, set[str]]:
+    """Map every pinned ``exp.Expr`` subclass's ``.key`` to its class name(s)."""
+    from .impact import _sources
+
+    mapping: dict[str, set[str]] = {}
+    for path, src in _sources()["src"].items():
+        if not path.startswith("sqlglot/expressions/") or not path.endswith(".py"):
+            continue
+        tree = ast.parse(src)
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            key = node.name.lower()
+            for stmt in node.body:
+                if (
+                    isinstance(stmt, ast.Assign)
+                    and len(stmt.targets) == 1
+                    and isinstance(stmt.targets[0], ast.Name)
+                    and stmt.targets[0].id == "key"
+                    and isinstance(stmt.value, ast.Constant)
+                    and isinstance(stmt.value.value, str)
+                ):
+                    key = stmt.value.value
+            mapping.setdefault(key, set()).add(node.name)
+    return mapping
+
+
+def sql_method_bits(method_name: str) -> int | None:
+    """Bitmask of tests that can dynamically dispatch ``<key>_sql`` on a Generator.
+
+    Every ``Generator.sql()`` dynamic dispatch first checks ``self.TRANSFORMS.get(type(expr))``.
+    Thus ``bulk['TRANSFORMS'] | union(keys['TRANSFORMS']['E:' + cls])`` over all
+    pinned ``exp.Expr`` classes with matching ``.key`` is a sound superset of all
+    tests that can dynamically invoke ``method_name``.
+    """
+    if not method_name.endswith("_sql") or method_name.startswith("_"):
+        return None
+    key = method_name[:-4]
+    if not key or key in {"and", "or", "connector"}:
+        return None
+    loaded = _load()
+    if loaded is None:
+        return None
+    bulk, keys = loaded
+    obs = bulk.get("TRANSFORMS", 0)
+    tmap = keys.get("TRANSFORMS", {})
+    for cls_name in _expr_key_to_classes().get(key, ()):
+        obs |= tmap.get("E:" + cls_name, 0)
+    return obs

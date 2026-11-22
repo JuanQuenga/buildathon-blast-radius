@@ -481,17 +481,71 @@ def _same_observed_comparison(path, old, new):
 
 
 @functools.lru_cache(maxsize=1)
-def _branch_profiles():
+def _branch_map():
+    """Return ``(sites_dict, tail_both_dict)`` where ``sites_dict[site] = (b0, b1)``
+    bitmasks of tests where ``site`` was always False / always True."""
+    import gzip
+
+    gz = MAPS_DIR / "branches.json.gz"
+    if gz.is_file():
+        data = json.loads(gzip.decompress(gz.read_bytes()))
+        sites = {}
+        for s, (i0, i1) in data["sites"].items():
+            b0 = 0
+            for i in i0:
+                b0 |= 1 << i
+            b1 = 0
+            for i in i1:
+                b1 |= 1 << i
+            sites[s] = (b0, b1)
+        tail_both = {}
+        for s, idxs in data.get("tail_both", {}).items():
+            bm = 0
+            for i in idxs:
+                bm |= 1 << i
+            tail_both[s] = bm
+        return sites, tail_both
     profiles = json.loads((MAPS_DIR / "branches.json").read_text())
     tests = _index()["tests"]
-    return [(1 << tests.index(test), sites) for test, sites in profiles.items()]
+    sites = {}
+    for test, smap in profiles.items():
+        bit = 1 << tests.index(test)
+        for s, val in smap.items():
+            b0, b1 = sites.get(s, (0, 0))
+            if val == 0:
+                b0 |= bit
+            else:
+                b1 |= bit
+            sites[s] = (b0, b1)
+    return sites, {}
 
 
 @functools.lru_cache(maxsize=1)
-def _operand_profiles():
+def _operand_map():
+    """Return ``{site: [(bitmask, concrete_values), ...]}``."""
+    import gzip
+
+    gz = MAPS_DIR / "operands.json.gz"
+    if gz.is_file():
+        data = json.loads(gzip.decompress(gz.read_bytes()))
+        out = {}
+        for s, groups in data["sites"].items():
+            parsed = []
+            for tidxs, vals in groups:
+                bm = 0
+                for i in tidxs:
+                    bm |= 1 << i
+                parsed.append((bm, vals))
+            out[s] = parsed
+        return out
     profiles = json.loads((MAPS_DIR / "operands.json").read_text())
     tests = _index()["tests"]
-    return [(1 << tests.index(test), sites) for test, sites in profiles.items()]
+    out = {}
+    for test, smap in profiles.items():
+        bit = 1 << tests.index(test)
+        for s, vals in smap.items():
+            out.setdefault(s, []).append((bit, vals))
+    return out
 
 
 _COMPARISONS = {ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Lt: operator.lt,
@@ -509,12 +563,11 @@ def _equal_comparison_bits(module, old, new):
     site = f"{module}:{old.lineno}:{old.col_offset}"
     before, after = _COMPARISONS[type(old.ops[0])], _COMPARISONS[type(new.ops[0])]
     result = 0
-    for bit, sites in _operand_profiles():
-        concrete = sites.get(site)
+    for bits, concrete in _operand_map().get(site, ()):
         try:
             if concrete and all(before(x, old.comparators[0].value) == after(x, new.comparators[0].value)
                                 for x in concrete):
-                result |= bit
+                result |= bits
         except TypeError:
             continue
     return result
@@ -590,29 +643,31 @@ def _pure_type_guard(node):
 def _unchanged_branch_bits(module, old, new):
     if isinstance(old, ast.Compare) and isinstance(new, ast.Compare):
         return _equal_comparison_bits(module, old, new)
+    sites, tail_both = _branch_map()
     site = f"{module}:{old.lineno}:{old.col_offset}"
     if isinstance(new, ast.BoolOp) and len(new.values) == 2:
         # If the unchanged prefix always short-circuits, the added operand
         # cannot run. This holds regardless of its calls or side effects.
         if _dump(new.values[0]) == _dump(old):
             stop = int(isinstance(new.op, ast.Or))
-            return sum(bit for bit, sites in _branch_profiles() if sites.get(site) == stop)
+            b0, b1 = sites.get(site, (0, 0))
+            return b1 if stop else b0
         if (isinstance(old, ast.BoolOp) and type(old.op) is type(new.op)
                 and len(old.values) == 2 and _dump(old.values[0]) == _dump(new.values[0])):
             stop = int(isinstance(new.op, ast.Or))
-            return sum(bit for bit, sites in _branch_profiles()
-                       if sites.get(site) == stop and site + ":tail" not in sites)
+            b0, b1 = sites.get(site, (0, 0))
+            tkey = site + ":tail"
+            t0, t1 = sites.get(tkey, (0, 0))
+            tail_seen = t0 | t1 | tail_both.get(tkey, 0)
+            return (b1 if stop else b0) & ~tail_seen
     if not isinstance(old, ast.BoolOp) or len(old.values) != 2:
         return 0
     if _dump(old.values[0]) != _dump(new) or not _pure_type_guard(old.values[1]):
         return 0
-    site = f"{module}:{old.lineno}:{old.col_offset}:tail"
+    tkey = f"{module}:{old.lineno}:{old.col_offset}:tail"
     neutral = int(isinstance(old.op, ast.And))
-    result = 0
-    for bit, sites in _branch_profiles():
-        if sites.get(site) == neutral:
-            result |= bit
-    return result
+    t0, t1 = sites.get(tkey, (0, 0))
+    return t1 if neutral else t0
 
 
 def _local_raising_fixtures(body):
@@ -1245,7 +1300,7 @@ class PyDiff:
         if isinstance(o, (ast.If, ast.While)):
             if _dump(o.test) != _dump(n.test):
                 condition_bits = hb
-                if self.an.single_file:
+                if self.an.one_code_edit:
                     condition_bits &= ~_unchanged_branch_bits(self.module, o.test, n.test)
                 self.add(condition_bits, f"condition L{o.lineno}")
             self.block(o.body, n.body, hb, "func", None)
@@ -1277,7 +1332,7 @@ class PyDiff:
                         self.add(hb, f"except clause L{ho.lineno}")
                     self.block(ho.body, hn.body, hb, "func", None)
             return
-        if self.an.single_file and isinstance(o, ast.Return):
+        if self.an.one_code_edit and isinstance(o, ast.Return):
             hb &= ~_equal_comparison_bits(self.module, o.value, n.value)
         self.add(hb, f"statement L{o.lineno}")
 
@@ -1385,7 +1440,24 @@ class PyDiff:
             if (self.is_test and isinstance(n, _DEFS) and n.name.startswith("test")):
                 self.an.reasons.append(f"{self.path}: new test {owner[0]}.{n.name} (uncatalogued)")
                 return
-            self.add(self.class_family(owner) | self.risky_bits([n], None),
+            risky = self.risky_bits([n], None)
+            if (
+                isinstance(n, _DEFS)
+                and not n.decorator_list
+                and not n.name.startswith(("__", "test"))
+            ):
+                if not n.name.endswith("_sql") and not n.name.isupper() and not _name_sites(self.an, n.name):
+                    self.add(risky, f"{owner[0]}.{n.name} added (brand-new helper)")
+                    return
+                if n.name.endswith("_sql") and owner[0].split(".")[-1].endswith("Generator"):
+                    from . import dict_keys
+                    sql_bits = dict_keys.sql_method_bits(n.name)
+                    if sql_bits is not None:
+                        fam = self.class_family(owner)
+                        narrowed = fam & (sql_bits | self.name_refs({n.name}, depth=0))
+                        self.add(narrowed | risky, f"{owner[0]}.{n.name} added (sql dispatch)")
+                        return
+            self.add(self.class_family(owner) | risky,
                      f"{owner[0]}.{n.name} added (dispatch by name)")
             return
         # module level: a new name nobody at the pin references, unless it
