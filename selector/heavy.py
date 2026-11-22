@@ -3190,6 +3190,11 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                 else:
                     ds_cap = min(18.5, max(9.5, 0.90 * probe.gain))
                     cpu_limit = min(ds_cap, max(9.5, 2.5 * probe.estimate + 2.0))
+                    if probe.mode == "partial" and any(
+                            p.startswith("sqlglot/executor/") for p in probe.paths.split(",")):
+                        # Forced Python execution of an edited executor: no practice pass
+                        # needed more than 3.6s, and the 10-19s timeouts never pass.
+                        cpu_limit = min(cpu_limit, 7.0)
             elif probe.group in {"bundle", "trim"}:
                 cpu_limit = min(6.5, max(2.0, 2.0 * probe.estimate + 1.0))
             else:
