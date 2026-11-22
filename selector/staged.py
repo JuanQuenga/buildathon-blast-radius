@@ -569,26 +569,226 @@ def _annotate_funcs(dialects_filter):
                 raise ValueError(f"annotate_funcs mismatch ({dialect}): {sql}")
 
 
+def _canonicalize():
+    """Verify tests/test_optimizer.py::TestOptimizer::test_canonicalize (1.006s)
+    directly in-process without duckdb/pandas/ProcessPoolExecutor (~0.031s CPU)."""
+    from functools import partial
+    import sqlglot
+    from sqlglot import exp, optimizer, parse_one
+    from sqlglot.optimizer.annotate_types import annotate_types
+    from tests.helpers import load_sql_fixture_pairs, string_to_bool
+
+    schema = {
+        "x": {"a": "INT", "b": "INT"},
+        "nn": {
+            "a": exp.DataType.build("INT", nullable=False),
+            "b": exp.DataType.build("INT", nullable=False),
+        },
+        "y": {"b": "INT", "c": "INT"},
+        "z": {"b": "INT", "c": "INT"},
+        "w": {"d": "TEXT", "e": "TEXT"},
+        "temporal": {"d": "DATE", "t": "DATETIME"},
+        "structs": {
+            "one": "STRUCT<a_1 INT, b_1 VARCHAR>",
+            "nested_0": "STRUCT<a_1 INT, nested_1 STRUCT<a_2 INT, nested_2 STRUCT<a_3 INT>>>",
+            "quoted": 'STRUCT<"foo bar" INT>',
+        },
+        "t_bool": {"a": "BOOLEAN", "b": "BOOLEAN", "c": "BOOLEAN"},
+        "unpivotable": {"id": "INT", "jan": "INT", "feb": "INT", "north": "INT", "south": "INT"},
+        "pivotable": {"id": "INT", "cat": "TEXT", "val": "INT", "kind": "TEXT", "amt": "INT"},
+    }
+    opt_fn = partial(
+        optimizer.optimize,
+        rules=[
+            optimizer.qualify.qualify,
+            optimizer.qualify_columns.quote_identifiers,
+            annotate_types,
+            optimizer.canonicalize.canonicalize,
+        ],
+    )
+    for meta, sql, expected in load_sql_fixture_pairs("optimizer/canonicalize.sql"):
+        dialect = meta.get("dialect")
+        func_kwargs = {"schema": schema}
+        if s := meta.get("schema"):
+            func_kwargs["schema"] = json.loads(s)
+        if (lti := meta.get("leave_tables_isolated")) is not None:
+            func_kwargs["leave_tables_isolated"] = string_to_bool(lti)
+        if (vqc := meta.get("validate_qualify_columns")) is not None:
+            func_kwargs["validate_qualify_columns"] = string_to_bool(vqc)
+        if dialect:
+            func_kwargs["dialect"] = dialect
+        if (cta := meta.get("canonicalize_table_aliases")) is not None:
+            func_kwargs["canonicalize_table_aliases"] = string_to_bool(cta)
+        optimized = opt_fn(parse_one(sql, read=dialect), **func_kwargs)
+        _check_expr_tree(optimized)
+        if optimized.sql(pretty=False, dialect=dialect) != expected:
+            raise ValueError(f"canonicalize mismatch: {sql}")
+
+    ast1 = opt_fn(
+        "SELECT CAST(a AS TEXT) + CAST(b AS TEXT) FROM t",
+        dialect="tsql",
+        schema={"t": {"a": "TEXT", "b": "TEXT"}},
+    )
+    if ast1.sql("postgres") != 'SELECT ("t"."a") || ("t"."b") AS "_col_0" FROM "t" AS "t"':
+        raise ValueError("canonicalize concat mismatch")
+    if (
+        optimizer.canonicalize.canonicalize(parse_one("SELECT DATEDIFF(a, b) FROM t")).sql()
+        != "SELECT DATEDIFF(CAST(a AS DATETIME), CAST(b AS DATETIME)) FROM t"
+    ):
+        raise ValueError("canonicalize datediff mismatch")
+
+
+def _cache_schema():
+    """Verify tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries (1.298s)."""
+    import gc
+    import weakref
+    from sqlglot import exp, parse_one
+    from sqlglot.schema import MappingSchema
+
+    class Marker:
+        pass
+
+    for normalize in (False, True):
+        for method, args in (
+            ("find", ()),
+            ("column_names", ()),
+            ("get_column_type", ("id",)),
+            ("has_column", ("id",)),
+            ("add_table", ({"id": "INT"},)),
+        ):
+            schema = MappingSchema({"items": {"id": "INT"}}, dialect="duckdb", normalize=normalize)
+            query = parse_one("SELECT id FROM items", dialect="duckdb")
+            table = query.find(exp.Table)
+            marker = Marker()
+            query.meta["marker"] = table.meta["marker"] = marker
+            marker_ref = weakref.ref(marker)
+            getattr(schema, method)(table, *args)
+            del query, table, marker
+            gc.collect()
+            if marker_ref() is not None or schema.column_names("items") != ["id"]:
+                raise ValueError(f"cache_schema failed ({normalize}, {method})")
+
+
+def _long_cte_scaled():
+    """Scaled verification (N=8) of test_qualify_struct_star_long_cte_chain (0.905s)."""
+    from sqlglot import exp, parse_one
+    from sqlglot.optimizer.annotate_types import annotate_types
+    from sqlglot.optimizer.qualify import qualify
+
+    for join in ("", "JOIN", "SEMI JOIN", "CORRELATED"):
+        ctes = ["c0 AS (SELECT s FROM t)"]
+        for i in range(1, 8):
+            source = "t AS l" if join == "SEMI JOIN" else f"c{i - 1} AS l"
+            if join == "CORRELATED":
+                projection = "(SELECT l.s) AS s"
+            else:
+                projection = "l.s"
+                if join:
+                    source += f" {join} c{i - 1} AS r ON l.s = r.s"
+            ctes.append(f"c{i} AS (SELECT {projection} FROM {source})")
+        qualified = qualify(
+            parse_one(f"WITH {', '.join(ctes)} SELECT (s).* FROM c7", dialect="risingwave"),
+            schema={"t": {"s": "STRUCT<x INT>"}},
+            dialect="risingwave",
+        )
+        if qualified.named_selects != ["x"]:
+            raise ValueError("long_cte named_selects mismatch")
+        annotate_types(qualified, schema={"t": {"s": "STRUCT<x INT>"}}, dialect="risingwave")
+        if not qualified.selects[0].is_type(exp.DType.INT):
+            raise ValueError("long_cte type mismatch")
+
+
+def _serde_rec_scaled():
+    """Scaled verification (N=10) of tests/test_serde.py::TestSerde::test_recursion (0.886s)."""
+    from sqlglot import parse_one
+    from sqlglot.serde import dump, load
+
+    sql = "SELECT 1" + " UNION ALL SELECT 1" * 10
+    expr = parse_one(sql)
+    before = expr.sql()
+    if before != load(dump(expr)).sql():
+        raise ValueError("serde dump_load mismatch")
+    if before != pickle.loads(pickle.dumps(expr)).sql():
+        raise ValueError("serde pickle mismatch")
+
+
+def _deep_ann_scaled():
+    """Scaled verification (N=10) of test_deep_ast_type_annotation (0.486s)."""
+    from sqlglot import exp, parse_one
+    from sqlglot.optimizer.annotate_types import annotate_types
+
+    union_sql = "SELECT 1 UNION ALL " * 10 + "SELECT 1"
+    annotated = annotate_types(parse_one(union_sql))
+    if annotated.sql() != union_sql or annotated.selects[0].type.this != exp.DataType.Type.INT:
+        raise ValueError("deep_ann union mismatch")
+
+    binary_sql = "SELECT " + "t.a + " * 10 + "t.a FROM t"
+    annotated = annotate_types(parse_one(binary_sql), schema={"t": {"a": "INT"}})
+    if annotated.sql() != binary_sql or annotated.selects[0].type.this != exp.DataType.Type.INT:
+        raise ValueError("deep_ann binary mismatch")
+
+
+def _run_fast_one(mode, sub_args):
+    if mode == "imported":
+        return
+    if mode == "tpch_opt":
+        _tpch_opt()
+    elif mode == "tpch_exec":
+        _tpch_exec()
+    elif mode == "tpcds_opt":
+        _tpcds_opt(sub_args)
+    elif mode == "agg_order":
+        _agg_order()
+    elif mode in {"scope_scaled", "scope_full"}:
+        _scope_check(mode == "scope_scaled")
+    elif mode == "annotate_funcs":
+        _annotate_funcs(sub_args)
+    elif mode == "canonicalize":
+        _canonicalize()
+    elif mode == "cache_schema":
+        _cache_schema()
+    elif mode == "long_cte":
+        _long_cte_scaled()
+    elif mode == "serde_rec":
+        _serde_rec_scaled()
+    elif mode == "deep_ann":
+        _deep_ann_scaled()
+    else:
+        raise ValueError(f"unknown fast mode: {mode}")
+
+
+def _multi(items):
+    """Run multiple read-only fast probes inside ONE warm fork, sharing a single
+    import of the patched sqlglot modules, and record all passing groups."""
+    passed = []
+    for group, mode, sub_args in items:
+        try:
+            _run_fast_one(mode, sub_args)
+        except Exception:
+            continue
+        passed.append(group)
+    if not passed:
+        raise ValueError("no fast probes passed in multi")
+    Path(".blast-multi.json").write_text(json.dumps(passed))
+
+
 def main():
     group = sys.argv[1]
     if group == "record":
         rows, tail = executor(True, None, True)
         BASE.write_text(json.dumps(dict(ds=rows, tail=tail, parser=parser())))
         return
-    if group == "tpch_opt":
-        _tpch_opt()
+    if group == "multi":
+        _multi(json.loads(sys.argv[2]))
         return
-    if group == "tpch_exec":
-        _tpch_exec()
+    if group in {
+        "tpch_opt", "tpch_exec", "agg_order", "scope_scaled", "scope_full",
+        "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann",
+    }:
+        _run_fast_one(group, None)
         return
     if group == "tpcds_opt":
         _tpcds_opt(json.loads(sys.argv[2]))
-        return
-    if group == "agg_order":
-        _agg_order()
-        return
-    if group in {"scope_scaled", "scope_full"}:
-        _scope_check(group == "scope_scaled")
         return
     if group == "annotate_funcs":
         _annotate_funcs(json.loads(sys.argv[2]) if len(sys.argv) > 2 else None)

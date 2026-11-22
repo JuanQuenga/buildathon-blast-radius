@@ -1190,5 +1190,54 @@ class TestCandidate19(unittest.TestCase):
                 sys.path.remove(verify.PRISTINE)
 
 
+    def test_c35_fast_targets_and_multi_probe_pass_on_pin(self):
+        """canonicalize, cache_schema, long_cte, serde_rec, deep_ann, and _multi pass on pin."""
+        import json, os, sys, tempfile
+        from pathlib import Path
+        from selector import heavy, impact, staged, verify
+
+        glines = impact._sources()["src"]["sqlglot/generators/clickhouse.py"].splitlines()
+        ln = next(i for i, l in enumerate(glines, 1) if l.strip().startswith("return "))
+        ch_patch = (
+            "diff --git a/sqlglot/generators/clickhouse.py b/sqlglot/generators/clickhouse.py\n"
+            "--- a/sqlglot/generators/clickhouse.py\n"
+            "+++ b/sqlglot/generators/clickhouse.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{glines[ln-1]}\n"
+            f"+{glines[ln-1]}  # c35\n"
+        )
+        self.assertEqual(heavy.stage_edit(ch_patch, "canonicalize")[0], "canonicalize")
+        self.assertEqual(heavy.stage_edit(ch_patch, "cache_schema")[0], "unreached")
+        self.assertEqual(heavy.stage_edit(ch_patch, "long_cte")[0], "long_cte")
+        self.assertEqual(heavy.stage_edit(ch_patch, "serde_rec")[0], "serde_rec")
+        self.assertEqual(heavy.stage_edit(ch_patch, "deep_ann")[0], "deep_ann")
+
+        added = False
+        old_cwd = os.getcwd()
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                os.chdir(tmp)
+                staged._multi([
+                    ["agg_order", "agg_order", None],
+                    ["canonicalize", "canonicalize", None],
+                    ["cache_schema", "cache_schema", None],
+                    ["long_cte", "long_cte", None],
+                    ["serde_rec", "serde_rec", None],
+                    ["deep_ann", "deep_ann", None],
+                ])
+                got = json.loads((Path(tmp) / ".blast-multi.json").read_text())
+                self.assertEqual(
+                    got,
+                    ["agg_order", "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann"],
+                )
+        finally:
+            os.chdir(old_cwd)
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -283,6 +283,151 @@ if Path("/app/ds.json.gz").exists():
                 "file_groups": _af_file_groups,
             })
         )
+
+        # 4. Stress-loop line profiles for C35 scaled targets (long_cte, serde_rec, deep_ann)
+        #    and line coverage for cache_schema + 5 opt-medium unreached targets.
+        from sqlglot.optimizer.qualify import qualify as _qualify
+        from sqlglot.schema import MappingSchema as _MappingSchema
+        from sqlglot.serde import dump as _serde_dump, load as _serde_load
+        import gc as _gc, weakref as _weakref
+
+        _c35_stress = {}
+        # 4a. long_cte stress (N=8)
+        _cur_hits = {}
+        sys.monitoring.restart_events()
+        sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+        try:
+            for _join in ("", "JOIN", "SEMI JOIN", "CORRELATED"):
+                _ctes = ["c0 AS (SELECT s FROM t)"]
+                for _ci in range(1, 8):
+                    _src = "t AS l" if _join == "SEMI JOIN" else f"c{_ci - 1} AS l"
+                    if _join == "CORRELATED":
+                        _proj = "(SELECT l.s) AS s"
+                    else:
+                        _proj = "l.s"
+                        if _join:
+                            _src += f" {_join} c{_ci - 1} AS r ON l.s = r.s"
+                    _ctes.append(f"c{_ci} AS (SELECT {_proj} FROM {_src})")
+                _q = _qualify(
+                    sqlglot.parse_one(f"WITH {', '.join(_ctes)} SELECT (s).* FROM c7", dialect="risingwave"),
+                    schema={"t": {"s": "STRUCT<x INT>"}},
+                    dialect="risingwave",
+                )
+                _annotate_types(_q, schema={"t": {"s": "STRUCT<x INT>"}}, dialect="risingwave")
+        finally:
+            sys.monitoring.set_events(_tid, 0)
+        _c35_stress["long_cte"] = {p: sorted(lns) for p, lns in _cur_hits.items()}
+
+        # 4b. serde_rec stress (N=10)
+        _cur_hits = {}
+        sys.monitoring.restart_events()
+        sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+        try:
+            _se = sqlglot.parse_one("SELECT 1" + " UNION ALL SELECT 1" * 10)
+            _se.sql()
+            _serde_load(_serde_dump(_se)).sql()
+            pickle.loads(pickle.dumps(_se)).sql()
+        finally:
+            sys.monitoring.set_events(_tid, 0)
+        _c35_stress["serde_rec"] = {p: sorted(lns) for p, lns in _cur_hits.items()}
+
+        # 4c. deep_ann stress (N=10)
+        _cur_hits = {}
+        sys.monitoring.restart_events()
+        sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+        try:
+            _us = "SELECT 1 UNION ALL " * 10 + "SELECT 1"
+            _annotate_types(sqlglot.parse_one(_us)).sql()
+            _bs = "SELECT " + "t.a + " * 10 + "t.a FROM t"
+            _annotate_types(sqlglot.parse_one(_bs), schema={"t": {"a": "INT"}}).sql()
+        finally:
+            sys.monitoring.set_events(_tid, 0)
+        _c35_stress["deep_ann"] = {p: sorted(lns) for p, lns in _cur_hits.items()}
+
+        # 4d. cache_schema full trace
+        _cur_hits = {}
+        sys.monitoring.restart_events()
+        sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+        try:
+            class _Mk:
+                pass
+            for _norm in (False, True):
+                for _mname, _margs in (
+                    ("find", ()), ("column_names", ()), ("get_column_type", ("id",)),
+                    ("has_column", ("id",)), ("add_table", ({"id": "INT"},)),
+                ):
+                    _sc = _MappingSchema({"items": {"id": "INT"}}, dialect="duckdb", normalize=_norm)
+                    _qq = sqlglot.parse_one("SELECT id FROM items", dialect="duckdb")
+                    _tb = _qq.find(sqlglot.exp.Table)
+                    _mk = _Mk()
+                    _qq.meta["marker"] = _tb.meta["marker"] = _mk
+                    _wr = _weakref.ref(_mk)
+                    getattr(_sc, _mname)(_tb, *_margs)
+                    del _qq, _tb, _mk
+                    _gc.collect()
+                    assert _wr() is None
+                    assert _sc.column_names("items") == ["id"]
+        finally:
+            sys.monitoring.set_events(_tid, 0)
+        _c35_stress["cache_schema"] = {p: sorted(lns) for p, lns in _cur_hits.items()}
+        (out / "c35-stress-lines.json").write_text(json.dumps(_c35_stress, separators=(",", ":")))
+
+        # 5. Pre-warmed line profiles for 5 top excess opt-medium tests (unreached/imported proofs)
+        from concurrent.futures import Future as _Future
+        import tests.test_optimizer as _topt_mod
+
+        class _InlinePool:
+            def submit(self, fn, *a, **kw):
+                f = _Future()
+                try:
+                    f.set_result(fn(*a, **kw))
+                except BaseException as e:
+                    f.set_exception(e)
+                return f
+            def shutdown(self, *a, **kw):
+                pass
+
+        _orig_ppe = _topt_mod.ProcessPoolExecutor
+        _topt_mod.ProcessPoolExecutor = lambda *a, **kw: _InlinePool()
+        _orig_gor = sqlglot.Dialect.get_or_raise.__func__
+        _used_dialects = set()
+
+        @classmethod
+        def _track_gor(cls, dialect_type):
+            res = _orig_gor(cls, dialect_type)
+            _used_dialects.add(type(res).__name__.lower() if type(res) is not sqlglot.Dialect else "")
+            return res
+
+        sqlglot.Dialect.get_or_raise = _track_gor
+        _opt_med = {}
+        try:
+            _topt_mod.TestOptimizer.setUpClass()
+            for _mkey in (
+                "test_qualify_columns",
+                "test_optimize_in_nulls",
+                "test_merge_subqueries",
+                "test_optimize_correlated_all",
+                "test_simplify",
+            ):
+                _inst = _topt_mod.TestOptimizer(_mkey)
+                _inst.setUp()
+                _cur_hits = {}
+                _used_dialects = {""}
+                sys.monitoring.restart_events()
+                sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+                try:
+                    getattr(_inst, _mkey)()
+                finally:
+                    sys.monitoring.set_events(_tid, 0)
+                _opt_med[_mkey] = {
+                    "files": sorted(_cur_hits),
+                    "dialects": sorted(_used_dialects),
+                    "hits": {p: sorted(lns) for p, lns in _cur_hits.items()},
+                }
+        finally:
+            sqlglot.Dialect.get_or_raise = classmethod(_orig_gor)
+            _topt_mod.ProcessPoolExecutor = _orig_ppe
+        (out / "opt-medium-hits.marshal").write_bytes(marshal.dumps(_opt_med))
     finally:
         sys.monitoring.set_events(_tid, 0)
         sys.monitoring.register_callback(_tid, sys.monitoring.events.LINE, None)

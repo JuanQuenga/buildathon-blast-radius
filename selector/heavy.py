@@ -31,7 +31,41 @@ TARGETS = {
     "tests/test_optimizer.py::TestOptimizer::test_scope": "scope",
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": "annotate_funcs",
     "tests/test_executor.py::TestExecutor::test_agg_order": "agg_order",
+    "tests/test_optimizer.py::TestOptimizer::test_canonicalize": "canonicalize",
+    "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries": "cache_schema",
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": "long_cte",
+    "tests/test_serde.py::TestSerde::test_recursion": "serde_rec",
+    "tests/test_optimizer.py::TestOptimizer::test_deep_ast_type_annotation": "deep_ann",
 }
+
+# Opt-medium tests eligible for zero-CPU unreached/imported proofs ONLY (stay in bundle/trim when reached).
+_OPT_MEDIUM_TESTS = {
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": (
+        "test_qualify_columns",
+        ("tests/fixtures/optimizer/qualify_columns.sql", "tests/fixtures/optimizer/qualify_columns_ddl.sql"),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": ("test_optimize_in_nulls", ()),
+    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": (
+        "test_merge_subqueries",
+        ("tests/fixtures/optimizer/merge_subqueries.sql",),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": ("test_optimize_correlated_all", ()),
+    "tests/test_optimizer.py::TestOptimizer::test_simplify": (
+        "test_simplify",
+        ("tests/fixtures/optimizer/simplify.sql",),
+    ),
+}
+
+_MULTI_MODES = frozenset({
+    "imported", "tpch_opt", "tpch_exec", "agg_order", "scope_scaled",
+    "tpcds_opt", "annotate_funcs", "canonicalize", "cache_schema",
+    "long_cte", "serde_rec", "deep_ann",
+})
+
+_FAST_COALESCE_GROUPS = frozenset({
+    "tpch_opt", "tpch_exec", "agg_order", "scope", "canonicalize",
+    "cache_schema", "long_cte", "serde_rec", "deep_ann",
+})
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
 
 CHILD = """
@@ -253,6 +287,7 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
     elif group in {
         "imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial",
         "tpch_opt", "tpch_exec", "tpcds_opt", "scope_scaled", "scope_full", "annotate_funcs", "agg_order",
+        "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann", "multi",
     }:
         script = SCRIPT.with_name("stage_check.py")
     else:
@@ -1682,6 +1717,41 @@ _TARGET_TEST_PROTECTED = {
             "test_annotate_funcs", "setUpClass", "tearDownClass", "setUp", "tearDown",
         }),
     ),
+    "canonicalize": (
+        "tests/test_optimizer.py",
+        "TestOptimizer",
+        frozenset({
+            "test_canonicalize", "setUpClass", "tearDownClass", "setUp", "tearDown", "check_file",
+        }),
+    ),
+    "cache_schema": (
+        "tests/test_schema.py",
+        "TestSchema",
+        frozenset({
+            "test_cache_does_not_retain_queries", "setUpClass", "tearDownClass", "setUp", "tearDown",
+        }),
+    ),
+    "long_cte": (
+        "tests/test_optimizer.py",
+        "TestOptimizer",
+        frozenset({
+            "test_qualify_struct_star_long_cte_chain", "setUpClass", "tearDownClass", "setUp", "tearDown",
+        }),
+    ),
+    "serde_rec": (
+        "tests/test_serde.py",
+        "TestSerde",
+        frozenset({
+            "test_recursion", "setUpClass", "tearDownClass", "setUp", "tearDown", "dump_load",
+        }),
+    ),
+    "deep_ann": (
+        "tests/test_optimizer.py",
+        "TestOptimizer",
+        frozenset({
+            "test_deep_ast_type_annotation", "setUpClass", "tearDownClass", "setUp", "tearDown",
+        }),
+    ),
     "parser": (
         "tests/test_parser.py",
         "TestParser",
@@ -1695,6 +1765,7 @@ _TARGET_TEST_PROTECTED = {
 }
 
 
+@functools.lru_cache(maxsize=64)
 def _apply_verifiable(text: str) -> dict[str, str | None]:
     """Apply patch text, ignoring only verified binary doc/image files."""
     files = parse(text)
@@ -1791,6 +1862,11 @@ _HELPERS_UNUSED = {
     "tpcds_opt": frozenset({"TPCH_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
     "scope": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
     "annotate_funcs": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "canonicalize": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "cache_schema": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+    "long_cte": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+    "serde_rec": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+    "deep_ann": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
     "parser": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
     "generator": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
 }
@@ -2094,6 +2170,42 @@ def _hits_mask(hits_map: dict, regions: dict) -> int:
     return mask
 
 
+@functools.cache
+def _c35_stress_lines():
+    p = APP_DIR / "pin-cache" / "c35-stress-lines.json"
+    if not p.is_file():
+        return None
+    raw = json.loads(p.read_text())
+    return {k: {fp: frozenset(lns) for fp, lns in v.items()} for k, v in raw.items()}
+
+
+@functools.cache
+def _opt_medium_profiles():
+    import marshal
+    p = APP_DIR / "pin-cache" / "opt-medium-hits.marshal"
+    if not p.is_file():
+        return None
+    raw = marshal.loads(p.read_bytes())
+    return {
+        k: {
+            "files": frozenset(v["files"]),
+            "dialects": frozenset(v.get("dialects", ("",))),
+            "hits": {fp: frozenset(lns) for fp, lns in v["hits"].items()},
+        }
+        for k, v in raw.items()
+    }
+
+
+@functools.lru_cache(maxsize=64)
+def _compile_ok(text: str) -> bool:
+    files = parse(text)
+    sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
+    if not sql_files:
+        return False
+    changes = _apply_verifiable(text)
+    return _all_compile(sql_files, changes)
+
+
 def _all_compile(sql_files, changes) -> bool:
     for f in sql_files:
         src = changes.get(f.path)
@@ -2135,15 +2247,85 @@ def stage_edit(text, group):
         forbid_ao = () if non_sql_inert else ("tests/test_executor.py", "tests/helpers.py")
         if not patch_verifiable_files(files, forbid_prefixes=forbid_ao, allow_structural=True):
             return None
-        if not sql_files or not non_sql_inert:
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
             return None
         if any(f.path == "sqlglot/executor/table.py" for f in sql_files):
             return None
         changes = _apply_verifiable(text)
-        if not _all_compile(sql_files, changes):
-            return None
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         return "agg_order", paths, changes, []
+
+    if group == "canonicalize":
+        forbid_can = (
+            ()
+            if non_sql_inert
+            else (
+                "tests/test_optimizer.py",
+                "tests/helpers.py",
+                "tests/fixtures/optimizer/canonicalize.sql",
+            )
+        )
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_can, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
+            return None
+        changes = _apply_verifiable(text)
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        return "canonicalize", paths, changes, []
+
+    if group == "cache_schema":
+        c35 = _c35_stress_lines()
+        forbid_cs = () if non_sql_inert else ("tests/test_schema.py", "tests/helpers.py")
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_cs, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
+            return None
+        changes = _apply_verifiable(text)
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        safe_files = all(
+            not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+            for f in sql_files
+        )
+        if c35 and "cache_schema" in c35:
+            prof = c35["cache_schema"]
+            if strict_all:
+                regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
+                if regions and all(
+                    not any(lo <= ln <= hi for lo, hi in spans for ln in prof.get(p, ()))
+                    for p, spans in regions.items()
+                ):
+                    return "unreached", paths, changes, []
+            if safe_files:
+                leaf_sets = [_leaf_dialect_targets(f.path) for f in sql_files]
+                if all(ls is not None and "duckdb" not in ls and "" not in ls for ls in leaf_sets) and all(
+                    f.path not in prof for f in sql_files
+                ):
+                    return ("unreached" if strict_all else "imported"), paths, changes, []
+        return "cache_schema", paths, changes, []
+
+    if group in {"long_cte", "serde_rec", "deep_ann"}:
+        c35 = _c35_stress_lines()
+        if not c35 or group not in c35:
+            return None
+        tfile = "tests/test_serde.py" if group == "serde_rec" else "tests/test_optimizer.py"
+        forbid_sc = () if non_sql_inert else (tfile, "tests/helpers.py")
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_sc, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
+            return None
+        changes = _apply_verifiable(text)
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        safe_files = all(
+            not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+            for f in sql_files
+        )
+        stress = c35[group]
+        if safe_files and all(
+            f.path not in stress or (strict_all and _hunks_miss_lines([f], stress))
+            for f in sql_files
+        ):
+            return group, paths, changes, []
+        return None
 
     if group == "tpcds_opt":
         prof = _tpcds_opt_profile()
@@ -2160,11 +2342,9 @@ def stage_edit(text, group):
         )
         if not patch_verifiable_files(files, forbid_prefixes=forbid_to, allow_structural=True):
             return None
-        if not sql_files or not non_sql_inert:
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
             return None
         changes = _apply_verifiable(text)
-        if not _all_compile(sql_files, changes):
-            return None
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         safe_files = all(
             not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
@@ -2195,11 +2375,9 @@ def stage_edit(text, group):
         forbid_sc = () if non_sql_inert else ("tests/test_optimizer.py", "tests/helpers.py")
         if not patch_verifiable_files(files, forbid_prefixes=forbid_sc, allow_structural=True):
             return None
-        if not sql_files or not non_sql_inert:
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
             return None
         changes = _apply_verifiable(text)
-        if not _all_compile(sql_files, changes):
-            return None
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         safe_files = all(
             not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
@@ -2227,11 +2405,9 @@ def stage_edit(text, group):
         )
         if not patch_verifiable_files(files, forbid_prefixes=forbid_af, allow_structural=True):
             return None
-        if not sql_files or not non_sql_inert:
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
             return None
         changes = _apply_verifiable(text)
-        if not _all_compile(sql_files, changes):
-            return None
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         safe_files = all(
             not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
@@ -2529,24 +2705,29 @@ def economics(mode, cases):
     if mode == "dialects":
         return 0.85, 0.16 + 0.025 * len(cases)
     if mode == "tpcds_opt":
-        return 0.85, 0.05 + 0.015 * len(cases)
+        return 0.85, 0.05 + 0.032 * len(cases)
     if mode == "annotate_funcs":
         n_pairs = cases[1] if isinstance(cases, tuple) else 1973
-        return 0.85, 0.05 + 0.00045 * n_pairs
+        return 0.85, 0.05 + 0.00050 * n_pairs
     return {
         "fixture-query": (0.75, 0.18),
         "unreached": (1.00, 0.005),
-        "imported": (0.90, 0.09),
+        "imported": (0.90, 0.05),
         "tokens": (0.60, 0.20),
         "corpus": (0.86, 0.38),
         "small": (0.75, 0.25),
         "scaled": (0.67, 0.55),
         "generator": (0.35, 1.85),
         "tpch_opt": (0.90, 0.06),
-        "tpch_exec": (0.92, 0.05),
-        "agg_order": (0.92, 0.04),
+        "tpch_exec": (0.92, 0.04),
+        "agg_order": (0.92, 0.03),
         "scope_scaled": (0.90, 0.06),
-        "scope_full": (0.75, 1.15),
+        "scope_full": (0.75, 1.60),
+        "canonicalize": (0.90, 0.04),
+        "cache_schema": (0.90, 0.16),
+        "long_cte": (0.90, 0.03),
+        "serde_rec": (0.90, 0.03),
+        "deep_ann": (0.90, 0.03),
     }[mode]
 
 
@@ -2578,29 +2759,31 @@ def _order_bundle_cases(required_nums, catalog, dur, files):
 # Empirically calibrated Linux-Docker CPU estimates (seconds) at ~1.22x Apple Silicon
 # measurements with _InlinePool (matched to gmktech linux/amd64 Docker gate).
 _MEDIUM_DOCKER_CPU = {
-    "tests/test_optimizer.py::TestOptimizer::test_canonicalize": 0.06,
-    "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries": 0.19,
-    "tests/test_serde.py::TestSerde::test_serde": 0.21,
+    "tests/test_optimizer.py::TestOptimizer::test_canonicalize": 0.04,
+    "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries": 0.18,
+    "tests/test_serde.py::TestSerde::test_serde": 0.22,
     "tests/test_optimize_cross_joins.py::TestOptimizeCrossJoins::test_conditional_cross_joins": 0.22,
     "tests/dialects/test_redshift.py::TestRedshift::test_values": 0.25,
     "tests/test_optimizer.py::TestOptimizer::test_unnest_subqueries": 0.26,
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": 0.27,
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": 0.32,
+    "tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery": 0.16,
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb": 0.14,
     "tests/test_optimizer.py::TestOptimizer::test_deep_ast_type_annotation": 0.28,
-    "tests/test_optimizer.py::TestOptimizer::test_tpch": 0.34,
+    "tests/test_optimizer.py::TestOptimizer::test_tpch": 0.30,
     "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": 0.42,
     "tests/test_optimizer.py::TestOptimizer::test_optimize": 0.44,
     "tests/test_serde.py::TestSerde::test_recursion": 0.47,
-    "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": 0.49,
-    "tests/test_optimizer.py::TestOptimizer::test_simplify": 0.53,
-    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.66,
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": 0.78,
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": 0.85,
+    "tests/test_optimizer.py::TestOptimizer::test_simplify": 0.46,
+    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.58,
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": 0.80,
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 0.90,
     "tests/test_executor.py::TestExecutor::test_agg_order": 0.02,
-    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 1.01,
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 0.88,
     "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.30,
-    "tests/test_optimizer.py::TestOptimizer::test_scope": 1.36,
+    "tests/test_optimizer.py::TestOptimizer::test_scope": 1.55,
     "tests/test_executor.py::TestExecutor::test_optimized_tpch": 4.20,
-    "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.85,
+    "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.40,
 }
 
 # Negative-ROI or TPC-setup tests excluded from warm-fork bundle/trim.
@@ -2748,15 +2931,12 @@ def options(patch, catalog, targets, dur, attempted=()):
                 cases, needs_pygen = cases
             probability, estimate = economics(mode, cases)
             if group == "tpcds_opt" and mode not in {"unreached", "imported"}:
-                if len(cases) <= 45:
-                    if gain < max(0.30, 1.50 * estimate):
-                        continue
-                elif gain < 1.75:
+                if len(cases) > 45 or gain < max(0.30, 1.55 * estimate):
                     continue
             elif group == "scope":
-                if mode == "scope_scaled" and gain < 0.25:
+                if mode == "scope_scaled" and gain < 0.20:
                     continue
-                if mode == "scope_full" and gain < 1.75:
+                if mode == "scope_full" and gain < 2.30:
                     continue
             elif group == "annotate_funcs" and mode not in {"unreached", "imported"}:
                 n_pairs = cases[1] if isinstance(cases, tuple) else 1973
@@ -2765,11 +2945,13 @@ def options(patch, catalog, targets, dur, attempted=()):
                 ):
                     continue
                 if n_pairs <= 600:
-                    if gain < max(0.30, 1.50 * estimate):
+                    if gain < max(0.30, 1.55 * estimate):
                         continue
-                elif gain < 1.45:
+                elif gain < 1.55:
                     continue
-            elif group == "agg_order" and gain < 0.20:
+            elif group in {"agg_order", "canonicalize", "long_cte", "serde_rec", "deep_ann"} and gain < 0.15:
+                continue
+            elif group == "cache_schema" and mode not in {"unreached", "imported"} and gain < 0.25:
                 continue
             if mode == "annotate_funcs" and isinstance(cases, tuple):
                 cases = cases[0]
@@ -2782,6 +2964,63 @@ def options(patch, catalog, targets, dur, attempted=()):
             heavy_yielded = True
             yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
                         gain, probability, estimate, heavy_mod=needs_heavy, needs_pygen=needs_pygen)
+
+    # Zero-CPU unreached / imported proofs for top 5 opt-medium tests (stay in bundle/trim if reached).
+    if not patch.missing and patch.workers:
+        opt_med = _opt_medium_profiles()
+        if opt_med:
+            med_nums = [
+                (n, _OPT_MEDIUM_TESTS[catalog[n]])
+                for n in patch.req
+                if catalog[n] in _OPT_MEDIUM_TESTS and (patch, f"om:{_OPT_MEDIUM_TESTS[catalog[n]][0]}") not in attempted
+            ]
+            if med_nums and _compile_ok(patch.text):
+                mfiles = parse(patch.text)
+                msql = [f for f in mfiles if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
+                mnon = [f for f in mfiles if f not in msql]
+                mstrict = bool(msql) and all(eligible_file(f, "ds") for f in msql)
+                mregions = changed_regions(patch.text, sqlglot_only=bool(mnon)) if mstrict else None
+                msafe = bool(msql) and all(
+                    not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+                    for f in msql
+                )
+                mleaf = [_leaf_dialect_targets(f.path) for f in msql] if msafe else []
+                mpaths = ",".join(f.path for f in msql)
+                for n, (mkey, mfix) in med_nums:
+                    prof = opt_med.get(mkey)
+                    if not prof:
+                        continue
+                    # Guard: no tests/test_optimizer.py (unless disjoint), helpers.py, or own fixture edited
+                    if any(
+                        f.path in mfix or (f.path and not _target_unreachable(f, "scope"))
+                        for f in mnon
+                    ):
+                        continue
+                    mode = None
+                    if mstrict and mregions and all(
+                        not any(lo <= ln <= hi for lo, hi in spans for ln in prof["hits"].get(p, ()))
+                        for p, spans in mregions.items()
+                    ):
+                        mode = "unreached"
+                    elif (
+                        msafe
+                        and all(ls is not None and not (ls & prof["dialects"]) for ls in mleaf)
+                        and all(f.path not in prof["files"] for f in msql)
+                    ):
+                        mode = "unreached" if mstrict else "imported"
+                    if mode is None:
+                        continue
+                    req2, pl2 = patch.req - {n}, patch.pl - {n}
+                    w2 = schedule(req2, pl2, dur) if req2 else []
+                    g2 = (plan_cost(patch.workers, dur) - plan_cost(w2, dur)) / 1000
+                    if g2 <= 0 or n in set().union(*w2):
+                        continue
+                    heavy_yielded = True
+                    yield Probe(
+                        patch, f"om:{mkey}", n, mode, mpaths, [],
+                        (req2, pl2, w2), g2, 1.0 if mode == "unreached" else 0.90,
+                        0.005 if mode == "unreached" else 0.05,
+                    )
 
     # Warm-fork verification (bundle / trim) once no heavy probes are yielded.
     if patch.missing or heavy_yielded or dominant_heavy_in_req or not patch.workers:
@@ -2847,20 +3086,22 @@ def options(patch, catalog, targets, dur, attempted=()):
                         0.45 if is_tiny else 0.40, est, heavy_mod=uses_heavy)
             return
 
-    # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches.
-    if (patch, "trim") not in attempted and sim_cost >= 5.5:
+    # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches
+    # (and ultra-fast non-heavy trim for 3.2..5.5s commits without duckdb/pandas).
+    if (patch, "trim") not in attempted and sim_cost >= 3.2:
         pick = _best_trim_subset(
             patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
         )
         if pick is not None:
             _score, sub, gain, est, uses_heavy = pick
-            rem_req = patch.req - sub
-            rem_pl = patch.pl - sub
-            rem_workers = schedule(rem_req, rem_pl, dur) if rem_req else []
-            cases = _order_bundle_cases(sub, catalog, dur, files)
-            yield Probe(patch, "trim", None, "trim", sql_paths,
-                        cases, (rem_req, rem_pl, rem_workers), gain,
-                        0.80, est, heavy_mod=uses_heavy)
+            if sim_cost >= 5.5 or (not uses_heavy and est <= 0.65 and gain >= 2.20 * est and gain - est >= 0.75):
+                rem_req = patch.req - sub
+                rem_pl = patch.pl - sub
+                rem_workers = schedule(rem_req, rem_pl, dur) if rem_req else []
+                cases = _order_bundle_cases(sub, catalog, dur, files)
+                yield Probe(patch, "trim", None, "trim", sql_paths,
+                            cases, (rem_req, rem_pl, rem_workers), gain,
+                            0.80, est, heavy_mod=uses_heavy)
 
 
 def run(patches, catalog, dur, t0, *, deadline=None):
@@ -2960,16 +3201,74 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                 if min_exec > 0.92 * cpu_limit:
                     continue
             patch = probe.patch
-            if probe.group != "collection" and probe.mode != "unreached":
+            # Coalesce all ready fast in-memory probes for the same patch into ONE warm fork!
+            multi_probes = None
+            if probe.mode in _MULTI_MODES:
+                batch = [probe]
+                seen_groups = {probe.group}
+                total_est = probe.estimate
+                kept_queue = []
+                for other in queue:
+                    if (
+                        other.patch is patch
+                        and other.mode in _MULTI_MODES
+                        and other.group not in seen_groups
+                        and (patch, other.group) not in attempted
+                        and total_est + other.estimate <= allowance
+                    ):
+                        batch.append(other)
+                        seen_groups.add(other.group)
+                        total_est += other.estimate
+                    else:
+                        kept_queue.append(other)
+                # Also opportunistically piggyback zero-marginal-gain ultra-fast targets
+                # masked behind another multi target when no dominant ds/parser test remains.
+                has_dom = any(n in patch.req for n, g in targets if g in {"ds", "parser"})
+                if not has_dom and not patch.missing:
+                    for num, grp in targets:
+                        if (
+                            grp in _FAST_COALESCE_GROUPS
+                            and num in patch.req
+                            and grp not in seen_groups
+                            and (patch, grp) not in attempted
+                        ):
+                            try:
+                                ed = stage_edit(patch.text, grp)
+                            except Exception:
+                                ed = None
+                            if ed and ed[0] in _MULTI_MODES:
+                                _m, _p, _ch, _cs = ed
+                                _pr, _est = economics(_m, _cs)
+                                if _est <= 0.18 and total_est + _est <= allowance:
+                                    batch.append(
+                                        Probe(patch, grp, num, _m, _p, _cs, (), 0.0, _pr, _est)
+                                    )
+                                    seen_groups.add(grp)
+                                    total_est += _est
+                if len(batch) >= 2:
+                    queue[:] = kept_queue
+                    batch.sort(key=lambda p: (p.estimate, p.group))
+                    multi_probes = batch
+                    cpu_limit = min(6.5, max(2.4, 2.2 * total_est + 1.0))
+            if multi_probes is not None:
+                est_charge = sum(p.estimate for p in multi_probes)
+                if est_charge > allowance:
+                    continue
+                allowance -= est_charge
+            elif probe.group != "collection" and probe.mode != "unreached":
                 if probe.estimate > allowance:
                     continue
                 allowance -= probe.estimate
             began = cpu() + (session.charged if session else 0)
             sim_before = plan_cost(patch.workers, dur) / 1000 if patch.workers else 0.0
-            phase = probe.mode
-            attempted.add((patch, probe.group))
+            phase = "multi" if multi_probes is not None else probe.mode
+            if multi_probes is not None:
+                for mp in multi_probes:
+                    attempted.add((patch, mp.group))
+            else:
+                attempted.add((patch, probe.group))
             try:
-                if active is not patch and probe.mode != "unreached":
+                if active is not patch and (multi_probes is not None or probe.mode != "unreached"):
                     stack.close()
                     session = None
                     active = None
@@ -2999,30 +3298,46 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         import gc
                         gc.collect()
                         gc.freeze()
-                args = ([json.dumps(probe.cases)] if (
-                    probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim", "tpcds_opt"}
-                    or (probe.mode == "annotate_funcs" and probe.cases is not None)
-                    or (probe.mode == "scaled" and probe.cases)
-                ) else [])
-                if probe.mode == "rules":
-                    args.append("verify-results")
-                elif probe.mode in {"front", "partial"}:
-                    args.append("pygen" if probe.needs_pygen else "no-pygen")
-                elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
-                    args.append("no-exec-setup")
+                if multi_probes is not None:
+                    mfile = Path(work) / ".blast-multi.json"
+                    if mfile.exists():
+                        mfile.unlink()
+                    multi_items = [
+                        [
+                            mp.group,
+                            mp.mode,
+                            mp.cases if mp.mode in {"tpcds_opt", "annotate_funcs"} else None,
+                        ]
+                        for mp in multi_probes
+                    ]
+                    run_mode = "multi"
+                    args = [json.dumps(multi_items)]
+                else:
+                    run_mode = probe.mode
+                    args = ([json.dumps(probe.cases)] if (
+                        probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim", "tpcds_opt"}
+                        or (probe.mode == "annotate_funcs" and probe.cases is not None)
+                        or (probe.mode == "scaled" and probe.cases)
+                    ) else [])
+                    if probe.mode == "rules":
+                        args.append("verify-results")
+                    elif probe.mode in {"front", "partial"}:
+                        args.append("pygen" if probe.needs_pygen else "no-pygen")
+                    elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
+                        args.append("no-exec-setup")
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
-                if remaining_cpu < 0.1 and probe.mode != "unreached":
+                if remaining_cpu < 0.1 and (multi_probes is not None or probe.mode != "unreached"):
                     break
                 cpu_limit = min(cpu_limit, max(0.1, remaining_cpu))
-                if probe.mode == "unreached":
+                if multi_probes is None and probe.mode == "unreached":
                     result = "pass"
                 elif session and probe.group not in {"collection", "generator"}:
-                    result, phase = session.check(probe.mode, args, deadline, cpu_limit)
+                    result, phase = session.check(run_mode, args, deadline, cpu_limit)
                 else:
                     replay.phase = phase
-                    result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
+                    result = replay(run_mode, args, work, deadline, probe.paths, cpu_limit)
                     phase = replay.phase
-                if result == "failed" and probe.mode in {"corpus", "tokens"}:
+                if result == "failed" and multi_probes is None and probe.mode in {"corpus", "tokens"}:
                     files = parse(patch.text)
                     sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
                     regions = changed_regions(patch.text, sqlglot_only=len(sql_files) < len(files))
@@ -3051,7 +3366,16 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                             result = replay(mode, args, work, deadline, probe.paths, limit)
                             phase = replay.phase
                 if result == "pass":
-                    if probe.mode == "catalog":
+                    if multi_probes is not None:
+                        passed_groups = json.loads((Path(work) / ".blast-multi.json").read_text())
+                        g_to_num = {mp.group: mp.number for mp in multi_probes if mp.number is not None}
+                        if not isinstance(passed_groups, list) or not set(passed_groups) <= set(g_to_num):
+                            raise ValueError("invalid multi receipt")
+                        drop_nums = {g_to_num[g] for g in passed_groups}
+                        patch.req = patch.req - drop_nums
+                        patch.pl = patch.pl - drop_nums
+                        patch.workers = schedule(patch.req, patch.pl, dur) if patch.req else []
+                    elif probe.mode == "catalog":
                         missing = json.loads((Path(work) / ".blast-missing.json").read_text())
                         if not isinstance(missing, list) or any(type(n) is not int or n not in dur for n in missing):
                             raise ValueError("invalid collection result")
@@ -3074,11 +3398,14 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     patch.full = False
                     queue[:] = [p for p in queue if p.patch is not patch]
                     enqueue(patch)
-                elif probe.group in {
-                    "tpch_opt", "tpch_exec", "tpcds_opt", "scope", "annotate_funcs", "agg_order", "generator"
-                } and not any(
-                    p.patch is patch for p in queue
-                ):
+                elif (
+                    multi_probes is not None
+                    or probe.group in {
+                        "tpch_opt", "tpch_exec", "tpcds_opt", "scope", "annotate_funcs", "agg_order",
+                        "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann", "generator",
+                    }
+                    or probe.group.startswith("om:")
+                ) and not any(p.patch is patch for p in queue):
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
