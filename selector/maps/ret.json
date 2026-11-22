@@ -1,0 +1,9 @@
+[
+"sqlglot.optimizer.simplify-101-12",
+"sqlglot.parser-6069-12",
+"sqlglot.parser-8156-8",
+"sqlglot.parsers.bigquery-469-12",
+"sqlglot.parsers.duckdb-459-12",
+"sqlglot.parsers.snowflake-1154-12",
+"sqlglot.parsers.snowflake-1375-12"
+]

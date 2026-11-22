@@ -531,10 +531,76 @@ def _same_observed_order(path, old, new):
     return False
 
 
+def _load_equiv(name, kinds):
+    import gzip
+
+    path = MAPS_DIR / name
+    data = json.loads(gzip.decompress(path.read_bytes())) if path.is_file() else {}
+    return {kind: data.get(kind, {}) for kind in kinds}
+
+
 @functools.lru_cache(maxsize=1)
 def _equiv_tests():
-    path = MAPS_DIR / "equiv-tests.json"
-    return json.loads(path.read_text()) if path.is_file() else {"identity": {}, "order": {}}
+    return _load_equiv("equiv-tests.json.gz", ("identity", "order"))
+
+
+@functools.lru_cache(maxsize=1)
+def _equiv_bool_tests():
+    """Kept apart so identity/order edits never decode the much larger bool/ret lists."""
+    return _load_equiv("equiv-bool.json.gz", ("bool", "ret"))
+
+
+@functools.lru_cache(maxsize=None)
+def _equiv_sites(kind):
+    path = MAPS_DIR / f"{kind}.json"
+    return frozenset(json.loads(path.read_text())) if path.is_file() else frozenset()
+
+
+_BOOL_TWINS = frozenset({(ast.And, ast.Or), (ast.Or, ast.And)})
+
+
+def _bool_swap_site(path, old, new):
+    """Pinned site of the only and/or swap of a two-operand BoolOp when the trees are otherwise identical."""
+    old_nodes = list(ast.walk(old))
+    new_nodes = list(ast.walk(new))
+    if len(old_nodes) != len(new_nodes):
+        return None
+    for a, b in zip(old_nodes, new_nodes):
+        if not isinstance(a, ast.BoolOp) or not isinstance(b, ast.BoolOp):
+            continue
+        if len(a.values) != 2 or len(b.values) != 2 or (type(a.op), type(b.op)) not in _BOOL_TWINS:
+            continue
+        saved = b.op
+        try:
+            b.op = a.op
+            same = _dump(old) == _dump(new)
+        finally:
+            b.op = saved
+        return f"{_module_name(path)}-{a.lineno}-{a.col_offset}" if same else None
+    return None
+
+
+def _return_none_site(path, old, new):
+    """Pinned site of the only ``return X`` -> ``return None and X`` edit when the trees are otherwise identical."""
+    olds = [n for n in ast.walk(old) if isinstance(n, ast.Return)]
+    news = [n for n in ast.walk(new) if isinstance(n, ast.Return)]
+    if len(olds) != len(news):
+        return None
+    for a, b in zip(olds, news):
+        if a.value is None or b.value is None or _dump(a.value) == _dump(b.value):
+            continue
+        v = b.value
+        if not (isinstance(v, ast.BoolOp) and isinstance(v.op, ast.And) and len(v.values) == 2
+                and isinstance(v.values[0], ast.Constant) and v.values[0].value is None
+                and _dump(v.values[1]) == _dump(a.value)):
+            return None
+        try:
+            b.value = a.value
+            same = _dump(old) == _dump(new)
+        finally:
+            b.value = v
+        return f"{_module_name(path)}-{a.lineno}-{a.col_offset}" if same else None
+    return None
 
 
 _IDENTITY_TWINS = frozenset({(ast.Is, ast.Eq), (ast.IsNot, ast.NotEq)})
@@ -561,17 +627,26 @@ def _substituted_site(path, old, new, twins):
     return None
 
 
-def _observed_substitution_tests(path, old, new, identity_edit, order_edit):
-    """Pinned tests whose call phase saw the substituted operators disagree (or not evaluable).
+def _observed_substitution_tests(path, old, new, identity_edit, order_edit, bool_edit=False, ret_edit=False):
+    """Pinned tests whose call phase saw the substitution change a result (or could not tell).
 
     Every other test either never evaluated the site or always got the same result from
-    both operators, so it executes identically. Sites with any disagreement outside a
-    test's call phase or inside a module body are absent from the map."""
-    for enabled, twins, kind in ((identity_edit, _IDENTITY_TWINS, "identity"), (order_edit, _ORDER_TWINS, "order")):
+    both forms, so it executes identically. Sites with any such observation outside a
+    test's call phase or inside a module body are absent from the maps. ``bool`` and
+    ``ret`` sites certified for the whole suite select nothing."""
+    finders = ((identity_edit, "identity", lambda: _substituted_site(path, old, new, _IDENTITY_TWINS)),
+               (order_edit, "order", lambda: _substituted_site(path, old, new, _ORDER_TWINS)),
+               (bool_edit, "bool", lambda: _bool_swap_site(path, old, new)),
+               (ret_edit, "ret", lambda: _return_none_site(path, old, new)))
+    for enabled, kind, find in finders:
         if not enabled:
             continue
-        site = _substituted_site(path, old, new, twins)
-        tests = _equiv_tests()[kind].get(site) if site else None
+        site = find()
+        if site is None:
+            continue
+        if kind in ("bool", "ret") and site in _equiv_sites(kind):
+            return kind, site, []
+        tests = (_equiv_bool_tests() if kind in ("bool", "ret") else _equiv_tests())[kind].get(site)
         if tests is not None:
             return kind, site, tests
     return None
@@ -1144,6 +1219,10 @@ class Analysis:
             self.__dict__["_order_edit"] = (
                 len(changed) == 2 and changed[0][0] == "-" and changed[1][0] == "+"
                 and any(c in changed[0][1] for c in "<>") and any(c in changed[1][1] for c in "<>"))
+            one_line = len(changed) == 2 and changed[0][0] == "-" and changed[1][0] == "+"
+            self.__dict__["_bool_edit"] = one_line and bool(
+                re.search(r"\b(and|or)\b", changed[0][1]) and re.search(r"\b(and|or)\b", changed[1][1]))
+            self.__dict__["_ret_edit"] = one_line and "return" in changed[0][1] and "None and" in changed[1][1]
         if self.single_file and oldp.startswith("sqlglot/typing/"):
             from .metadata_keys import removed_keys, observations
             keys = removed_keys(oldp, new_src)
@@ -1193,7 +1272,8 @@ class Analysis:
         PyDiff(self, oldp, old_tree, new_tree, old_src, new_src).run()
 
     def observed_substitution(self, path, old, new, identity_edit) -> bool:
-        hit = _observed_substitution_tests(path, old, new, identity_edit, self.__dict__.get("_order_edit"))
+        hit = _observed_substitution_tests(path, old, new, identity_edit, self.__dict__.get("_order_edit"),
+                                           self.__dict__.get("_bool_edit"), self.__dict__.get("_ret_edit"))
         if hit is None:
             return False
         kind, site, tests = hit

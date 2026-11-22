@@ -10,4 +10,7 @@ def pytest_runtest_call(item):
     try:
         yield
     finally:
+        flush = getattr(builtins, "_br_bool_flush", None)
+        if flush is not None:
+            flush()
         builtins._br_test = None
