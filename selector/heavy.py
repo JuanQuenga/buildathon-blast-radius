@@ -3186,10 +3186,10 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             elif probe.group == "ds":
                 if probe.mode == "rules":
                     # verify-results executes affected TPC-DS queries when rule output changes.
-                    cpu_limit = min(14.0, max(8.0, 0.70 * probe.gain))
+                    cpu_limit = min(9.5, max(5.5, 0.55 * probe.gain))
                 else:
                     ds_cap = min(18.5, max(9.5, 0.90 * probe.gain))
-                    cpu_limit = min(ds_cap, max(9.5, 2.5 * probe.estimate + 2.0))
+                    cpu_limit = min(ds_cap, max(7.0, 2.5 * probe.estimate + 2.0))
             elif probe.group in {"bundle", "trim"}:
                 cpu_limit = min(6.5, max(2.0, 2.0 * probe.estimate + 1.0))
             else:
