@@ -38,6 +38,11 @@ TABLES = (
     "STATEMENT_PARSERS",
     "PROPERTY_PARSERS",
     "UNARY_PARSERS",
+    "RANGE_PARSERS",
+    "PRIMARY_PARSERS",
+    "PLACEHOLDER_PARSERS",
+    "CONSTRAINT_PARSERS",
+    "FUNC_TOKENS",
     "EXPRESSION_METADATA",
 )
 
@@ -189,6 +194,81 @@ def _worker_run(args):
             self._blk()
             return super().__eq__(other)
 
+    class TrackedSet(set):
+        __slots__ = ("_table",)
+
+        def __init__(self, data, table):
+            super().__init__(data)
+            self._table = table
+
+        def _rec(self, k):
+            if active[0]:
+                ek = encode_key(k)
+                if ek is None:
+                    cur_bulk.add(self._table)
+                else:
+                    cur_hits.add((self._table, ek))
+
+        def _blk(self):
+            if active[0]:
+                cur_bulk.add(self._table)
+
+        def __contains__(self, k):
+            self._rec(k)
+            return super().__contains__(k)
+
+        def __iter__(self):
+            self._blk()
+            return super().__iter__()
+
+        def __len__(self):
+            self._blk()
+            return super().__len__()
+
+        def copy(self):
+            self._blk()
+            return TrackedSet(super().copy(), self._table)
+
+        def __or__(self, other):
+            self._blk()
+            return super().__or__(other)
+
+        def __ror__(self, other):
+            self._blk()
+            return super().__ror__(other)
+
+        def __and__(self, other):
+            self._blk()
+            return super().__and__(other)
+
+        def __sub__(self, other):
+            self._blk()
+            return super().__sub__(other)
+
+        def __rsub__(self, other):
+            self._blk()
+            return super().__rsub__(other)
+
+        def union(self, *others):
+            self._blk()
+            return super().union(*others)
+
+        def intersection(self, *others):
+            self._blk()
+            return super().intersection(*others)
+
+        def difference(self, *others):
+            self._blk()
+            return super().difference(*others)
+
+        def __eq__(self, other):
+            self._blk()
+            return super().__eq__(other)
+
+        def __repr__(self):
+            self._blk()
+            return super().__repr__()
+
     def all_subclasses(cls):
         out = {cls}
         stack = [cls]
@@ -224,10 +304,23 @@ def _worker_run(args):
 
     # Wrap Parser subclasses
     for pcls in all_subclasses(parser_mod.Parser):
-        for attr in ("FUNCTIONS", "FUNCTION_PARSERS", "STATEMENT_PARSERS", "PROPERTY_PARSERS", "UNARY_PARSERS"):
+        for attr in (
+            "FUNCTIONS",
+            "FUNCTION_PARSERS",
+            "STATEMENT_PARSERS",
+            "PROPERTY_PARSERS",
+            "UNARY_PARSERS",
+            "RANGE_PARSERS",
+            "PRIMARY_PARSERS",
+            "PLACEHOLDER_PARSERS",
+            "CONSTRAINT_PARSERS",
+        ):
             val = pcls.__dict__.get(attr)
             if isinstance(val, dict) and not isinstance(val, TrackedDict):
                 setattr(pcls, attr, TrackedDict(val, attr))
+        fval = pcls.__dict__.get("FUNC_TOKENS")
+        if isinstance(fval, (set, frozenset)) and not isinstance(fval, TrackedSet):
+            setattr(pcls, "FUNC_TOKENS", TrackedSet(fval, "FUNC_TOKENS"))
 
     # Wrap Dialect & typing EXPRESSION_METADATA
     for dcls in all_subclasses(Dialect):

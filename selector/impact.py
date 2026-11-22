@@ -1607,6 +1607,76 @@ class PyDiff:
             b |= self.name_refs({o.name}, depth=0, exclude=[o], removed=gone)
             self.add(b, f"top-level {o.name} removed L{o.lineno}")
 
+    def _inherited_method_bits(self, q: str, name: str) -> int | None:
+        """For a newly added subclass override ``q.name``, return the union of
+        pin body coverage of every ancestor ``def name`` in ``q``'s MRO, or
+        ``None`` if no ancestor defines it or any ancestor binding is not a
+        resolvable ``def`` scope."""
+        cls_full = f"{self.module}.{q}"
+        ns_cls = self.an.idx.get("ns_cls", {})
+        mro = self.an.idx.get("mro", {}).get(cls_full, ())
+        scopes = self.an.idx.get("scopes", {})
+        srcs = _sources()["src"]
+        found = False
+        bits = 0
+        for base in mro:
+            if base == cls_full:
+                continue
+            if name not in ns_cls.get(base, ()):
+                continue
+            parts = base.split(".")
+            bpath = bq = None
+            for i in range(len(parts) - 1, 0, -1):
+                c1 = "/".join(parts[:i]) + ".py"
+                if c1 in srcs:
+                    bpath, bq = c1, ".".join(parts[i:])
+                    break
+                c2 = "/".join(parts[:i]) + "/__init__.py"
+                if c2 in srcs:
+                    bpath, bq = c2, ".".join(parts[i:])
+                    break
+            if bpath is None:
+                return None
+            sc = scopes.get(bpath)
+            if not sc:
+                return None
+            target = f"{bq}.{name}"
+            hits = [it for it in sc[1] if it[0] == "def" and it[3] == target]
+            if not hits:
+                # Ancestor may inherit ``name`` from an even higher ancestor in MRO.
+                continue
+            for it in hits:
+                bits |= self.an.lines_bits(bpath, it[4], it[2])
+            found = True
+        return bits if found else None
+
+    def _is_brand_new_in_family(self, q: str, name: str) -> bool:
+        """True if ``name`` has no pinned references anywhere except possibly
+        inside unrelated leaf dialect/parser/generator/typing files outside
+        ``q``'s MRO and subclass hierarchy."""
+        sites = _name_sites(self.an, name)
+        if not sites:
+            return True
+        cls_full = f"{self.module}.{q}"
+        mro = self.an.idx.get("mro", {})
+        if cls_full not in mro:
+            return False
+        related_mods = {self.module}
+        for b in mro.get(cls_full, ()):
+            related_mods.add(b.rsplit(".", 1)[0])
+        for c, bases in mro.items():
+            if cls_full in bases:
+                related_mods.add(c.rsplit(".", 1)[0])
+        for p, _ln, _lo, _hi, _sc in sites:
+            if not re.fullmatch(r"sqlglot/(?:dialects|parsers|generators|typing)/\w+\.py", p):
+                return False
+            stem = p.rsplit("/", 1)[-1][:-3]
+            if stem in {"dialect", "__init__", "base", "python"}:
+                return False
+            if _module_name(p) in related_mods:
+                return False
+        return True
+
     def named_added(self, n, scope, owner, olds):
         if scope == "class":
             if (self.is_test and isinstance(n, _DEFS) and n.name.startswith("test")):
@@ -1619,14 +1689,15 @@ class PyDiff:
             ):
                 if (
                     not n.decorator_list
-                    and not n.name.endswith("_sql")
+                    and (not n.name.endswith("_sql") or n.name.startswith("_"))
                     and not n.name.isupper()
-                    and not _name_sites(self.an, n.name)
+                    and self._is_brand_new_in_family(owner[0], n.name)
                 ):
                     self.add(risky, f"{owner[0]}.{n.name} added (brand-new helper)")
                     return
                 if (
                     n.name.endswith("_sql")
+                    and not n.name.startswith("_")
                     and owner[0].split(".")[-1].endswith("Generator")
                     and all(_is_safe_sql_decorator(d) for d in n.decorator_list)
                 ):
@@ -1636,6 +1707,29 @@ class PyDiff:
                         fam = self.class_family(owner)
                         narrowed = fam & (sql_bits | self.name_refs({n.name}, depth=0))
                         self.add(narrowed | risky, f"{owner[0]}.{n.name} added (sql dispatch)")
+                        return
+                if (
+                    not n.decorator_list
+                    and (not n.name.endswith("_sql") or n.name.startswith("_"))
+                    and not n.name.isupper()
+                ):
+                    base_bits = self._inherited_method_bits(owner[0], n.name)
+                    if base_bits is not None:
+                        fam = self.class_family(owner)
+                        test_refs = 0
+                        for p, _ln, lo, hi, sc in _name_sites(self.an, n.name):
+                            if p.startswith("tests/"):
+                                test_refs |= (
+                                    self.an.lines_bits(p, lo, hi)
+                                    if sc is not None and sc[0] == "def"
+                                    else self.an.file_bits(p)
+                                )
+                        narrowed = (
+                            (fam & (base_bits | _import_state_observers(self.an)))
+                            | test_refs
+                            | risky
+                        )
+                        self.add(narrowed, f"{owner[0]}.{n.name} added (override)")
                         return
             self.add(self.class_family(owner) | risky,
                      f"{owner[0]}.{n.name} added (dispatch by name)")
