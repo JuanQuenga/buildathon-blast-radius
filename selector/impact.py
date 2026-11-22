@@ -1445,20 +1445,21 @@ class PyDiff:
                                         for n in names):
             b = _attr_refs(self.an, names, self.path, f"{self.module}.{q}", q, fam,
                            o_other)
-            if (self.an.one_code_edit and q.split(".")[-1] == "Tokenizer" and
+            if (q.split(".")[-1] == "Tokenizer" and
                     (self.path == "sqlglot/tokens.py" or self.path.startswith("sqlglot/dialects/"))):
                 from . import token_options
                 keys = token_options.changed_keywords(o_other, n_other)
                 if keys:
                     b = token_options.keyword_bits(self.an, b, keys)
-                name = token_options.option(o_other, n_other)
-                readers = token_options.read_bits(self.an, name) if name else None
-                if readers is not None:
-                    b &= readers
-                    if name == "NUMERIC_ESCAPES":
-                        b = token_options.keyed_bits(self.an, b, f"{self.module}.{q}",
-                                                     o_other[0], n_other[0])
-            if (self.an.one_code_edit and self.path == "sqlglot/dialects/dialect.py"
+                if self.an.one_code_edit:
+                    name = token_options.option(o_other, n_other)
+                    readers = token_options.read_bits(self.an, name) if name else None
+                    if readers is not None:
+                        b &= readers
+                        if name == "NUMERIC_ESCAPES":
+                            b = token_options.keyed_bits(self.an, b, f"{self.module}.{q}",
+                                                         o_other[0], n_other[0])
+            if (self.path == "sqlglot/dialects/dialect.py"
                     and q == "Dialect" and names == {"DATE_PART_MAPPING"}):
                 from .token_options import date_unit_bits
                 b = date_unit_bits(self, b, o_other, n_other)

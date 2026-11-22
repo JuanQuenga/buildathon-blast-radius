@@ -124,11 +124,31 @@ def select(regions):
     return selected if selected is not None and all(costs()[i] is not None for i in selected) else None
 
 
+def _divergent_exec_cost(divergent):
+    costs_path = ROOT.parent / "ds-costs.json.gz"
+    if not costs_path.is_file():
+        return 0.0
+    with gzip.open(costs_path, "rt", encoding="utf-8") as stream:
+        rows = json.load(stream)
+    total = 0.0
+    for q in divergent:
+        phases = rows.get(f"ds:{q}", {}).get("phases", {})
+        total += (
+            phases.get("optimize", 0.0)
+            + phases.get("plan", 0.0)
+            + phases.get("execute", 0.0)
+        )
+    return total
+
+
 def replay(indices, verify_query=None):
+    started = time.process_time()
     divergent = set()
     queries = json.loads((Path(__file__).parent / "maps/rule-queries.json").read_text()) if verify_query else None
     import importlib
     sys.path.insert(0, str(Path.cwd()))
+    # Pass 1: replay all selected optimizer rules first (~0.15-0.30s) to discover
+    # the exact set of divergent TPC-DS queries before committing to execution.
     for i in indices:
         if verify_query and queries[i] in divergent:
             continue
@@ -140,7 +160,6 @@ def replay(indices, verify_query=None):
         except Exception:
             if verify_query is None:
                 raise
-            verify_query(queries[i])
             divergent.add(queries[i])
             continue
         output = fingerprint(result)
@@ -149,8 +168,17 @@ def replay(indices, verify_query=None):
                 or hashlib.sha256(pickle.dumps(kwargs)).digest() != kwargs_digest):
             if verify_query is None:
                 raise ValueError("rule result changed")
-            verify_query(queries[i])
             divergent.add(queries[i])
+    # Pass 2: if divergent queries would exceed the remaining probe CPU budget,
+    # abort immediately instead of burning the full timeout executing half of them.
+    if verify_query is not None and divergent:
+        cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
+        if cpu_cap > 0:
+            remaining = cpu_cap - (time.process_time() - started)
+            if _divergent_exec_cost(divergent) > 0.88 * remaining:
+                raise ValueError("divergent query execution exceeds probe budget")
+        for q in sorted(divergent):
+            verify_query(q)
     return sorted(divergent)
 
 

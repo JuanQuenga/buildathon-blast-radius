@@ -56,8 +56,24 @@ _GEN_LOOP_CORE = frozenset({
 })
 _STDLIB_IMPORT_RE = re.compile(
     r"^\s*(?:import\s+(?:re|math|typing|collections|itertools|functools|datetime|decimal|enum|dataclasses|copy|json|operator|warnings|logging)\b"
-    r"|from\s+(?:typing|collections|itertools|functools|datetime|decimal|enum|dataclasses)\b)"
+    r"|from\s+(?:__future__|typing|collections(?:\.abc)?|itertools|functools|datetime|decimal|enum|dataclasses)\b)"
 )
+_SQLGLOT_SAFE_IMPORT_RE = re.compile(
+    r"^\s*(?:from\s+sqlglot(?:\.(?!dialects\b|executor\b)\w+)*\s+import\b"
+    r"|import\s+sqlglot(?:\.(?!dialects\b|executor\b)\w+)*\b)"
+)
+_DOC_EXTS = (".md", ".rst", ".txt")
+_DOC_PREFIXES = ("docs/", ".github/")
+_DOC_NAMES = frozenset({"LICENSE", "Makefile", ".gitignore", ".editorconfig"})
+
+
+def _is_doc_path(path):
+    if not path or path.startswith(("sqlglot/", "tests/")):
+        return False
+    base = path.rsplit("/", 1)[-1]
+    if base in _PYTEST_LEVEL_NAMES:
+        return False
+    return path.endswith(_DOC_EXTS) or path.startswith(_DOC_PREFIXES) or path in _DOC_NAMES
 
 
 @functools.cache
@@ -366,13 +382,20 @@ def _inert_new_class_attrs(path, source, fd=None):
     return added_any and ast.dump(old) == ast.dump(new)
 
 
-def _no_cross_module_hazards(fd):
+def _no_cross_module_hazards(fd, *, allow_sqlglot_imports=False):
     """True when diff lines have no global/setattr/eval/registry/non-stdlib-import hazards."""
     lines = [line[1:] for h in fd.hunks for line in h.lines if line[:1] in {"+", "-"}]
     for line in lines:
+        stripped = line.strip()
+        if stripped == "from __future__ import annotations" or stripped.startswith(">>> "):
+            continue
         if re.search(r"\b(global|nonlocal|setattr|delattr|exec|eval|_classes|DIALECTS)\b|__\w+__|cache|registr", line, re.I):
             return False
-        if re.search(r"\bimport\b", line) and not _STDLIB_IMPORT_RE.match(line):
+        if re.search(r"\bimport\b", line):
+            if _STDLIB_IMPORT_RE.match(line):
+                continue
+            if allow_sqlglot_imports and _SQLGLOT_SAFE_IMPORT_RE.match(line):
+                continue
             return False
     return True
 
@@ -478,6 +501,100 @@ def _method_tail_queries(path, source, fd, rows):
     ]
 
 
+def _class_attr_and_method_tail_queries(path, source, fd, rows):
+    """For Generator files, handle mixed edits of class-level literal constant
+    attributes and non-dunder methods by intersecting method call sites and
+    attribute names against the recorded execution tail."""
+    if (
+        source is None
+        or fd.is_new
+        or fd.is_deleted
+        or fd.is_rename
+        or not (path == "sqlglot/generator.py" or path.startswith("sqlglot/generators/"))
+    ):
+        return None
+    before = impact._sources()["src"].get(path)
+    if before is None:
+        return None
+    try:
+        old_mod, new_mod = ast.parse(before), ast.parse(source)
+    except SyntaxError:
+        return None
+    if len(old_mod.body) != len(new_mod.body):
+        return None
+    ranges = []
+    attr_names = set()
+
+    def _simple_const_attr(stmt):
+        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+            name, val = stmt.targets[0].id, stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value is not None:
+            name, val = stmt.target.id, stmt.value
+        else:
+            return None
+        if name.startswith("__") or name.endswith("_sql"):
+            return None
+        if isinstance(val, ast.Constant) and type(val.value) in (bool, int, float, str, type(None)):
+            return name
+        return None
+
+    for a, b in zip(old_mod.body, new_mod.body):
+        if ast.dump(a) == ast.dump(b):
+            continue
+        if not (isinstance(a, ast.ClassDef) and isinstance(b, ast.ClassDef) and a.name == b.name):
+            return None
+        if [ast.dump(x) for x in a.bases] != [ast.dump(x) for x in b.bases]:
+            return None
+        old_map = {}
+        new_map = {}
+        for idx_s, s in enumerate(a.body):
+            if isinstance(s, ast.FunctionDef):
+                key = ("fn", s.name)
+            elif (aname := _simple_const_attr(s)) is not None:
+                key = ("attr", aname)
+            else:
+                key = ("other", ast.dump(s), idx_s)
+            if key in old_map:
+                return None
+            old_map[key] = s
+        for idx_s, s in enumerate(b.body):
+            if isinstance(s, ast.FunctionDef):
+                key = ("fn", s.name)
+            elif (aname := _simple_const_attr(s)) is not None:
+                key = ("attr", aname)
+            else:
+                key = ("other", ast.dump(s), idx_s)
+            if key in new_map:
+                return None
+            new_map[key] = s
+        old_others = [ast.dump(s) for k, s in old_map.items() if k[0] == "other"]
+        new_others = [ast.dump(s) for k, s in new_map.items() if k[0] == "other"]
+        if old_others != new_others:
+            return None
+        for key in old_map.keys() | new_map.keys():
+            if key[0] == "other":
+                continue
+            os_ = old_map.get(key)
+            ns_ = new_map.get(key)
+            if os_ is not None and ns_ is not None and ast.dump(os_) == ast.dump(ns_):
+                continue
+            if key[0] == "attr":
+                attr_names.add(key[1])
+            elif key[0] == "fn":
+                if key[1].startswith("__"):
+                    return None
+                if os_ is not None:
+                    ranges.append((os_.lineno, os_.end_lineno))
+                else:
+                    attr_names.add(key[1])
+    return [
+        i
+        for i, row in enumerate(rows)
+        if any(p == path and any(s <= n <= e for s, e in ranges) for p, n in row["calls"])
+        or attr_names.intersection(row["names"])
+    ]
+
+
 def tail_cases(path, source, fd, *, strict=True):
     rows = downstream()
     all_cases = list(range(len(rows)))
@@ -488,7 +605,7 @@ def tail_cases(path, source, fd, *, strict=True):
     tpaths = all_tail_paths()
     if fd.is_new and path not in tpaths:
         return []
-    if path not in tpaths and (strict or _no_cross_module_hazards(fd)):
+    if path not in tpaths and (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True)):
         return []
     if fd.is_new or fd.is_deleted or fd.is_rename:
         return all_cases
@@ -498,6 +615,9 @@ def tail_cases(path, source, fd, *, strict=True):
         mq = _method_tail_queries(path, source, fd, rows)
         if mq is not None:
             return mq
+        gm = _class_attr_and_method_tail_queries(path, source, fd, rows)
+        if gm is not None:
+            return gm
     if not re.fullmatch(
         r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py",
         path,
@@ -589,12 +709,91 @@ def patch_verifiable_files(files, *, forbid_prefixes=(), allow_structural=False,
             if sqlglot_only:
                 if not (p.startswith("sqlglot/") and p.endswith(".py")):
                     return False
-            elif not (p.startswith("sqlglot/") or p.startswith("tests/")):
+            elif not (p.startswith("sqlglot/") or p.startswith("tests/") or _is_doc_path(p)):
                 return False
             if p.endswith((".so", ".pyd", ".pth")):
                 return False
             if any(p == pre or p.startswith(pre) for pre in forbid_prefixes):
                 return False
+    return True
+
+
+def _parser2_disjoint_file(f):
+    """True when ``f`` provably cannot affect ``parser:2`` once ``small``
+    (``parser:setup`` + ``parser:0, 1, 3``) passes."""
+    path = f.path
+    if not path or not path.startswith("sqlglot/") or not path.endswith(".py") or not f.hunks:
+        return False
+    pprof = profile("parser")
+    p2_lines = pprof["parser:2"]["lines"]
+    setup_lines = pprof["parser:setup"]["lines"]
+    if path not in p2_lines:
+        if path == "sqlglot/dialects/__init__.py":
+            delta = "\n".join(line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"})
+            return not re.search(r"\b(Parser|max_nodes|setattr|delattr|exec|eval)\b", delta)
+        return _no_cross_module_hazards(f, allow_sqlglot_imports=True)
+    if f.is_new or f.is_deleted or f.is_rename or not _no_cross_module_hazards(f, allow_sqlglot_imports=True):
+        return False
+    scopes = impact._index().get("scopes", {}).get(path)
+    if not scopes:
+        return False
+    defs = [
+        (start, end, name, body_start)
+        for kind, start, end, name, body_start in scopes[1]
+        if kind == "def"
+    ]
+    if not defs:
+        return False
+
+    def _enclosing_def(ln):
+        cands = [d for d in defs if d[0] <= ln <= d[1]]
+        return max(cands, key=lambda x: x[0]) if cands else None
+
+    before_lines = impact._sources()["src"].get(path, "").splitlines()
+    touched = set()
+    for h in f.hunks:
+        old_ln = h.old_start
+        for raw in h.lines:
+            tag = raw[:1]
+            if tag == " ":
+                old_ln += 1
+            elif tag == "-":
+                inner = _enclosing_def(old_ln)
+                if inner is None:
+                    return False
+                touched.add(inner)
+                old_ln += 1
+            elif tag == "+":
+                inner = _enclosing_def(old_ln - 1) if old_ln > 1 else None
+                if inner is None:
+                    inner = _enclosing_def(old_ln)
+                if inner is None:
+                    return False
+                line_body = raw[1:]
+                if line_body.strip():
+                    def_line = before_lines[inner[0] - 1]
+                    def_indent = len(def_line) - len(def_line.lstrip(" "))
+                    add_indent = len(line_body) - len(line_body.lstrip(" "))
+                    simple = inner[2].rsplit(".", 1)[-1]
+                    if add_indent <= def_indent and not (
+                        add_indent == def_indent
+                        and line_body.lstrip(" ").startswith(f"def {simple}(")
+                    ):
+                        return False
+                touched.add(inner)
+    if not touched:
+        return False
+    p2_hit = p2_lines.get(path, ())
+    setup_hit = setup_lines.get(path, ())
+    for start, end, qual, body_start in touched:
+        simple = qual.rsplit(".", 1)[-1]
+        if simple.startswith("__"):
+            return False
+        if any(start <= n <= end for n in p2_hit):
+            return False
+        body_in_setup = any(body_start <= n <= end for n in setup_hit)
+        if body_in_setup and not (path == "sqlglot/dialects/dialect.py" and simple.endswith("_sql")):
+            return False
     return True
 
 
@@ -630,13 +829,16 @@ def eligible_file(f, group):
             re.I,
         ):
             return None
-        reached = profile("parser")["parser:2"]["lines"].get(path, [])
-        if any(
-            h.old_start <= n < h.old_start + max(h.old_len, 1)
-            for n in reached
-            for h in f.hunks
-        ):
-            return None
+        # errors.py is only entered on ParseError; scaled() already triggers the
+        # exact max_nodes ParseError and compares [type, str(exc)] bit-for-bit.
+        if path != "sqlglot/errors.py":
+            reached = profile("parser")["parser:2"]["lines"].get(path, [])
+            if any(
+                h.old_start <= n < h.old_start + max(h.old_len, 1)
+                for n in reached
+                for h in f.hunks
+            ):
+                return None
     return True
 
 
@@ -712,10 +914,12 @@ def _target_bit(group):
 
 
 def _target_unreachable(fd, group):
-    """True when a non-sqlglot file under tests/ is provably never imported,
-    executed, or opened by the heavy target test for ``group``."""
+    """True when a non-sqlglot file under tests/ (or harmless doc file) is
+    provably never imported, executed, or opened by the heavy target test."""
     p = fd.path
-    if not p or not p.startswith("tests/") or fd.is_binary or fd.mode_change:
+    if not p or fd.is_binary or fd.mode_change:
+        return False
+    if not (p.startswith("tests/") or _is_doc_path(p)):
         return False
     if p in {"tests/__init__.py", "tests/helpers.py", "tests/conftest.py"}:
         return False
@@ -727,7 +931,7 @@ def _target_unreachable(fd, group):
     idx = impact._index()
     sets = idx["sets"]
     for path in fd.paths:
-        if not path or not path.startswith("tests/"):
+        if not path or not (path.startswith("tests/") or _is_doc_path(path)):
             return False
         cov = idx["cov"].get(path)
         if cov and any(sets[sid] & bit for sid in set(cov.values())):
@@ -894,12 +1098,20 @@ def stage_edit(text, group):
         return "generator", paths, changes, []
 
     if group == "parser":
-        if not patch_verifiable_files(files, forbid_prefixes=("tests/test_parser.py", "tests/helpers.py")):
+        if not patch_verifiable_files(
+            files,
+            forbid_prefixes=("tests/test_parser.py", "tests/helpers.py"),
+            allow_structural=True,
+        ):
             return None
-        if not sql_files or not non_sql_inert or not all(eligible_file(f, "ds") for f in sql_files):
+        if not sql_files or not non_sql_inert:
             return None
         changes = verify.apply_patch(text)
-        paths = ",".join(f.path for f in sql_files)
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        if all(_parser2_disjoint_file(f) for f in sql_files):
+            return "small", paths, changes, []
+        if not all(eligible_file(f, "ds") for f in sql_files):
+            return None
         regions = changed_regions(text, sqlglot_only=bool(non_sql_files)) if strict_all else None
         if regions and not any(query_slice.reached(profile("parser")[k]["lines"], regions) for k in ("parser:setup", "parser:2")):
             return "small", paths, changes, []

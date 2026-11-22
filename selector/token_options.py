@@ -2,6 +2,7 @@
 import ast
 import functools
 import copy
+import gzip
 import json
 import os
 from pathlib import Path
@@ -163,7 +164,12 @@ def keyed_bits(an, bits, owner, old, new):
 
 @functools.cache
 def keyword_reads():
-    return json.loads((Path(__file__).parent / "maps" / "keyword-reads.json").read_text())
+    maps = Path(__file__).parent / "maps"
+    gz = maps / "keyword-reads.json.gz"
+    if gz.is_file():
+        with gzip.open(gz, "rt", encoding="utf-8") as stream:
+            return json.load(stream)
+    return json.loads((maps / "keyword-reads.json").read_text())
 
 
 @functools.cache
@@ -233,7 +239,12 @@ def keyword_bits(an, bits, keys):
 
 @functools.cache
 def date_reads():
-    return json.loads((Path(__file__).parent / "maps" / "date-reads.json").read_text())
+    maps = Path(__file__).parent / "maps"
+    gz = maps / "date-reads.json.gz"
+    if gz.is_file():
+        with gzip.open(gz, "rt", encoding="utf-8") as stream:
+            return json.load(stream)
+    return json.loads((maps / "date-reads.json").read_text())
 
 
 def date_unit_bits(diff, bits, old, new):
@@ -241,20 +252,13 @@ def date_unit_bits(diff, bits, old, new):
     if len(old) != 1 or len(new) != 1:
         return bits
     before, after = old[0], new[0]
-    if not (isinstance(before, ast.Assign) and isinstance(after, ast.Assign)
+    if not (type(before) is type(after) and isinstance(before, (ast.Assign, ast.AnnAssign))
             and isinstance(before.value, ast.Dict) and isinstance(after.value, ast.Dict)):
         return bits
     restored = copy.copy(after)
     restored.value = before.value
     if ast.dump(restored) != ast.dump(before):
         return bits
-    value = after.value
-    try:
-        after.value = before.value
-        if ast.dump(diff.old_tree) != ast.dump(diff.new_tree):
-            return bits
-    finally:
-        after.value = value
     maps = []
     for node in (before.value, after.value):
         if not all(isinstance(x, ast.Constant) and type(x.value) is str

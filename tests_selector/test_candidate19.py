@@ -222,6 +222,60 @@ class TestCandidate19(unittest.TestCase):
         self.assertIsInstance(runtime_paths.APP_DIR, Path)
         self.assertIsInstance(runtime_paths.DATA_DIR, Path)
 
+    def test_full_keyword_and_date_maps_loaded(self):
+        from selector import token_options
+
+        kw = token_options.keyword_reads()
+        dt = token_options.date_reads()
+        self.assertGreater(len(kw["profiles"]), 1500)
+        self.assertGreater(len(dt), 1500)
+        self.assertIn("VALUES", kw["excluded"])
+
+    def test_parser2_disjoint_and_errors_scaled(self):
+        from selector.patch import parse
+
+        # errors.py edit (no numeric/loop keywords) -> eligible_file('parser') is True
+        err_src = impact._sources()["src"]["sqlglot/errors.py"].splitlines()
+        idx = next(i for i, ln in enumerate(err_src) if "highlight_start > previous_part_end" in ln)
+        diff = (
+            "diff --git a/sqlglot/errors.py b/sqlglot/errors.py\n"
+            "--- a/sqlglot/errors.py\n"
+            "+++ b/sqlglot/errors.py\n"
+            f"@@ -{idx+1},1 +{idx+1},1 @@\n"
+            f"-{err_src[idx]}\n"
+            f"+{err_src[idx].replace('>', '>=')}\n"
+        )
+        e = heavy.stage_edit(diff, "parser")
+        self.assertIsNotNone(e)
+        self.assertEqual(e[0], "scaled")
+        # dialects/__init__.py edit (no Parser/max_nodes/setattr) -> small
+        d_src = impact._sources()["src"]["sqlglot/dialects/__init__.py"].splitlines()
+        d_idx = next(i for i, ln in enumerate(d_src) if '"Dune"' in ln)
+        d_diff = (
+            "diff --git a/sqlglot/dialects/__init__.py b/sqlglot/dialects/__init__.py\n"
+            "--- a/sqlglot/dialects/__init__.py\n"
+            "+++ b/sqlglot/dialects/__init__.py\n"
+            f"@@ -{d_idx+1},1 +{d_idx+1},0 @@\n"
+            f"-{d_src[d_idx]}\n"
+        )
+        de = heavy.stage_edit(d_diff, "parser")
+        self.assertIsNotNone(de)
+        self.assertEqual(de[0], "small")
+
+    def test_doc_path_harmless_and_pytest_level_blocked(self):
+        self.assertTrue(heavy._is_doc_path("README.md"))
+        self.assertTrue(heavy._is_doc_path("docs/guide.rst"))
+        self.assertFalse(heavy._is_doc_path("pyproject.toml"))
+        self.assertFalse(heavy._is_doc_path("sqlglot/parser.py"))
+        self.assertFalse(heavy._is_doc_path("tests/test_parser.py"))
+
+    def test_rule_corpus_divergent_cost_helper(self):
+        from selector import rule_corpus
+
+        cost_all = rule_corpus._divergent_exec_cost(set(range(99)))
+        self.assertGreater(cost_all, 5.0)
+        self.assertEqual(rule_corpus._divergent_exec_cost(set()), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

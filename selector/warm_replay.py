@@ -122,6 +122,7 @@ def run(script, group, args, overlay, deadline, modules, receipt, phase=None, cp
                 # The static selector installs an exception-raising SIGPROF handler.
                 # A patched parser can catch that exception as an ordinary parse
                 # error. Let waitpid report the CPU limit as a signal instead.
+                os.environ["BLAST_PROBE_CPU"] = str(cpu_limit)
                 signal.signal(signal.SIGPROF, signal.SIG_DFL)
                 signal.setitimer(signal.ITIMER_PROF, cpu_limit)
             sys.argv = [str(script), group, *args]
