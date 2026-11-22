@@ -66,6 +66,17 @@ def _pure_against_scalar(value, scalar):
             and (tp.__ne__ in _BUILTIN_NE or _known_python_ne(tp.__ne__)))
 
 
+_CONTAINERS = frozenset({list, dict, tuple, set, frozenset})
+
+
+def _object_safe(tp):
+    """Equality that never runs foreign code: identity, or Expression structural equality
+    (type check, then a hash that is cached consistently and invalidated on mutation)."""
+    if tp.__eq__ is object.__eq__ and tp.__ne__ is object.__ne__:
+        return True
+    return _known_python_eq(tp.__eq__) and tp.__eq__.__qualname__ == "Expression.__eq__" and _known_python_ne(tp.__ne__)
+
+
 def _pure_equality(left, right):
     if _scalar(left) and _scalar(right):
         return True
@@ -73,7 +84,12 @@ def _pure_equality(left, right):
         return _pure_against_scalar(left, right)
     if _scalar(left):
         return _pure_against_scalar(right, left)
-    return False
+    lt, rt = type(left), type(right)
+    if _object_safe(lt) and _object_safe(rt):
+        return True
+    # A builtin container returns NotImplemented for a non-container, and the reflected
+    # identity or Expression equality only checks the type.
+    return (lt in _CONTAINERS and _object_safe(rt)) or (rt in _CONTAINERS and _object_safe(lt))
 
 
 def _orderable(value, depth=0):
