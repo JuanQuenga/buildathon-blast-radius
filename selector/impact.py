@@ -1509,6 +1509,62 @@ class PyDiff:
         gone &= names
         if gone:
             risky |= self.removed_class_attrs(gone, q)
+        # pure addition of duplicate identical literal class constant already in class body
+        if not o_other and n_other:
+            old_dumps = {_dump(st) for st in owner[1].body}
+            if all(
+                _is_docstring(s)
+                or (
+                    isinstance(s, (ast.Assign, ast.AnnAssign))
+                    and _dump(s) in old_dumps
+                    and isinstance(s.value, ast.Constant)
+                    and type(s.value.value) in (bool, int, float, str, type(None))
+                )
+                for s in n_other
+            ):
+                # Ensure no later statement in old class body binds the same name differently.
+                last_vals = {}
+                for st in owner[1].body:
+                    if isinstance(st, (ast.Assign, ast.AnnAssign)):
+                        for nm in _bound_names(st):
+                            last_vals[nm] = _dump(st)
+                if all(
+                    _is_docstring(s)
+                    or all(last_vals.get(nm) == _dump(s) for nm in _bound_names(s))
+                    for s in n_other
+                ):
+                    self.an.reasons.append(f"{self.path}: duplicate class constant(s) {sorted(names)[:3]} of {q}")
+                    return
+        # pure addition of brand-new TokenType enum member(s) (`X = auto()`):
+        # zero files in pinned SQLGlot iterate TokenType or rely on its int values.
+        if (
+            not o_other
+            and n_other
+            and self.path == "sqlglot/tokenizer_core.py"
+            and q == "TokenType"
+        ):
+            old_tt_names = set()
+            for st in owner[1].body:
+                old_tt_names |= _bound_names(st)
+            if all(
+                _is_docstring(s)
+                or (
+                    isinstance(s, ast.Assign)
+                    and len(s.targets) == 1
+                    and isinstance(s.targets[0], ast.Name)
+                    and s.targets[0].id not in old_tt_names
+                    and not s.targets[0].id.startswith("_")
+                    and isinstance(s.value, ast.Call)
+                    and isinstance(s.value.func, ast.Name)
+                    and s.value.func.id == "auto"
+                    and not s.value.args
+                    and not s.value.keywords
+                    and not _name_sites(self.an, s.targets[0].id)
+                )
+                for s in n_other
+            ):
+                self.an.reasons.append(f"{self.path}: new TokenType member(s) {sorted(names)[:3]} -> 0 extra tests")
+                return
         # enum members are also read by iteration (``for d in Dialects``)
         if any(re.search(r"Enum|AutoName|Flag", _dump(b)) for b in owner[1].bases):
             risky |= self.name_refs({q.rsplit(".", 1)[-1]}, depth=0)
@@ -1520,7 +1576,8 @@ class PyDiff:
             if (q.split(".")[-1] == "Tokenizer" and
                     (self.path == "sqlglot/tokens.py" or self.path.startswith("sqlglot/dialects/"))):
                 from . import token_options
-                keys = token_options.changed_keywords(o_other, n_other)
+                extra_tt = self.an.__dict__.get("patch_added_cls", {}).get("sqlglot.tokenizer_core.TokenType", ())
+                keys = token_options.changed_keywords(o_other, n_other, extra_kinds=extra_tt)
                 if keys:
                     b = token_options.keyword_bits(self.an, b, keys)
                 if self.an.one_code_edit:
@@ -1829,17 +1886,22 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
             else:
                 modname = st.module or ""
             if modname in ns_mod:
+                added_m = pd.an.__dict__.get("patch_added_mod", {}).get(modname, ())
                 for a in st.names:
-                    if a.name != "*" and a.name not in ns_mod[modname] and (
-                            f"{modname}.{a.name}" not in ns_mod):
+                    if (a.name != "*" and a.name not in ns_mod[modname]
+                            and a.name not in added_m
+                            and f"{modname}.{a.name}" not in ns_mod):
                         return f"from {modname} import {a.name}"
             elif modname.split(".")[0] in ("sqlglot", "tests"):
                 static = _static_names(modname)
-                if static is None:
+                added_m = pd.an.__dict__.get("patch_added_mod", {}).get(modname, ())
+                if static is None and not added_m:
                     return f"from {modname} (no such module)"
+                static_eff = static or set()
                 for a in st.names:
-                    if (a.name != "*" and a.name not in static and "*" not in static
-                            and "__getattr__" not in static
+                    if (a.name != "*" and a.name not in static_eff and a.name not in added_m
+                            and "*" not in static_eff
+                            and "__getattr__" not in static_eff
                             and _static_names(f"{modname}.{a.name}") is None):
                         return f"from {modname} import {a.name}"
             elif modname.split(".")[0] not in importable:
@@ -1865,10 +1927,13 @@ def _import_risk(pd: PyDiff, stmts, class_scope) -> str | None:
                     continue
                 kind, full = tgt
                 if kind == "mod" and full in ns_mod:
-                    if n.attr not in ns_mod[full] and f"{full}.{n.attr}" not in ns_mod:
+                    added_m = pd.an.__dict__.get("patch_added_mod", {}).get(full, ())
+                    if (n.attr not in ns_mod[full] and n.attr not in added_m
+                            and f"{full}.{n.attr}" not in ns_mod):
                         return f"{n.value.id}.{n.attr} L{n.lineno}"
                 elif kind == "cls" and full in ns_cls:
-                    if n.attr not in ns_cls[full]:
+                    added_c = pd.an.__dict__.get("patch_added_cls", {}).get(full, ())
+                    if n.attr not in ns_cls[full] and n.attr not in added_c:
                         return f"{n.value.id}.{n.attr} L{n.lineno}"
     return None
 
@@ -2404,6 +2469,53 @@ def _inert_companion(fp):
     return ast.dump(ast.parse(old.encode())) == ast.dump(ast.parse(new.encode()))
 
 
+def _collect_patch_additions(an: Analysis, files) -> None:
+    """Pre-collect newly added module-level and class-level symbols across all
+    cleanly compiling Python files in the patch so cross-file references to
+    newly added symbols (e.g. ``TokenType.NEW`` or ``exp.NewExpr``) do not
+    trigger false ``import risk`` full-suite fallbacks."""
+    added_mod: dict[str, set[str]] = {}
+    added_cls: dict[str, set[str]] = {}
+    srcs = _sources()["src"]
+    ns_cls = an.idx.get("ns_cls", {})
+    for fp in files:
+        if fp.binary or fp.status == "D" or not fp.path or not fp.path.endswith(".py"):
+            continue
+        try:
+            if fp.status == "A":
+                new_src = "\n".join(line for h in fp.hunks for tag, line in h.lines if tag == "+") + "\n"
+            else:
+                old_src = srcs.get(fp.old_path or fp.path)
+                if old_src is None or not fp.hunks:
+                    continue
+                new_src, _ = apply_hunks(old_src, fp.hunks)
+            compile(new_src.encode(), fp.path, "exec", dont_inherit=True)
+            tree = ast.parse(new_src)
+        except Exception:
+            continue
+        mod = _module_name(fp.path)
+        reexp = _reexporters(fp.path) | {mod}
+        if fp.path == "sqlglot/tokenizer_core.py":
+            reexp |= {"sqlglot.tokens", "sqlglot"}
+        top_names = _toplevel_names(tree)
+        for rm in reexp:
+            added_mod.setdefault(rm, set()).update(top_names)
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            cls_attrs = set()
+            for st in node.body:
+                cls_attrs |= _bound_names(st)
+                if isinstance(st, _DEFS):
+                    cls_attrs.add(st.name)
+            for rm in reexp:
+                full = f"{rm}.{node.name}"
+                if rm == mod or full in ns_cls:
+                    added_cls.setdefault(full, set()).update(cls_attrs)
+    an.patch_added_mod = added_mod
+    an.patch_added_cls = added_cls
+
+
 def select(patch_text: str, catalog: list[dict]) -> dict:
     an = Analysis()
     try:
@@ -2419,6 +2531,8 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         # Existing fixture edits contribute their own observed readers. They
         # cannot introduce new Python code before those reads.
         an.one_code_edit = an.single_file or sum(not _inert_companion(f) for f in files) == 1
+        if len(files) > 1:
+            _collect_patch_additions(an, files)
         for fp in files:
             an.analyze(fp)
     except Unsupported as e:

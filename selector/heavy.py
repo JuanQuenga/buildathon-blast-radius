@@ -595,6 +595,120 @@ def _class_attr_and_method_tail_queries(path, source, fd, rows):
     ]
 
 
+def _expr_subclass_tail_queries(path, source, fd, rows):
+    """For sqlglot/expressions/*.py, handle edits inside Expr subclasses (NOT
+    base Expr/Expression) that only touch ``arg_types``, simple literal class
+    constants, or non-dunder methods. ``arg_types`` is never read during
+    PythonExecutor.execute() once front() verifies identical plan_digest."""
+    if (
+        source is None
+        or fd.is_new
+        or fd.is_deleted
+        or fd.is_rename
+        or not path.startswith("sqlglot/expressions/")
+        or not path.endswith(".py")
+    ):
+        return None
+    before = impact._sources()["src"].get(path)
+    if before is None:
+        return None
+    try:
+        old_mod, new_mod = ast.parse(before), ast.parse(source)
+    except SyntaxError:
+        return None
+    if len(old_mod.body) != len(new_mod.body):
+        return None
+    ranges = []
+    attr_names = set()
+    for a, b in zip(old_mod.body, new_mod.body):
+        if ast.dump(a) == ast.dump(b):
+            continue
+        if not (isinstance(a, ast.ClassDef) and isinstance(b, ast.ClassDef) and a.name == b.name):
+            return None
+        if a.name in {"Expr", "Expression", "Func", "Binary", "Unary", "Condition", "Predicate", "Connector"}:
+            return None
+        if [ast.dump(x) for x in a.bases] != [ast.dump(x) for x in b.bases]:
+            return None
+        old_map = {}
+        new_map = {}
+        for idx_s, s in enumerate(a.body):
+            if isinstance(s, ast.FunctionDef):
+                key = ("fn", s.name)
+            elif (
+                isinstance(s, ast.Assign)
+                and len(s.targets) == 1
+                and isinstance(s.targets[0], ast.Name)
+                and s.targets[0].id == "arg_types"
+            ):
+                key = ("arg_types", "arg_types")
+            elif (
+                isinstance(s, ast.Assign)
+                and len(s.targets) == 1
+                and isinstance(s.targets[0], ast.Name)
+                and not s.targets[0].id.startswith("__")
+                and isinstance(s.value, ast.Constant)
+                and type(s.value.value) in (bool, int, float, str, type(None))
+            ):
+                key = ("attr", s.targets[0].id)
+            else:
+                key = ("other", ast.dump(s), idx_s)
+            if key in old_map:
+                return None
+            old_map[key] = s
+        for idx_s, s in enumerate(b.body):
+            if isinstance(s, ast.FunctionDef):
+                key = ("fn", s.name)
+            elif (
+                isinstance(s, ast.Assign)
+                and len(s.targets) == 1
+                and isinstance(s.targets[0], ast.Name)
+                and s.targets[0].id == "arg_types"
+            ):
+                key = ("arg_types", "arg_types")
+            elif (
+                isinstance(s, ast.Assign)
+                and len(s.targets) == 1
+                and isinstance(s.targets[0], ast.Name)
+                and not s.targets[0].id.startswith("__")
+                and isinstance(s.value, ast.Constant)
+                and type(s.value.value) in (bool, int, float, str, type(None))
+            ):
+                key = ("attr", s.targets[0].id)
+            else:
+                key = ("other", ast.dump(s), idx_s)
+            if key in new_map:
+                return None
+            new_map[key] = s
+        old_others = [ast.dump(s) for k, s in old_map.items() if k[0] == "other"]
+        new_others = [ast.dump(s) for k, s in new_map.items() if k[0] == "other"]
+        if old_others != new_others:
+            return None
+        for key in old_map.keys() | new_map.keys():
+            if key[0] == "other":
+                continue
+            os_ = old_map.get(key)
+            ns_ = new_map.get(key)
+            if os_ is not None and ns_ is not None and ast.dump(os_) == ast.dump(ns_):
+                continue
+            if key[0] == "arg_types":
+                attr_names.add("arg_types")
+            elif key[0] == "attr":
+                attr_names.add(key[1])
+            elif key[0] == "fn":
+                if key[1].startswith("__"):
+                    return None
+                if os_ is not None:
+                    ranges.append((os_.lineno, os_.end_lineno))
+                else:
+                    attr_names.add(key[1])
+    return [
+        i
+        for i, row in enumerate(rows)
+        if any(p == path and any(s <= n <= e for s, e in ranges) for p, n in row["calls"])
+        or attr_names.intersection(row["names"])
+    ]
+
+
 def tail_cases(path, source, fd, *, strict=True):
     rows = downstream()
     all_cases = list(range(len(rows)))
@@ -618,6 +732,9 @@ def tail_cases(path, source, fd, *, strict=True):
         gm = _class_attr_and_method_tail_queries(path, source, fd, rows)
         if gm is not None:
             return gm
+        em = _expr_subclass_tail_queries(path, source, fd, rows)
+        if em is not None:
+            return em
     if not re.fullmatch(
         r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py",
         path,
@@ -734,6 +851,15 @@ def _parser2_disjoint_file(f):
         return _no_cross_module_hazards(f, allow_sqlglot_imports=True)
     if f.is_new or f.is_deleted or f.is_rename or not _no_cross_module_hazards(f, allow_sqlglot_imports=True):
         return False
+    # Pure addition of brand-new TokenType enum member(s) in tokenizer_core.py
+    # cannot affect parser:2 once small() passes.
+    if path == "sqlglot/tokenizer_core.py" and not any(h.removed_old_lines for h in f.hunks):
+        added = [line[1:] for h in f.hunks for line in h.lines if line[:1] == "+"]
+        if added and all(
+            not ln.strip() or re.fullmatch(r"\s+[A-Z][A-Z0-9_]*\s*=\s*auto\(\)\s*(?:#.*)?", ln)
+            for ln in added
+        ):
+            return True
     scopes = impact._index().get("scopes", {}).get(path)
     if not scopes:
         return False
@@ -1337,16 +1463,15 @@ _MEDIUM_DOCKER_CPU = {
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 0.90,
     "tests/test_executor.py::TestExecutor::test_agg_order": 0.40,
     "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 1.01,
-    "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.30,
+    "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.05,
     "tests/test_optimizer.py::TestOptimizer::test_scope": 1.36,
     "tests/test_executor.py::TestExecutor::test_optimized_tpch": 4.20,
     "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.85,
 }
 
-# Negative-ROI or TPC-setup tests excluded from warm-fork bundle/trim.
+# Negative-ROI or slow-TPC tests excluded from warm-fork bundle/trim.
 _BUNDLE_EXCLUDE_NODES = frozenset({
     "tests/test_optimizer.py::TestOptimizer::test_tpcds",
-    "tests/test_executor.py::TestExecutor::test_execute_tpch",
     "tests/test_executor.py::TestExecutor::test_optimized_tpch",
 }) | frozenset(TARGETS)
 
@@ -1361,7 +1486,16 @@ def _test_docker_cpu(node: str, dur_ms: int) -> float:
 def _bundle_setup_cost(tfiles: set[str], cases: list[str], *, no_exec_setup: bool = False) -> tuple[float, bool]:
     uses_exec = "tests/test_executor.py" in tfiles
     uses_opt = "tests/test_optimizer.py" in tfiles
-    setup_cost = 0.0 if (not uses_exec or no_exec_setup) else 0.90
+    needs_tpc_setup = any(
+        n.endswith(("::test_execute_tpch", "::test_optimized_tpch", "::test_execute_tpcds"))
+        for n in cases
+    )
+    if needs_tpc_setup:
+        setup_cost = 0.65
+    elif not uses_exec or no_exec_setup:
+        setup_cost = 0.0
+    else:
+        setup_cost = 0.90
     if not setup_cost:
         for node in cases:
             parts = node.split("::")

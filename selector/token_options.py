@@ -181,7 +181,7 @@ def token_kinds():
             for target in stmt.targets if isinstance(target, ast.Name)}
 
 
-def changed_keywords(old, new):
+def changed_keywords(old, new, *, extra_kinds=()):
     if len(old) != 1 or len(new) != 1:
         return None
     a, b = old[0], new[0]
@@ -197,13 +197,14 @@ def changed_keywords(old, new):
     restored.value = x
     if ast.dump(a) != ast.dump(restored):
         return None
+    allowed_kinds = token_kinds() | set(extra_kinds) if extra_kinds else token_kinds()
 
     def entries(node):
         order, values = [], {}
         for key, value in zip(node.keys, node.values):
             if (isinstance(key, ast.Constant) and type(key.value) is str
                     and isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name)
-                    and value.value.id == "TokenType" and value.attr in token_kinds()):
+                    and value.value.id == "TokenType" and value.attr in allowed_kinds):
                 if key.value in values:
                     return None, None
                 values[key.value] = value.attr

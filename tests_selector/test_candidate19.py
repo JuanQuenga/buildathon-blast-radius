@@ -324,6 +324,58 @@ class TestCandidate19(unittest.TestCase):
         self.assertFalse(res.get("full"))
         self.assertEqual(len(res.get("required", ())), 0)
 
+    def test_cross_file_new_tokentype_member_no_full_fallback(self):
+        tc_src = impact._sources()["src"]["sqlglot/tokenizer_core.py"].splitlines()
+        idx_tc = next(i for i, ln in enumerate(tc_src) if "ALIAS = auto()" in ln)
+        sf_src = impact._sources()["src"]["sqlglot/dialects/snowflake.py"].splitlines()
+        idx_sf = next(i for i, ln in enumerate(sf_src) if '"ACCOUNT":' in ln or "KEYWORDS = {" in ln)
+        diff = (
+            "diff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\n"
+            "--- a/sqlglot/tokenizer_core.py\n"
+            "+++ b/sqlglot/tokenizer_core.py\n"
+            f"@@ -{idx_tc+1},1 +{idx_tc+1},2 @@\n"
+            f" {tc_src[idx_tc]}\n"
+            "+    BRAND_NEW_TOK_XYZ = auto()\n"
+            "diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py\n"
+            "--- a/sqlglot/dialects/snowflake.py\n"
+            "+++ b/sqlglot/dialects/snowflake.py\n"
+            f"@@ -{idx_sf+1},1 +{idx_sf+1},2 @@\n"
+            f" {sf_src[idx_sf]}\n"
+            '+            "BRAND_NEW_KW_XYZ": TokenType.BRAND_NEW_TOK_XYZ,\n'
+        )
+        cat = [{"number": i, "id": t, "seconds": 0.01} for i, t in enumerate(impact._index()["tests"])]
+        res = impact.select(diff, cat)
+        self.assertFalse(res.get("full"), res.get("reasons"))
+        self.assertLess(len(res.get("required", ())), 50)
+
+    def test_expr_subclass_arg_types_tail_is_empty(self):
+        from selector.patch import parse
+
+        path = "sqlglot/expressions/core.py"
+        src = impact._sources()["src"][path]
+        old_line = '        "unnest": False,\n'
+        self.assertIn(old_line, src)
+        after = src.replace(old_line, "", 1)
+        ln = src.splitlines().index('        "unnest": False,') + 1
+        diff = (
+            f"diff --git a/{path} b/{path}\n"
+            f"--- a/{path}\n"
+            f"+++ b/{path}\n"
+            f"@@ -{ln},1 +{ln},0 @@\n"
+            f"-{old_line}"
+        )
+        fd = parse(diff)[0]
+        self.assertEqual(heavy.tail_cases(path, after, fd, strict=True), [])
+
+    def test_bundle_setup_cost_charges_tpc_setup(self):
+        cost, uses_heavy = heavy._bundle_setup_cost(
+            {"tests/test_executor.py"},
+            ["tests/test_executor.py::TestExecutor::test_execute_tpch"],
+            no_exec_setup=True,
+        )
+        self.assertGreater(cost, 0.5)
+        self.assertTrue(uses_heavy)
+
 
 if __name__ == "__main__":
     unittest.main()
