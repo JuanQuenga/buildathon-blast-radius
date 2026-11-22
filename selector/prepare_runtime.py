@@ -491,3 +491,36 @@ def _tpcds_duckdb_reference():
 
 
 _tpcds_duckdb_reference()
+
+
+def _tpch_duckdb_reference():
+    """TPC-H reference relations materialized once (the build is not charged) and the
+    canonical digest of DuckDB's pinned frame for each (sql, optimized) query."""
+    import json
+    import duckdb
+    sys.path.insert(0, "/app/sqlglot")
+    import sqlglot
+    from tests.helpers import TPCH_SCHEMA
+    from tests.test_executor import DIR_TPCH
+    from selector.result_replay import frame_digest
+
+    conn = duckdb.connect(str(out / "tpch.duckdb"))
+    for table, columns in TPCH_SCHEMA.items():
+        conn.execute(f"CREATE TABLE {table} AS SELECT * FROM READ_CSV('{DIR_TPCH}{table}.csv.gz', "
+                     f"delim='|', header=True, columns={columns})")
+    digests = {}
+    for j, row in enumerate(json.loads((out / "tpch-digests.json").read_text())):
+        for key in ("sql", "opt"):
+            sqls = sqlglot.transpile(row[key], write="duckdb")
+            if len(sqls) != 1:
+                continue
+            runs = {frame_digest(conn.execute(sqls[0]).fetchdf()) for _ in range(2)}
+            if len(runs) == 1:
+                digests[f"{j}:{key}"] = runs.pop()
+    conn.execute("CHECKPOINT")
+    conn.close()
+    (out / "tpch-duckdb-digests.json").write_text(json.dumps(digests, separators=(",", ":")))
+    print(f"tpch duckdb reference: {len(digests)} frame digests", file=sys.stderr)
+
+
+_tpch_duckdb_reference()

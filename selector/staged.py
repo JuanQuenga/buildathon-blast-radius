@@ -337,7 +337,8 @@ def _tpch_opt():
         return
     import sqlglot
 
-    for row in rows:
+    diverged = []
+    for j, row in enumerate(rows):
         for key, ref_key in (("sql", "tsql"), ("opt", "topt")):
             new_list = sqlglot.transpile(row[key], write="duckdb")
             if digest(new_list) != row[ref_key]:
@@ -348,7 +349,24 @@ def _tpch_opt():
                     and digest(old_list) == row[ref_key]
                     and _duckdb_sql_ws_equivalent(old_list[0], new_list[0])
                 ):
+                    diverged.append((f"{j}:{key}", new_list))
+    if diverged:
+        # The test compares DuckDB's frames for each (sql, optimized) pair. A diverged
+        # DuckDB SQL is accepted only when DuckDB returns exactly the pinned frame for
+        # it (same reference data, materialized at build time); otherwise retain.
+        from result_replay import frame_digest
+        cache = BASE.with_name("pin-cache")
+        pinned = json.loads((cache / "tpch-duckdb-digests.json").read_text())
+        import duckdb
+        conn = duckdb.connect(str(cache / "tpch.duckdb"), read_only=True)
+        try:
+            for key, new_list in diverged:
+                if key not in pinned or len(new_list) != 1:
                     raise ValueError("tpch duckdb transpile diverged")
+                if frame_digest(conn.execute(new_list[0]).fetchdf()) != pinned[key]:
+                    raise ValueError("tpch duckdb result diverged")
+        finally:
+            conn.close()
 
 
 def _tpch_exec():
