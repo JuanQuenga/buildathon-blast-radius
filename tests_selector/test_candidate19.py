@@ -197,6 +197,27 @@ class TestCandidate19(unittest.TestCase):
             )
             self.assertNotEqual(r2.returncode, 0)
 
+    def test_dict_keys_narrowing(self):
+        import ast
+        from selector import dict_keys
+
+        o = ast.parse("TRANSFORMS = {**Base.TRANSFORMS, exp.Abs: fn1, exp.WithoutRowidProperty: fn2}\n").body
+        n = ast.parse("TRANSFORMS = {**Base.TRANSFORMS, exp.Abs: fn1}\n").body
+        self.assertEqual(dict_keys.changed_keys("TRANSFORMS", o, n), {"E:WithoutRowidProperty"})
+        # Dynamic unpack change must fall back (return None).
+        n_bad = ast.parse("TRANSFORMS = {**Other.TRANSFORMS, exp.Abs: fn1}\n").body
+        self.assertIsNone(dict_keys.changed_keys("TRANSFORMS", o, n_bad))
+        # DictComp in EXPRESSION_METADATA
+        om = ast.parse("EXPRESSION_METADATA = {**BASE, **{k: {'returns': exp.DType.INT} for k in {exp.Abs, exp.Ceil}}}\n").body
+        nm = ast.parse("EXPRESSION_METADATA = {**BASE, **{k: {'returns': exp.DType.INT} for k in {exp.Abs, exp.Ceil, exp.Floor}}}\n").body
+        self.assertEqual(dict_keys.changed_keys("EXPRESSION_METADATA", om, nm), {"E:Floor"})
+        # Narrowing shrinks full bitmask dramatically while keeping bulk observers.
+        full_bits = (1 << len(impact._index()["tests"])) - 1
+        narrowed = dict_keys.narrow_bits("TRANSFORMS", full_bits, o, n)
+        self.assertIsNotNone(narrowed)
+        self.assertLess(bin(narrowed).count("1"), 50)
+        self.assertGreater(bin(narrowed).count("1"), 0)
+
     def test_runtime_paths_defaults(self):
         self.assertIsInstance(runtime_paths.APP_DIR, Path)
         self.assertIsInstance(runtime_paths.DATA_DIR, Path)

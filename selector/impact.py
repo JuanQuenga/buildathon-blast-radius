@@ -1462,6 +1462,13 @@ class PyDiff:
                     and q == "Dialect" and names == {"DATE_PART_MAPPING"}):
                 from .token_options import date_unit_bits
                 b = date_unit_bits(self, b, o_other, n_other)
+            if len(names) == 1:
+                from . import dict_keys
+                attr_name = next(iter(names))
+                if attr_name in dict_keys.TABLES:
+                    narrowed = dict_keys.narrow_bits(attr_name, b, o_other, n_other)
+                    if narrowed is not None:
+                        b = narrowed
             self.an.excluded |= fam & ~b  # for offline validation of the refinement
             how = "readers"
         else:
@@ -1555,6 +1562,11 @@ class PyDiff:
                                    " -> import-state observers")
         gone = names - self.module_names_new()
         refs = self.name_refs(names, depth=0, exclude=o_other, removed=gone)
+        if self.path.startswith("sqlglot/typing/") and names == {"EXPRESSION_METADATA"} and not gone:
+            from . import dict_keys
+            narrowed = dict_keys.narrow_bits("EXPRESSION_METADATA", refs, o_other, n_other)
+            if narrowed is not None:
+                refs = narrowed
         self.an.excluded |= executed & ~refs
         self.add(risky | refs,
                  f"module-level binding(s) {sorted(names)[:4]}")

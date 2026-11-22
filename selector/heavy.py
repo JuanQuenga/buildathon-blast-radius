@@ -1178,16 +1178,16 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
     best = None  # (score, subset_set, gain, est, uses_heavy)
 
     # Option 1: trim ALL eligible non-TPC required tests when compact.
-    if cand_nums < patch.req and len(cand_nums) <= 550:
+    if cand_nums < patch.req and len(cand_nums) <= 450:
         run_est, est, uses_heavy = _estimate_bundle_set(
             cand_nums, catalog, dur, no_exec_setup=no_exec_setup
         )
-        if run_est <= 4.0:
+        if run_est <= 3.6:
             rem = patch.req - cand_nums
             after = plan_cost(schedule(rem, patch.pl - cand_nums, dur), dur) / 1000 if rem else 0.0
             gain = sim_cost - after
-            if gain >= 1.40 * est and gain - est >= 0.85:
-                best = (gain - 1.25 * est, cand_nums, gain, est, uses_heavy)
+            if gain >= 1.65 * est and gain - est >= 1.25:
+                best = (gain - 1.40 * est, cand_nums, gain, est, uses_heavy)
 
     # Option 2: greedy high-ROI prefix (highest catalog/docker_cpu ratio first).
     ranked = []
@@ -1196,26 +1196,26 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
         c_est = _test_docker_cpu(node, dur[n])
         cat_s = dur[n] / 1000.0
         ratio = cat_s / max(0.01, c_est)
-        if dur[n] >= 250 or ratio >= 1.25:
+        if dur[n] >= 300 or ratio >= 1.35:
             ranked.append((ratio, dur[n], c_est, n))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[3]))
 
     prefix = set()
     run_acc = 0.0
     for idx, (_ratio, d_ms, c_est, n) in enumerate(ranked):
-        if len(prefix) >= 120 or run_acc + c_est > 3.00:
+        if len(prefix) >= 100 or run_acc + c_est > 2.60:
             continue
         prefix.add(n)
         run_acc += c_est
-        if d_ms >= 250 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
+        if d_ms >= 300 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
             _, est, uses_heavy = _estimate_bundle_set(
                 prefix, catalog, dur, no_exec_setup=no_exec_setup
             )
             rem = patch.req - prefix
             after = plan_cost(schedule(rem, patch.pl - prefix, dur), dur) / 1000 if rem else 0.0
             gain = sim_cost - after
-            if gain >= 1.45 * est and gain - est >= 0.85:
-                score = gain - 1.30 * est
+            if gain >= 1.75 * est and gain - est >= 1.25:
+                score = gain - 1.45 * est
                 if best is None or score > best[0]:
                     best = (score, set(prefix), gain, est, uses_heavy)
     return best
@@ -1309,17 +1309,17 @@ def options(patch, catalog, targets, dur, attempted=()):
         run_est, est, uses_heavy = _estimate_bundle_set(
             cand_nums, catalog, dur, no_exec_setup=no_exec_setup
         )
-        # Non-fail-fast trim when even a 1-failure patch yields >= 1.30x Docker ROI.
-        if sim_cost >= 4.8 and run_est <= 4.2 and (sim_cost - 2.15) >= 1.30 * est:
+        # Non-fail-fast trim when even a 1-failure patch yields >= 1.50x Docker ROI.
+        if sim_cost >= 5.2 and run_est <= 3.6 and (sim_cost - 2.15) >= 1.50 * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "trim", None, "trim", sql_paths,
                         cases, (set(), set(), []), sim_cost,
                         0.85, est, heavy_mod=uses_heavy)
             return
         # Fail-fast bundle for cheaper / smaller-sim patches.
-        is_tiny = (not uses_heavy) and est <= 0.65
-        min_roi = 1.60 if is_tiny else (1.90 if uses_heavy else 1.80)
-        max_run = 3.6 if sim_cost >= 5.2 else (2.0 if uses_heavy else 2.4)
+        is_tiny = (not uses_heavy) and est <= 0.60
+        min_roi = 1.65 if is_tiny else (2.05 if uses_heavy else 1.85)
+        max_run = 3.2 if sim_cost >= 5.5 else (1.8 if uses_heavy else 2.2)
         if run_est <= max_run and sim_cost >= min_roi * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "bundle", None, "bundle", sql_paths,
@@ -1328,8 +1328,8 @@ def options(patch, catalog, targets, dur, attempted=()):
             return
 
     # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches
-    # (e.g. patches containing TPC tests, test_tpcds, or >4.2s total run_est).
-    if (patch, "trim") not in attempted and sim_cost >= 4.5:
+    # (e.g. patches containing TPC tests, test_tpcds, or >3.6s total run_est).
+    if (patch, "trim") not in attempted and sim_cost >= 5.2:
         pick = _best_trim_subset(
             patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
         )
@@ -1379,7 +1379,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     if cost >= probe.gain:
                         continue
                 # Never admit a full 33-dialect generator probe unless gain > estimate.
-                if probe.mode == "generator" and probe.gain <= probe.estimate + 0.30:
+                if probe.mode == "generator" and probe.gain <= probe.estimate + 0.20:
                     continue
                 queue.append(probe)
         except Exception:
@@ -1417,22 +1417,23 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                 if expected_net <= min_net:
                     continue
             if probe.group == "collection":
-                cpu_limit = min(8.0, max(3.5, 2.2 * probe.estimate + 1.0))
+                cpu_limit = min(8.5, max(3.5, 2.2 * probe.estimate + 1.0))
             elif probe.group == "ds":
                 if probe.mode == "rules":
-                    cpu_limit = min(2.8, max(1.5, 2.2 * probe.estimate + 0.8))
+                    # verify-results executes affected TPC-DS queries when rule output changes.
+                    cpu_limit = min(6.5, max(2.8, 0.50 * probe.gain))
                 else:
-                    ds_cap = 10.0 if probe.gain >= 14.0 else 5.5
-                    cpu_limit = min(ds_cap, max(2.5, 2.0 * probe.estimate + 1.0))
+                    ds_cap = min(11.5, max(6.5, 0.85 * probe.gain))
+                    cpu_limit = min(ds_cap, max(2.8, 2.2 * probe.estimate + 1.0))
             elif probe.group in {"bundle", "trim"}:
-                cpu_limit = min(7.0, max(2.2, 2.0 * probe.estimate + 1.0))
+                cpu_limit = min(6.5, max(2.0, 2.0 * probe.estimate + 1.0))
             else:
-                cpu_limit = min(4.5, max(1.5, 2.2 * probe.estimate + 0.8))
+                cpu_limit = min(6.0, max(2.0, 2.4 * probe.estimate + 1.0))
             # Skip ds probes that require heavy forced execution exceeding cpu_limit.
             if probe.mode in {"partial", "slice"}:
                 forced = probe.cases["execute"] if probe.mode == "slice" else probe.cases
                 min_exec = sum(query_costs()[i].get("execute", 0) for i in forced)
-                if min_exec > 0.90 * cpu_limit:
+                if min_exec > 0.92 * cpu_limit:
                     continue
             patch = probe.patch
             if probe.group != "collection" and probe.mode != "unreached":

@@ -42,10 +42,10 @@ _TRANSPILE_MODULES = frozenset({
 })
 
 # Pinned max nested-loop join pair count across all 57 TPC-DS queries is 10,000.
-# 50x that limit prevents quadratic join blowups from burning 10-35s CPU.
-_NLJ_PAIR_LIMIT = 500_000
-# Slowest pinned TPC-DS query takes ~0.62s total CPU; 2.2s catches broken/slow plans early.
-_PER_QUERY_CPU_LIMIT = 2.2
+# 80x that limit prevents quadratic join blowups from burning 10-35s CPU.
+_NLJ_PAIR_LIMIT = 800_000
+# Slowest pinned TPC-DS query takes ~0.62s Mac / ~1.0s Linux CPU; 3.5s catches blowups without false aborts.
+_PER_QUERY_CPU_LIMIT = 3.5
 
 
 class _JoinBudgetExceeded(BaseException):
@@ -156,7 +156,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     changed_reference.add(i)
                     # Mass DuckDB reference SQL divergence (e.g. pretty=True) would
                     # require full live DuckDB execution across all queries -> retain.
-                    if len(changed_reference) > 10:
+                    if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
         for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
