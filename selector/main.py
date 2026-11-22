@@ -355,6 +355,11 @@ def main() -> int:
     select = _load_impact() if patches else None
     deadline = t0 + min(BATCH_WALL_LIMIT_S, 3 * max(40, len(patches)))
     _impact_pass(patches, select, catalog, dur, valid, t0, deadline)
+    if select is not None:
+        _imp = sys.modules.get("selector.impact")
+        _pp = getattr(_imp, "_parse_pinned", None)
+        if _pp is not None and hasattr(_pp, "cache_clear"):
+            _pp.cache_clear()
     if os.environ.get("BLAST_HEAVY") == "1" and time.monotonic() < deadline:
         from . import heavy
         try:

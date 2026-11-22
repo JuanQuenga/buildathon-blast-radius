@@ -76,6 +76,14 @@ _PYGEN_TAIL_PATHS = frozenset({
     "sqlglot/generator.py",
     "sqlglot/generators/python.py",
     "sqlglot/dialects/dialect.py",
+    "sqlglot/expressions/core.py",
+    "sqlglot/expressions/query.py",
+    "sqlglot/expressions/datatypes.py",
+    "sqlglot/planner.py",
+    "sqlglot/schema.py",
+    "sqlglot/trie.py",
+    "sqlglot/serde.py",
+    "sqlglot/helper.py",
 })
 
 
@@ -350,11 +358,11 @@ def _inert_new_class_attrs(path, source, fd=None):
             for ln in added_lines
         ):
             return False
-    before = impact._sources()["src"].get(path)
-    if before is None:
-        return False
     try:
-        old, new = ast.parse(before), ast.parse(source)
+        old = impact._parse_pinned(path)
+        if old is None:
+            return False
+        new = ast.parse(source)
     except SyntaxError:
         return False
     if len(old.body) != len(new.body):
@@ -496,8 +504,16 @@ def _method_tail_queries(path, source, fd, rows):
         if path == "sqlglot/executor/env.py":
             if simple_name in {"null_if_any", "filter_nulls"}:
                 return None
-        elif path.startswith("sqlglot/executor/") and not simple_name.startswith(
+        elif path == "sqlglot/executor/table.py" and not simple_name.startswith(
             ("scan", "join", "aggregate", "sort", "execute", "generate")
+        ):
+            return None
+        elif (
+            path.startswith("sqlglot/executor/")
+            and path not in {"sqlglot/executor/python.py", "sqlglot/executor/context.py"}
+            and not simple_name.startswith(
+                ("scan", "join", "aggregate", "sort", "execute", "generate")
+            )
         ):
             return None
 
@@ -583,11 +599,11 @@ def _class_attr_and_method_tail_queries(path, source, fd, rows):
         )
     ):
         return None
-    before = impact._sources()["src"].get(path)
-    if before is None:
-        return None
     try:
-        old_mod, new_mod = ast.parse(before), ast.parse(source)
+        old_mod = impact._parse_pinned(path)
+        if old_mod is None:
+            return None
+        new_mod = ast.parse(source)
     except SyntaxError:
         return None
     if len(old_mod.body) != len(new_mod.body):
@@ -744,11 +760,11 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
         or not path.endswith(".py")
     ):
         return None
-    before = impact._sources()["src"].get(path)
-    if before is None:
-        return None
     try:
-        old_mod, new_mod = ast.parse(before), ast.parse(source)
+        old_mod = impact._parse_pinned(path)
+        if old_mod is None:
+            return None
+        new_mod = ast.parse(source)
     except SyntaxError:
         return None
 
@@ -901,6 +917,113 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
     ]
 
 
+def _env_tail_queries(path, source, fd, rows):
+    """For sqlglot/executor/env.py, handle edits confined to top-level helper
+    functions (other than null_if_any/filter_nulls) and/or ENV dict entries by
+    intersecting changed helper/lambda line ranges against recorded tail calls."""
+    if path != "sqlglot/executor/env.py" or source is None or fd.is_new or fd.is_deleted or fd.is_rename:
+        return None
+    try:
+        old_mod = impact._parse_pinned(path)
+        if old_mod is None:
+            return None
+        new_mod = ast.parse(source)
+    except SyntaxError:
+        return None
+    old_defs, new_defs = {}, {}
+    old_env = new_env = None
+    old_other, new_other = [], []
+    for st in old_mod.body:
+        if isinstance(st, ast.FunctionDef):
+            if st.name in old_defs:
+                return None
+            old_defs[st.name] = st
+        elif (
+            isinstance(st, ast.Assign)
+            and len(st.targets) == 1
+            and isinstance(st.targets[0], ast.Name)
+            and st.targets[0].id == "ENV"
+            and isinstance(st.value, ast.Dict)
+        ):
+            old_env = st.value
+        else:
+            old_other.append(ast.dump(st))
+    for st in new_mod.body:
+        if isinstance(st, ast.FunctionDef):
+            if st.name in new_defs:
+                return None
+            new_defs[st.name] = st
+        elif (
+            isinstance(st, ast.Assign)
+            and len(st.targets) == 1
+            and isinstance(st.targets[0], ast.Name)
+            and st.targets[0].id == "ENV"
+            and isinstance(st.value, ast.Dict)
+        ):
+            new_env = st.value
+        else:
+            new_other.append(ast.dump(st))
+    if old_other != new_other or old_env is None or new_env is None:
+        return None
+
+    ranges = []
+    for name in old_defs.keys() | new_defs.keys():
+        od, nd = old_defs.get(name), new_defs.get(name)
+        if od is not None and nd is not None and ast.dump(od) == ast.dump(nd):
+            continue
+        if name in {"null_if_any", "filter_nulls"} or name.startswith("__"):
+            return None
+        if od is not None:
+            ranges.append((od.lineno, od.end_lineno))
+
+    def _dict_map(d):
+        out = {}
+        for k, v in zip(d.keys, d.values):
+            if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+                return None
+            out[k.value] = v
+        return out
+
+    om, nm = _dict_map(old_env), _dict_map(new_env)
+    if om is None or nm is None:
+        return None
+
+    def _env_val_range(val):
+        if isinstance(val, ast.Name) and val.id in old_defs:
+            fn = old_defs[val.id]
+            return (fn.lineno, fn.end_lineno)
+        if isinstance(val, ast.Lambda):
+            return (val.lineno, val.end_lineno)
+        if (
+            isinstance(val, ast.Call)
+            and isinstance(val.func, ast.Name)
+            and val.func.id in {"null_if_any", "filter_nulls"}
+            and val.args
+        ):
+            return _env_val_range(val.args[0])
+        return None
+
+    import builtins as _bi
+    for k in om.keys() | nm.keys():
+        ov, nv = om.get(k), nm.get(k)
+        if ov is not None and nv is not None and ast.dump(ov) == ast.dump(nv):
+            continue
+        if ov is None:
+            if not k.isupper() or hasattr(_bi, k):
+                return None
+            continue
+        rng = _env_val_range(ov)
+        if rng is None:
+            return None
+        ranges.append(rng)
+
+    return [
+        i
+        for i, row in enumerate(rows)
+        if any(p == path and any(s <= n <= e for s, e in ranges) for p, n in row["calls"])
+    ]
+
+
 def tail_cases_info(path, source, fd, *, strict=True):
     """Return ``(forced_query_indices, needs_pygen)`` for ``path``.
 
@@ -953,8 +1076,12 @@ def tail_cases_info(path, source, fd, *, strict=True):
             if mq and path in _PYGEN_TAIL_PATHS and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file():
                 return [], True
             return mq, False
-    # Fallback for PythonGenerator/Generator/Dialect BEFORE full-file AST parsers
-    # so 6.8k-line generator.py and 3.1k-line dialect.py never waste queue CPU.
+        if path == "sqlglot/executor/env.py":
+            eq = _env_tail_queries(path, source, fd, rows)
+            if eq is not None:
+                return eq, False
+    # Fallback for non-executor tail paths covered by pygen_plan_digest BEFORE
+    # full-file AST parsers so huge core files never waste queue CPU.
     if (
         path in _PYGEN_TAIL_PATHS
         and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file()
@@ -1045,15 +1172,57 @@ def tail_cases(path, source, fd, *, strict=True):
     return tail_cases_info(path, source, fd, strict=strict)[0]
 
 
+def _harmless_config(fd) -> bool:
+    """True when an edit to pyproject.toml or setup.cfg leaves pytest/build
+    configuration identical to the pin (matching impact.Analysis.config_file)."""
+    p = fd.path
+    if (
+        p not in {"pyproject.toml", "setup.cfg"}
+        or fd.is_new
+        or fd.is_deleted
+        or fd.is_rename
+        or fd.is_binary
+        or fd.mode_change
+        or not fd.hunks
+    ):
+        return False
+    old = impact._sources().get("config", {}).get(p)
+    if old is None:
+        return False
+    try:
+        new = verify._apply_file(fd, verify.PRISTINE)
+        if new is None:
+            return False
+        if p == "pyproject.toml":
+            import tomllib
+            o, n = tomllib.loads(old), tomllib.loads(new)
+            keep = lambda d: {"pytest": d.get("tool", {}).get("pytest"), "build": d.get("build-system")}
+            return keep(o) == keep(n)
+        import configparser
+        def _sect(text):
+            cp = configparser.RawConfigParser()
+            cp.read_string(text)
+            return {s: dict(cp.items(s)) for s in cp.sections() if "pytest" in s.lower()}
+        return _sect(old) == _sect(new)
+    except Exception:
+        return False
+
+
 def patch_verifiable_files(files, *, forbid_prefixes=(), allow_structural=False, sqlglot_only=False):
     """Basic safety check for running faithful probes in a clean overlay fork."""
     if not files:
         return False
     for f in files:
-        if f.is_binary or f.mode_change:
+        if f.mode_change:
             return False
+        if f.is_binary:
+            if sqlglot_only or not all(_is_doc_path(p) for p in f.paths):
+                return False
+            continue
         if not allow_structural and (f.is_new or f.is_deleted or f.is_rename):
             return False
+        if not sqlglot_only and _harmless_config(f):
+            continue
         for p in f.paths:
             if not p or ".." in p.split("/") or p.startswith("/"):
                 return False
@@ -1226,7 +1395,11 @@ def _parser_scaled_eligible(f, *, allow_monitored_loops=False, allow_monitored_e
         return False
     p2_lines = profile("parser")["parser:2"]["lines"]
     lines = [line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"}]
-    code_lines = [_strip_comment(ln) for ln in lines if not ln.lstrip().startswith("#")]
+    code_lines = [
+        re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', '""', _strip_comment(ln))
+        for ln in lines
+        if not ln.lstrip().startswith("#")
+    ]
     delta_code = "\n".join(code_lines)
     # Hard hazards that can never be safely cleared by scaled parity alone.
     if re.search(
@@ -1469,6 +1642,18 @@ _TARGET_TEST_PROTECTED = {
 }
 
 
+def _apply_verifiable(text: str) -> dict[str, str | None]:
+    """Apply patch text, ignoring only verified binary doc/image files."""
+    files = parse(text)
+    bin_docs = {
+        p
+        for f in files
+        if f.is_binary and f.paths and all(_is_doc_path(p) for p in f.paths)
+        for p in f.paths
+    }
+    return verify.apply_patch(text, ignore_binary=bin_docs) if bin_docs else verify.apply_patch(text)
+
+
 def _test_file_disjoint_from_target(fd, group):
     """True when a modification to ``tests/test_{executor,parser,generator}.py``
     ONLY touches unrelated ``def test_*`` methods inside the test class and
@@ -1477,14 +1662,14 @@ def _test_file_disjoint_from_target(fd, group):
     if not spec or fd.path != spec[0] or fd.is_new or fd.is_deleted or fd.is_rename or fd.is_binary or fd.mode_change or not fd.hunks:
         return False
     tpath, cls_name, protected = spec
-    before = impact._sources()["src"].get(tpath)
-    if before is None:
-        return False
     try:
+        old_mod = impact._parse_pinned(tpath)
+        if old_mod is None:
+            return False
         after = verify._apply_file(fd, verify.PRISTINE)
         if after is None:
             return False
-        old_mod, new_mod = ast.parse(before), ast.parse(after)
+        new_mod = ast.parse(after)
     except Exception:
         return False
     old_bound = set()
@@ -1558,15 +1743,15 @@ def _helpers_disjoint_from_target(fd, group):
     allowed = _HELPERS_UNUSED.get(group)
     if not allowed or fd.path != "tests/helpers.py" or fd.is_new or fd.is_deleted or fd.is_rename or fd.is_binary or fd.mode_change or not fd.hunks:
         return False
-    before = impact._sources()["src"].get("tests/helpers.py")
-    if before is None:
-        return False
     try:
+        old_mod = impact._parse_pinned("tests/helpers.py")
+        if old_mod is None:
+            return False
         after = verify._apply_file(fd, verify.PRISTINE)
         if after is None:
             return False
         compile(after.encode(), "tests/helpers.py", "exec", dont_inherit=True)
-        old_mod, new_mod = ast.parse(before), ast.parse(after)
+        new_mod = ast.parse(after)
     except Exception:
         return False
     if len(old_mod.body) != len(new_mod.body):
@@ -1581,11 +1766,15 @@ def _helpers_disjoint_from_target(fd, group):
 
 
 def _target_unreachable(fd, group):
-    """True when a non-sqlglot file under tests/ (or harmless doc file) is
+    """True when a non-sqlglot file under tests/ (or harmless doc/config file) is
     provably never imported, executed, or opened by the heavy target test."""
     p = fd.path
-    if not p or fd.is_binary or fd.mode_change:
+    if not p or fd.mode_change:
         return False
+    if fd.is_binary:
+        return all(_is_doc_path(path) for path in fd.paths)
+    if _harmless_config(fd):
+        return True
     if _test_file_disjoint_from_target(fd, group) or _helpers_disjoint_from_target(fd, group):
         return True
     if not (p.startswith("tests/") or _is_doc_path(p)):
@@ -1644,7 +1833,7 @@ def _target_unreachable(fd, group):
 
 @functools.lru_cache(maxsize=4)
 def changed_regions(text, *, sqlglot_only=False):
-    changes = verify.apply_patch(text)
+    changes = _apply_verifiable(text)
     result = {}
     files = {f.path: f for f in parse(text)}
     for path, source in changes.items():
@@ -1815,7 +2004,7 @@ def stage_edit(text, group):
             allow_structural=True,
         ):
             return None
-        changes = verify.apply_patch(text)
+        changes = _apply_verifiable(text)
         paths = ",".join(p for p, src in changes.items() if src is not None and p.startswith("sqlglot/") and p.endswith(".py"))
         if strict_all:
             regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
@@ -1840,7 +2029,7 @@ def stage_edit(text, group):
             return None
         if not sql_files or not non_sql_inert:
             return None
-        changes = verify.apply_patch(text)
+        changes = _apply_verifiable(text)
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         if all(_parser2_disjoint_file(f) for f in sql_files):
             return "small", paths, changes, []
@@ -1868,8 +2057,7 @@ def stage_edit(text, group):
                     return None
                 if w:
                     forbidden[f.path] = sorted(w)
-            if forbidden or all(f.path not in profile("parser")["parser:2"]["lines"] for f in sql_files):
-                return "scaled", paths, changes, (forbidden or [])
+            return "scaled", paths, changes, (forbidden or [])
         return None
 
     # group == "ds"
@@ -1891,7 +2079,7 @@ def stage_edit(text, group):
         return None
     if not sql_files:
         return None
-    changes = verify.apply_patch(text)
+    changes = _apply_verifiable(text)
     active_sql_files = [f for f in sql_files if not _inert_new_class_attrs(f.path, changes.get(f.path), f)]
     if not active_sql_files:
         if non_sql_inert:
@@ -2379,6 +2567,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
 
     for patch in patches:
         enqueue(patch)
+    impact._parse_pinned.cache_clear()
     print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
     if any(p.mode != "unreached" for p in queue):
         warm_replay.prepare_base()
@@ -2388,6 +2577,10 @@ def run(patches, catalog, dur, t0, *, deadline=None):
         warm_replay.prepare_data_libs()
     if sum(1 for p in queue if p.mode == "catalog") >= 2:
         warm_replay.prepare_pytest()
+    if any(p.mode != "unreached" for p in queue):
+        import gc
+        gc.collect()
+        gc.freeze()
     active = None
     with contextlib.ExitStack() as stack:
         while queue and time.monotonic() < deadline:
@@ -2442,7 +2635,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     session = None
                     active = None
                     work = stack.enter_context(tempfile.TemporaryDirectory())
-                    changes = verify.apply_patch(patch.text)
+                    changes = _apply_verifiable(patch.text)
                     verify.build_overlay(work, changes)
                     active = patch
                     modules = ",".join(
@@ -2458,9 +2651,15 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         session = PatchSession(work, probe.paths)
                         stack.callback(session.close)
                 if probe.mode == "catalog" and not warm_replay.pytest_ready:
-                    warm_replay.prepare_pytest()
+                    if warm_replay.prepare_pytest():
+                        import gc
+                        gc.collect()
+                        gc.freeze()
                 if probe.heavy_mod and not warm_replay.heavy_ready and sum(1 for p in queue if p.heavy_mod) >= 2:
-                    warm_replay.prepare_data_libs()
+                    if warm_replay.prepare_data_libs():
+                        import gc
+                        gc.collect()
+                        gc.freeze()
                 args = ([json.dumps(probe.cases)] if (
                     probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim"}
                     or (probe.mode == "scaled" and probe.cases)

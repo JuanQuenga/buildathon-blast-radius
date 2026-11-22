@@ -74,6 +74,15 @@ FULL_PATHS = {"pytest.ini", "tox.ini", "conftest.py", "tests/conftest.py", ".pyt
 CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 
 
+@functools.lru_cache(maxsize=64)
+def _parse_pinned(path: str):
+    """Parse a pinned source file once per process (read-only AST)."""
+    src = _sources()["src"].get(path)
+    if src is None:
+        return None
+    return ast.parse(src)
+
+
 def _load_map(name):
     cache = _PIN_CACHE / (name + ".marshal")
     if cache.exists():
@@ -1019,15 +1028,19 @@ class Analysis:
             return
         if not fp.hunks:
             return
-        new_src, placed = apply_hunks(old_src, fp.hunks)
-        # ast.parse accepts errors such as a break outside a loop. Compile the
-        # complete module first so the fast path cannot hide collection errors.
-        try:
-            patched_code = compile(new_src.encode(), oldp, "exec", dont_inherit=True)
-        except (SyntaxError, ValueError) as e:
-            self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
-                     f"{oldp} no longer compiles")
-            return
+        pre = self.__dict__.get("_preparsed", {}).get(oldp)
+        if pre is not None:
+            new_src, placed, patched_code, _ = pre
+        else:
+            new_src, placed = apply_hunks(old_src, fp.hunks)
+            # ast.parse accepts errors such as a break outside a loop. Compile the
+            # complete module first so the fast path cannot hide collection errors.
+            try:
+                patched_code = compile(new_src.encode(), oldp, "exec", dont_inherit=True)
+            except (SyntaxError, ValueError) as e:
+                self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
+                         f"{oldp} no longer compiles")
+                return
         self.__dict__.setdefault("_new_srcs", {})[oldp] = new_src
         semantics = _changed_call_semantics(oldp, patched_code)
         if isinstance(semantics, set) and semantics:
@@ -1065,15 +1078,21 @@ class Analysis:
         if self.fast_function_path(oldp, old_src, new_src, placed, identity_edit):
             return
         try:
-            old_tree = ast.parse(old_src)
+            old_tree = _parse_pinned(oldp)
+            if old_tree is None:
+                old_tree = ast.parse(old_src)
         except SyntaxError:
             raise Unsupported(f"pinned {oldp} does not parse")
-        try:
-            new_tree = ast.parse(new_src)
-        except (SyntaxError, ValueError) as e:
-            self.add(self.import_break(oldp, f"no longer compiles ({type(e).__name__})"),
-                     f"{oldp} no longer compiles")
-            return
+        pre = self.__dict__.get("_preparsed", {}).get(oldp)
+        if pre is not None and pre[3] is not None:
+            new_tree = pre[3]
+        else:
+            try:
+                new_tree = ast.parse(new_src)
+            except (SyntaxError, ValueError) as e:
+                self.add(self.import_break(oldp, f"no longer compiles ({type(e).__name__})"),
+                         f"{oldp} no longer compiles")
+                return
         if identity_edit and _same_observed_comparison(oldp, old_tree, new_tree):
             self.reasons.append(f"{oldp}: identity and equality agreed on pinned operands")
             return
@@ -2700,21 +2719,28 @@ def _collect_patch_additions(an: Analysis, files) -> None:
     added_mod: dict[str, set[str]] = {}
     added_cls: dict[str, set[str]] = {}
     brand_new_tokens: set[str] = set()
+    preparsed: dict[str, tuple] = {}
     srcs = _sources()["src"]
     ns_cls = an.idx.get("ns_cls", {})
     for fp in files:
         if fp.binary or fp.status == "D" or not fp.path or not fp.path.endswith(".py"):
             continue
+        # Only sqlglot/ modules and tests/helpers.py export symbols imported by other files.
+        if fp.path.startswith("tests/") and fp.path != "tests/helpers.py":
+            continue
         try:
             if fp.status == "A":
                 new_src = "\n".join(line for h in fp.hunks for tag, line in h.lines if tag == "+") + "\n"
+                placed = None
             else:
                 old_src = srcs.get(fp.old_path or fp.path)
                 if old_src is None or not fp.hunks:
                     continue
-                new_src, _ = apply_hunks(old_src, fp.hunks)
-            compile(new_src.encode(), fp.path, "exec", dont_inherit=True)
-            tree = ast.parse(new_src)
+                new_src, placed = apply_hunks(old_src, fp.hunks)
+            tree = ast.parse(new_src, filename=fp.path)
+            patched_code = compile(tree, fp.path, "exec", dont_inherit=True)
+            if fp.status != "A" and placed is not None:
+                preparsed[fp.old_path or fp.path] = (new_src, placed, patched_code, tree)
         except Exception:
             continue
         mod = _module_name(fp.path)
@@ -2756,6 +2782,7 @@ def _collect_patch_additions(an: Analysis, files) -> None:
     an.patch_added_mod = added_mod
     an.patch_added_cls = added_cls
     an.patch_brand_new_tokens = brand_new_tokens
+    an._preparsed = preparsed
 
 
 def select(patch_text: str, catalog: list[dict]) -> dict:

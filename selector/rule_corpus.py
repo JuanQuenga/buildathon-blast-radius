@@ -192,7 +192,7 @@ def replay(indices, verify_query=None):
             if sum(qcosts.get(q, 0.0) for q in divergent) > 0.88 * remaining:
                 if (
                     getattr(verify_query, "_accepts_plan_budget", False)
-                    and sum(pcosts.get(q, 0.0) for q in divergent) <= 0.65 * remaining
+                    and sum(pcosts.get(q, 0.0) for q in divergent) <= 0.55 * remaining
                 ):
                     plan_budget_s = remaining
                 else:

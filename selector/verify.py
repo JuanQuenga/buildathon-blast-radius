@@ -95,10 +95,12 @@ def _apply_file(fd: FileDiff, root: str) -> str | None:
     return "\n".join(out) + ("\n" if new_nl and out else "")
 
 
-def apply_patch(text: str, root: str = PRISTINE) -> dict[str, str | None]:
+def apply_patch(text: str, root: str = PRISTINE, *, ignore_binary: set[str] | frozenset[str] = ()) -> dict[str, str | None]:
     """Map relative path -> new text (None = deleted)."""
     changes: dict[str, str | None] = {}
     for fd in parse(text):
+        if fd.is_binary and fd.paths and all(p in ignore_binary for p in fd.paths):
+            continue
         if fd.mode_change and not fd.hunks and not fd.is_rename:
             continue
         if fd.is_rename and fd.old_path and fd.old_path != fd.new_path:

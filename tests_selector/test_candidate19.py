@@ -948,6 +948,108 @@ class TestCandidate19(unittest.TestCase):
         self.assertTrue(heavy._helpers_disjoint_from_target(fd, "parser"))
         self.assertTrue(heavy._helpers_disjoint_from_target(fd, "generator"))
 
+    def test_pygen_tail_paths_covers_core_planner_schema_trie(self):
+        """Edits to expressions/core.py, planner.py, schema.py, trie.py route via
+        pygen_plan_digest (0 forced queries, needs_pygen=True) instead of 99 forced."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        for p in (
+            "sqlglot/expressions/core.py",
+            "sqlglot/expressions/query.py",
+            "sqlglot/planner.py",
+            "sqlglot/schema.py",
+            "sqlglot/trie.py",
+        ):
+            self.assertIn(p, heavy._PYGEN_TAIL_PATHS)
+        # Simulated base Expression.__hash__ edit in expressions/core.py
+        clines = impact._sources()["src"]["sqlglot/expressions/core.py"].splitlines()
+        ln = next(i for i, l in enumerate(clines, 1) if "def __hash__" in l) + 1
+        patch = (
+            "diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\n"
+            "--- a/sqlglot/expressions/core.py\n"
+            "+++ b/sqlglot/expressions/core.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{clines[ln-1]}\n"
+            f"+{clines[ln-1]}  # c32\n"
+        )
+        after = "\n".join(clines[: ln - 1] + [clines[ln - 1] + "  # c32"] + clines[ln:]) + "\n"
+        forced, needs_pygen = heavy.tail_cases_info(
+            "sqlglot/expressions/core.py", after, parse(patch)[0], strict=True
+        )
+        self.assertEqual(forced, [])
+        self.assertTrue(needs_pygen)
+
+    def test_env_tail_queries_unused_env_entry(self):
+        """Removing/editing an unused ENV function (ZIPNOTNULL) in env.py slices to []."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        elines = impact._sources()["src"]["sqlglot/executor/env.py"].splitlines()
+        ln = next(i for i, l in enumerate(elines, 1) if '"ZIPNOTNULL": zip_not_null,' in l)
+        patch = (
+            "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\n"
+            "--- a/sqlglot/executor/env.py\n"
+            "+++ b/sqlglot/executor/env.py\n"
+            f"@@ -{ln},1 +{ln},0 @@\n"
+            '-    "ZIPNOTNULL": zip_not_null,\n'
+        )
+        after = "\n".join(elines[: ln - 1] + elines[ln:]) + "\n"
+        forced, needs_pygen = heavy.tail_cases_info(
+            "sqlglot/executor/env.py", after, parse(patch)[0], strict=True
+        )
+        self.assertEqual(forced, [])
+        self.assertFalse(needs_pygen)
+
+    def test_harmless_pyproject_allowed_in_heavy(self):
+        """A non-pytest metadata edit in pyproject.toml is allowed in heavy probes,
+        while a pytest config edit is still rejected."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        cfg = impact._sources()["config"]["pyproject.toml"].splitlines()
+        ln = next(i for i, l in enumerate(cfg, 1) if "line-length" in l)
+        harmless = (
+            "diff --git a/pyproject.toml b/pyproject.toml\n"
+            "--- a/pyproject.toml\n"
+            "+++ b/pyproject.toml\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{cfg[ln-1]}\n"
+            "+line-length = 120\n"
+        )
+        fd_ok = parse(harmless)[0]
+        self.assertTrue(heavy._harmless_config(fd_ok))
+        self.assertTrue(heavy._target_unreachable(fd_ok, "ds"))
+        self.assertTrue(heavy.patch_verifiable_files([fd_ok]))
+
+    def test_parse_and_transpile_disjoint_for_other_dialects(self):
+        """Non-duckdb dialects/parsers do not trigger default parse_one or duckdb transpile."""
+        from selector.result_replay import _needs_parse_check, _needs_transpile_check
+
+        self.assertFalse(_needs_parse_check(["sqlglot.dialects.snowflake"]))
+        self.assertFalse(_needs_parse_check(["sqlglot.parsers.bigquery"]))
+        self.assertFalse(_needs_parse_check(["sqlglot.dialects.duckdb"]))
+        self.assertTrue(_needs_parse_check(["sqlglot.dialects.dialect"]))
+        self.assertFalse(_needs_transpile_check(["sqlglot.dialects.snowflake"]))
+        self.assertFalse(_needs_transpile_check(["sqlglot.parsers.bigquery"]))
+        self.assertTrue(_needs_transpile_check(["sqlglot.dialects.duckdb"]))
+        self.assertTrue(_needs_transpile_check(["sqlglot.generators.duckdb"]))
+
+    def test_parser_scaled_eligible_ignores_string_literal_hazard_words(self):
+        """Error message strings containing 'recursion' or 'eval' do not block scaled()."""
+        from selector import heavy
+        from selector.patch import parse
+
+        patch = (
+            "diff --git a/sqlglot/errors.py b/sqlglot/errors.py\n"
+            "--- a/sqlglot/errors.py\n"
+            "+++ b/sqlglot/errors.py\n"
+            "@@ -10,1 +10,2 @@\n"
+            " pass\n"
+            '+MSG = "avoid recursion and eval in query"\n'
+        )
+        self.assertTrue(heavy._parser_scaled_eligible(parse(patch)[0]))
+
 
 if __name__ == "__main__":
     unittest.main()

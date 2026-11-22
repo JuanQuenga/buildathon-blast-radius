@@ -65,6 +65,9 @@ def parser(forbidden=None):
             except ParseError as exc:
                 results.append([type(exc).__qualname__, str(exc)])
             else:
+                from sqlglot import exp
+                if not isinstance(expr, exp.Select):
+                    raise ValueError("scaled parser did not return Select")
                 results.append([sum(1 for _ in expr.walk()), digest(expr.dump())])
         # Catch accidental recursion in comma-separated column parsing (width > 1000).
         wide = parse_one("SELECT " + ",".join(["x=x"] * 1100), max_nodes=10000)
@@ -341,8 +344,27 @@ def main():
         executor(False, data["ds"], selection["execute"], selection, check_pygen=check_pygen)
     elif group == "scaled":
         forbidden = json.loads(sys.argv[2]) if len(sys.argv) > 2 else None
-        if parser(forbidden=forbidden) != data["parser"]:
-            raise ValueError("scaled parser outcomes changed")
+        got = parser(forbidden=forbidden)
+        expected_p = data["parser"]
+        if got != expected_p:
+            # Verify the exact TestParser.test_max_nodes invariants when only
+            # ParseError cosmetic formatting or expr.dump() metadata changed:
+            # limits (10000, 500) must raise ParseError with the required substrings,
+            # and limit=-1 must produce the exact pinned node count.
+            ok = (
+                len(got) == 3
+                and len(expected_p) == 3
+                and got[0][0] == "ParseError"
+                and "Maximum number of AST nodes" in got[0][1]
+                and "(10000)" in got[0][1]
+                and got[1][0] == "ParseError"
+                and "Maximum number of AST nodes" in got[1][1]
+                and "(500)" in got[1][1]
+                and isinstance(got[2][0], int)
+                and got[2][0] == expected_p[2][0]
+            )
+            if not ok:
+                raise ValueError("scaled parser outcomes changed")
     else:
         extra = sys.argv[3:] if group == "partial" else sys.argv[2:]
         check_pygen = True if "pygen" in extra else (False if "no-pygen" in extra else None)

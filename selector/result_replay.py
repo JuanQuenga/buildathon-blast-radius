@@ -16,14 +16,27 @@ _PARSE_DISJOINT_EXACT = frozenset({
     "sqlglot.schema",
     "sqlglot.lineage",
     "sqlglot.diff",
+    "sqlglot.trie",
+    "sqlglot.anonymize",
+    "sqlglot.jsonpath",
+    "sqlglot.transforms",
 })
 
 # Modules whose ONLY execution-tail effect in PythonExecutor.execute() is
-# compiling plan expressions via PythonGenerator / query.sql() / Generator.TIME_PART_SINGULARS.
+# covered by pygen_plan_digest (plan topology, PythonGenerator compilation,
+# TIME_PART_SINGULARS, DType/DataType sets, and engine.tables.find()).
 _PYGEN_MODULES = frozenset({
     "sqlglot.generator",
     "sqlglot.generators.python",
     "sqlglot.dialects.dialect",
+    "sqlglot.expressions.core",
+    "sqlglot.expressions.query",
+    "sqlglot.expressions.datatypes",
+    "sqlglot.planner",
+    "sqlglot.schema",
+    "sqlglot.trie",
+    "sqlglot.serde",
+    "sqlglot.helper",
 })
 
 # Exact modules executed by transpile(sql, write="duckdb") on the 57 executed TPC-DS queries.
@@ -139,7 +152,9 @@ def _needs_parse_check(changed_modules):
             (mod.startswith("sqlglot.optimizer.") and mod != "sqlglot.optimizer.scope")
             or mod.startswith("sqlglot.executor.")
             or mod.startswith("sqlglot.generators.")
+            or mod.startswith("sqlglot.parsers.")
             or mod.startswith("sqlglot.typing.")
+            or (mod.startswith("sqlglot.dialects.") and mod != "sqlglot.dialects.dialect")
         ):
             continue
         return True
@@ -152,12 +167,26 @@ def _needs_transpile_check(changed_modules):
     for mod in changed_modules:
         if mod in _TRANSPILE_MODULES:
             return True
-        if not (
+        if mod.startswith("sqlglot.expressions."):
+            return True
+        if (
             (mod.startswith("sqlglot.optimizer.") and mod != "sqlglot.optimizer.scope")
             or mod.startswith("sqlglot.executor.")
-            or mod == "sqlglot.planner"
+            or mod.startswith("sqlglot.dialects.")
+            or mod.startswith("sqlglot.parsers.")
+            or mod.startswith("sqlglot.generators.")
+            or mod.startswith("sqlglot.typing.")
+            or mod in {
+                "sqlglot.planner",
+                "sqlglot.schema",
+                "sqlglot.lineage",
+                "sqlglot.diff",
+                "sqlglot.serde",
+                "sqlglot.anonymize",
+            }
         ):
-            return True
+            continue
+        return True
     return False
 
 
@@ -177,8 +206,16 @@ def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
     Insensitive to unexecuted ``exp.Expr.meta`` / ``comments`` while faithfully
     capturing any ``.meta`` read by ``PythonGenerator.generate()``."""
     import math as _math
+    from sqlglot import helper as _helper_mod
 
     probe_eng = type(engine)(tables={})
+    live_tables = getattr(engine, "tables", None)
+    check_live_tables = (
+        live_tables is not None
+        and hasattr(live_tables, "find")
+        and isinstance(getattr(live_tables, "mapping", None), dict)
+        and bool(live_tables.mapping)
+    )
 
     def det_register(query):
         if probe_eng._ctes is not None and not query.args.get("with_"):
@@ -224,16 +261,30 @@ def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
                 if sid in step_memo:
                     return step_memo[sid]
                 dep_digests = sorted(visit(dep) for dep in step.dependencies)
+                for dep in step.dependencies:
+                    if step not in dep.dependents:
+                        raise ValueError("broken plan dependents link")
 
                 def gen_one(e):
                     if not e:
                         return ""
                     rep = probe_eng._replace_subqueries(e)
-                    return probe_eng.generator.generate(rep)
+                    code = probe_eng.generator.generate(rep)
+                    if "JSONEXTRACT" in code:
+                        raise ValueError("JSONEXTRACT requires live execution")
+                    return code
 
                 lim = _lim(step.limit)
                 off = step.offset
                 if isinstance(step, planner_mod.Scan):
+                    if check_live_tables and isinstance(step.source, planner_mod.exp.Expr):
+                        sname = step.source.name or step.source.alias
+                        dep_names = {d.name for d in step.dependencies}
+                        if sname and sname not in dep_names:
+                            found = live_tables.find(step.source)
+                            expected_tbl = live_tables.mapping.get(step.source.name)
+                            if found is None or expected_tbl is None or found is not expected_tbl:
+                                raise ValueError(f"table lookup diverged for {sname}")
                     payload = (
                         "S", step.name, _source_key(step.source), lim, off,
                         _col_names(step.projections),
@@ -274,9 +325,15 @@ def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
                         gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests,
                     )
                 elif isinstance(step, planner_mod.SetOperation):
-                    op_name = step.op.__qualname__ if isinstance(step.op, type) else str(step.op)
+                    op_cls = step.op
+                    op_flags = (
+                        op_cls.__qualname__ if isinstance(op_cls, type) else str(op_cls),
+                        isinstance(op_cls, type) and issubclass(op_cls, planner_mod.exp.Intersect),
+                        isinstance(op_cls, type) and issubclass(op_cls, planner_mod.exp.Except),
+                        isinstance(op_cls, type) and issubclass(op_cls, planner_mod.exp.Union),
+                    )
                     payload = (
-                        "U", step.name, op_name, bool(step.distinct), step.left, step.right,
+                        "U", step.name, op_flags, bool(step.distinct), step.left, step.right,
                         lim, off, dep_digests,
                     )
                 else:
@@ -286,18 +343,30 @@ def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
                 return h
 
             root_h = visit(p.root)
+            leaves_h = sorted(s.name for s in p.leaves)
             sq_items = []
             for sq_sql, sq_name in sorted(probe_eng._plan_names_by_sql.items()):
                 sq_plan, _ = probe_eng._subquery_plans[sq_name]
                 if id(sq_plan) != pid:
                     sq_items.append((sq_sql, walk_plan(sq_plan)))
-            res = digest_fn((root_h, sq_items))
+            res = digest_fn((root_h, leaves_h, sq_items))
             memo_plans[pid] = res
             return res
         finally:
             probe_eng._ctes = ctes
 
-    return digest_fn((sorted(generator_cls.TIME_PART_SINGULARS.items()), walk_plan(plan)))
+    exp_mod = planner_mod.exp
+    env_invariants = (
+        sorted(generator_cls.TIME_PART_SINGULARS.items()),
+        sorted(str(x) for x in exp_mod.DataType.TEXT_TYPES),
+        sorted(str(x) for x in exp_mod.DataType.NUMERIC_TYPES),
+        [
+            str(getattr(exp_mod.DType, k))
+            for k in ("DATE", "TIME", "DATETIME", "TIMESTAMP", "BOOLEAN", "FLOAT", "DOUBLE", "DECIMAL", "INT")
+        ],
+        bool(_helper_mod.PYTHON_VERSION >= (3, 8)),
+    )
+    return digest_fn((env_invariants, walk_plan(plan)))
 
 
 def _load_pygen_digests():
@@ -366,21 +435,38 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
         if ran or skipped:
             raise ValueError("multiple executions")
         if not required:
-            exact_match = (
-                parsed_matches
-                and digest(plan.expression.dump()) == reference[6]
-                and plan_digest(plan) == reference[7]
-            )
-            if exact_match:
-                if not check_pygen or _pygen_matches(engine, plan):
-                    skipped = True
-                    return None
-            elif not touches_executor and _pygen_matches(engine, plan):
-                # Standalone pygen_plan_digest proved identical plan structure,
-                # column names, limits/offsets, and compiled Python code
-                # (e.g. only unexecuted .meta or cosmetic AST changed).
-                skipped = True
-                return None
+            if check_pygen and not touches_executor:
+                # pygen_plan_digest subsumes plan_digest and plan.expression.dump();
+                # skip computing the two redundant AST/JSON digests first.
+                try:
+                    if _pygen_matches(engine, plan):
+                        skipped = True
+                        return None
+                except ValueError:
+                    pass
+            else:
+                exact_match = (
+                    parsed_matches
+                    and digest(plan.expression.dump()) == reference[6]
+                    and plan_digest(plan) == reference[7]
+                )
+                if exact_match:
+                    if not check_pygen:
+                        skipped = True
+                        return None
+                    try:
+                        if _pygen_matches(engine, plan):
+                            skipped = True
+                            return None
+                    except ValueError:
+                        pass
+                elif not touches_executor:
+                    try:
+                        if _pygen_matches(engine, plan):
+                            skipped = True
+                            return None
+                    except ValueError:
+                        pass
         if plan_only_mode:
             plan_changed_flag = True
             skipped = True
@@ -410,7 +496,11 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                 continue
             if check_parse:
                 expr = pickle.loads(pickle.dumps(tests.parse_one(sql)))
-                matches = digest(expr.dump()) == expected[i][2]
+                matches = (
+                    digest(expr.dump()) == expected[i][2]
+                    if is_exec and not (check_pygen and not touches_executor)
+                    else True
+                )
             else:
                 expr = None
                 matches = True
@@ -458,6 +548,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                 ran = skipped = False
                 plan_changed_flag = False
                 tests.mp_execute(expr, meta)
+                if not skipped:
+                    raise ValueError("missing result")
                 if plan_changed_flag:
                     raise ValueError("canary plan diverged under budget guard")
                 canary_checked.add(i)
@@ -477,12 +569,21 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                 ran = skipped = False
                 plan_changed_flag = False
                 tests.mp_execute(expr, meta)
+                if not skipped:
+                    raise ValueError("missing result")
                 if plan_changed_flag:
                     need_exec_set.add(i)
                     exec_needed += exec_costs.get(i, 0.25)
-                    budget_left = plan_budget_s - (time.process_time() - t_plan_start)
-                    if exec_needed > 0.85 * max(0.0, budget_left):
+                    elapsed_plan = time.process_time() - t_plan_start
+                    budget_left = plan_budget_s - elapsed_plan
+                    if (
+                        len(need_exec_set) > 2
+                        or exec_needed > 1.5
+                        or exec_needed > 0.85 * max(0.0, budget_left)
+                    ):
                         raise ValueError("changed plan execution exceeds probe budget")
+                elif time.process_time() - t_plan_start > 0.60 * plan_budget_s:
+                    raise ValueError("plan scan exceeds probe budget")
             plan_only_mode = False
             if not need_exec_set:
                 return
