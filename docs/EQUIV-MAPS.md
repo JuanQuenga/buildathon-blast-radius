@@ -39,6 +39,10 @@ unchanged). Other differences came from CPU-limited probe timeouts on unrelated 
 Paired simultaneous runs against candidate 35 (one physical core each, 585 labelled
 patches): 3827.333 → 3775.353 simulated seconds (−51.980), zero misses, sample
 unchanged at 94.862. On 120 random `is`/ordering swaps at uniformly chosen sqlglot sites
-the plans cost 636.231 → 161.139 seconds. Oracle labels (full pinned suite) for 36
-substitutions at mapped sites, 40 rule-fired random swaps and 16 newly certified
-identity sites are in the candidate report.
+the plans cost 636.231 → 161.139 seconds.
+
+Candidate 38 adds only candidate 37's static `JSON_PATH_PART_TRANSFORMS` narrowing. Paired
+against candidate 35: 3840.847 → 3779.018 (−61.829), zero misses, sample byte-identical.
+Full-suite oracle labels for 92 operator substitutions where the rules fire (36 at mapped
+sites, 9 of them with 839 failing tests between them; 40 random swaps the rules
+narrowed; 16 at newly certified identity sites): zero misses.
