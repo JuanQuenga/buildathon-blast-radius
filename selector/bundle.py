@@ -75,23 +75,36 @@ def main():
         "no-exec-setup" in sys.argv[3:]
         and not (tpc_exec_nodes & set(ids))
     )
-    suite = unittest.TestSuite()
+    skip_opt_duckdb = "no-opt-duckdb" in sys.argv[3:]
+    if skip_opt_duckdb:
+        class _FailClosedStub(types.ModuleType):
+            def __getattr__(self, name):
+                def _boom(*_a, **_kw):
+                    raise RuntimeError(f"stubbed {self.__name__}.{name}")
+                return _boom
+
+        if "duckdb" not in sys.modules:
+            sys.modules["duckdb"] = _FailClosedStub("duckdb")
+        if "pandas" not in sys.modules:
+            _pt = _FailClosedStub("pandas.testing")
+            _pt.assert_frame_equal = lambda *_a, **_kw: (_ for _ in ()).throw(
+                RuntimeError("stubbed pandas.testing.assert_frame_equal")
+            )
+            _pm = _FailClosedStub("pandas")
+            _pm.testing = _pt
+            sys.modules["pandas"] = _pm
+            sys.modules["pandas.testing"] = _pt
+
+    # Group contiguous tests by module path so fail-fast `bundle` mode runs cheap
+    # tier-0 dialect/unit modules BEFORE ever importing heavy modules like
+    # tests/test_optimizer.py (duckdb/pandas/numpy) or tests/test_executor.py!
+    import itertools
+    groups = [
+        (mod_path, list(grp))
+        for mod_path, grp in itertools.groupby(ids, key=lambda n: n.split("::", 1)[0])
+    ]
+
     nodes = {}
-    exec_stubbed = False
-    for node in ids:
-        path, cls, method = node.split("::")
-        module = importlib.import_module(path[:-3].replace("/", "."))
-        if skip_exec_setup and not exec_stubbed and path == "tests/test_executor.py":
-            tcls = getattr(module, "TestExecutor", None)
-            if tcls is not None:
-                tcls.setUpClass = classmethod(lambda c: None)
-                tcls.tearDownClass = classmethod(lambda c: None)
-                exec_stubbed = True
-        case = getattr(module, cls)(method)
-        if not isinstance(case, unittest.TestCase):
-            raise TypeError(node)
-        suite.addTest(case)
-        nodes[case.id()] = node
 
     class Results(unittest.TestResult):
         def __init__(self):
@@ -146,7 +159,57 @@ def main():
 
     result = Results()
     result.failfast = not is_trim
-    suite.run(result)
+    exec_stubbed = False
+    opt_stubbed = False
+    for path, grp_nodes in groups:
+        module = importlib.import_module(path[:-3].replace("/", "."))
+        if skip_exec_setup and not exec_stubbed and path == "tests/test_executor.py":
+            tcls = getattr(module, "TestExecutor", None)
+            if tcls is not None:
+                tcls.setUpClass = classmethod(lambda c: None)
+                tcls.tearDownClass = classmethod(lambda c: None)
+                exec_stubbed = True
+        if skip_opt_duckdb and not opt_stubbed and path == "tests/test_optimizer.py":
+            ocls = getattr(module, "TestOptimizer", None)
+            if ocls is not None:
+                import concurrent.futures as _cf
+                import sqlglot as _sg
+                from sqlglot.schema import MappingSchema as _MS
+
+                class _NoConn:
+                    def __getattr__(self, name):
+                        raise RuntimeError(f"stubbed TestOptimizer.conn.{name}")
+
+                @classmethod
+                def _light_setup(c):
+                    c.pool = _cf.ProcessPoolExecutor()
+                    c.addClassCleanup(c.pool.shutdown)
+                    _sg.schema = _MS()
+                    c.conn = _NoConn()
+
+                ocls.setUpClass = _light_setup
+                ocls.tearDownClass = classmethod(lambda c: None)
+                opt_stubbed = True
+        suite = unittest.TestSuite()
+        for node in grp_nodes:
+            _, cls, method = node.split("::")
+            case = getattr(module, cls)(method)
+            if not isinstance(case, unittest.TestCase):
+                raise TypeError(node)
+            suite.addTest(case)
+            nodes[case.id()] = node
+        suite.run(result)
+        if result.failfast and (
+            result.shouldStop
+            or result.failures
+            or result.errors
+            or result.subtest_failed
+            or result.skipped
+            or result.expectedFailures
+            or result.unexpectedSuccesses
+            or result.stray
+        ):
+            break
     clean_passed = [n for n in result.passed if n not in result.bad_nodes]
     if is_trim:
         if not ids or result.stray or not clean_passed:

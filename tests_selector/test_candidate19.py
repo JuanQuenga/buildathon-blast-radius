@@ -1239,5 +1239,136 @@ class TestCandidate19(unittest.TestCase):
                 sys.path.remove(verify.PRISTINE)
 
 
+    def test_c41_class_attr_reads_and_default_args_narrowing(self):
+        """Per-class Dialect attribute reads and per-function default-arg usage narrow
+        statically without dropping real failing tests."""
+        from selector import impact
+
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        by_num = {t["number"]: t["id"] for t in cat}
+
+        # 1. Trino.SUPPORTS_USER_DEFINED_TYPES -> narrowed to <= 5 tests (vs full Trino family)
+        tr_lines = impact._sources()["src"]["sqlglot/dialects/trino.py"].splitlines()
+        tr_ln = next(i for i, l in enumerate(tr_lines, 1) if "SUPPORTS_USER_DEFINED_TYPES = False" in l)
+        tr_patch = (
+            "diff --git a/sqlglot/dialects/trino.py b/sqlglot/dialects/trino.py\n"
+            "--- a/sqlglot/dialects/trino.py\n"
+            "+++ b/sqlglot/dialects/trino.py\n"
+            f"@@ -{tr_ln},1 +{tr_ln},1 @@\n"
+            "-    SUPPORTS_USER_DEFINED_TYPES = False\n"
+            "+    SUPPORTS_USER_DEFINED_TYPES = True\n"
+        )
+        r_tr = impact.select(tr_patch, cat)
+        self.assertFalse(r_tr["full"])
+        self.assertLessEqual(len(r_tr["required"]), 5)
+
+        # 2. optimizer.optimize(..., copy=True -> False) -> narrowed to only callers omitting copy=
+        opt_lines = impact._sources()["src"]["sqlglot/optimizer/optimizer.py"].splitlines()
+        opt_ln = next(i for i, l in enumerate(opt_lines, 1) if "copy: bool = True," in l)
+        opt_patch = (
+            "diff --git a/sqlglot/optimizer/optimizer.py b/sqlglot/optimizer/optimizer.py\n"
+            "--- a/sqlglot/optimizer/optimizer.py\n"
+            "+++ b/sqlglot/optimizer/optimizer.py\n"
+            f"@@ -{opt_ln},1 +{opt_ln},1 @@\n"
+            "-    copy: bool = True,\n"
+            "+    copy: bool = False,\n"
+        )
+        r_opt = impact.select(opt_patch, cat)
+        self.assertFalse(r_opt["full"])
+        self.assertLess(len(r_opt["required"]), 150)
+        self.assertIn(
+            "tests/test_optimizer.py::TestOptimizer::test_optimize",
+            {by_num[n] for n in r_opt["required"]},
+        )
+
+    def test_c41_empty_dict_comp_overload_and_type_checking(self):
+        """Empty dict-comp in dict_keys, @overload stubs, and if TYPE_CHECKING: blocks
+        narrow cleanly to 0 extra tests."""
+        import ast
+        from selector import dict_keys, impact
+
+        old_st = ast.parse("EXPRESSION_METADATA = {**{k: v for k, v in {}.items()}, exp.Abs: 1}\n").body
+        new_st = ast.parse("EXPRESSION_METADATA = {**{k: v for k, v in {}.items()}, exp.Abs: 1, exp.Ceil: 2}\n").body
+        self.assertEqual(dict_keys.changed_keys("EXPRESSION_METADATA", old_st, new_st), {"E:Ceil"})
+
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        ni_lines = impact._sources()["src"]["sqlglot/optimizer/normalize_identifiers.py"].splitlines()
+        ov_ln = next(i for i, l in enumerate(ni_lines, 1) if l.strip() == "@t.overload")
+        ov_patch = (
+            "diff --git a/sqlglot/optimizer/normalize_identifiers.py b/sqlglot/optimizer/normalize_identifiers.py\n"
+            "--- a/sqlglot/optimizer/normalize_identifiers.py\n"
+            "+++ b/sqlglot/optimizer/normalize_identifiers.py\n"
+            f"@@ -{ov_ln},1 +{ov_ln},4 @@\n"
+            "+@t.overload\n"
+            "+def normalize_identifiers(expression: int, dialect: DialectType = None, store_original_column_identifiers: bool = False) -> int: ...\n"
+            "+\n"
+            f" {ni_lines[ov_ln-1]}\n"
+        )
+        r_ov = impact.select(ov_patch, cat)
+        self.assertFalse(r_ov["full"])
+        self.assertEqual(len(r_ov["required"]), 0)
+
+        tc_ln = next(i for i, l in enumerate(ni_lines, 1) if l.strip() == "if t.TYPE_CHECKING:")
+        tc_patch = (
+            "diff --git a/sqlglot/optimizer/normalize_identifiers.py b/sqlglot/optimizer/normalize_identifiers.py\n"
+            "--- a/sqlglot/optimizer/normalize_identifiers.py\n"
+            "+++ b/sqlglot/optimizer/normalize_identifiers.py\n"
+            f"@@ -{tc_ln},1 +{tc_ln},2 @@\n"
+            f" {ni_lines[tc_ln-1]}\n"
+            "+    _DUMMY_ALIAS = int\n"
+        )
+        r_tc = impact.select(tc_patch, cat)
+        self.assertFalse(r_tc["full"])
+        self.assertEqual(len(r_tc["required"]), 0)
+
+    def test_c41_bundle_lazy_module_and_strict_replay_predicates(self):
+        """bundle.py stops on tier-0 failure without importing tests/test_optimizer.py;
+        result_replay module predicates reject non-disjoint modules and accept exact ones."""
+        import json, os, subprocess, sys
+        from selector import result_replay, verify
+
+        self.assertTrue(result_replay._is_parser_only_modules(["sqlglot.parser"], frozenset()))
+        self.assertTrue(result_replay._is_parser_only_modules(["sqlglot.tokens", "sqlglot.parsers.trino"], frozenset({"sqlglot.parsers.trino"})))
+        self.assertFalse(result_replay._is_parser_only_modules(["sqlglot.parsers.trino"], frozenset()))
+        self.assertTrue(result_replay._is_generator_only_modules(["sqlglot.generator"], frozenset()))
+        self.assertFalse(result_replay._is_generator_only_modules(["sqlglot.generators.python"], frozenset()))
+
+        # Lazy per-module loading: if a tier-0 test fails, tests.test_optimizer must never be imported.
+        code = (
+            "import json, sys\n"
+            "from selector import bundle\n"
+            "sys.argv = ['bundle.py', 'bundle', json.dumps([\n"
+            "    'tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery',\n"
+            "    'tests/test_optimizer.py::TestOptimizer::test_qualify_columns',\n"
+            "]), 'no-opt-duckdb']\n"
+            "import unittest\n"
+            "orig_run = unittest.TestSuite.run\n"
+            "def fail_first(self, res):\n"
+            "    res.failures.append((None, 'boom'))\n"
+            "    res.testsRun += 1\n"
+            "    res.stop()\n"
+            "    return res\n"
+            "unittest.TestSuite.run = fail_first\n"
+            "try:\n"
+            "    bundle.main()\n"
+            "except ValueError:\n"
+            "    pass\n"
+            "assert 'tests.test_optimizer' not in sys.modules, 'lazily skipped module was imported!'\n"
+            "print('LAZY_OK')\n"
+        )
+        env = dict(os.environ, PYTHONPATH=os.getcwd())
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=verify.PRISTINE,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertIn("LAZY_OK", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

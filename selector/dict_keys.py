@@ -179,10 +179,12 @@ def _extract_entries(node: ast.AST, table: str) -> tuple[list[str], list[set[str
                 and isinstance(v.generators[0].target, ast.Name)
                 and isinstance(v.key, ast.Name)
                 and v.key.id == v.generators[0].target.id
-                and isinstance(v.generators[0].iter, (ast.Set, ast.Tuple, ast.List))
+                and isinstance(v.generators[0].iter, (ast.Set, ast.Tuple, ast.List, ast.Dict))
+                and (not isinstance(v.generators[0].iter, ast.Dict) or not v.generators[0].iter.keys)
             ):
                 val_dump = ast.dump(v.value, include_attributes=False)
-                for elt in v.generators[0].iter.elts:
+                elts = () if isinstance(v.generators[0].iter, ast.Dict) else v.generators[0].iter.elts
+                for elt in elts:
                     ek = _decode_key(elt, table)
                     if ek is None:
                         return None

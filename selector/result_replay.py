@@ -376,6 +376,76 @@ def _load_pygen_digests():
     return None
 
 
+def _load_ds_fast_meta():
+    p = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "ds-fast-meta.json"
+    if p.is_file():
+        return json.loads(p.read_text())
+    return None
+
+
+def _load_ds_plan(idx):
+    p = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "ds-plans" / f"{idx}.pkl"
+    if p.is_file():
+        return pickle.loads(p.read_bytes())
+    return None
+
+
+_PARSER_ONLY_EXACT = frozenset({
+    "sqlglot.parser",
+    "sqlglot.tokens",
+    "sqlglot.tokenizer_core",
+    "sqlglot.trie",
+    "sqlglot.errors",
+})
+
+
+def _is_parser_only_modules(changed_modules, disjoint_mods=()):
+    """True when every changed module is either a default-dialect parser/token
+    module or a dialect module proven disjoint from default-dialect optimize/plan/execute."""
+    return bool(changed_modules) and all(
+        m in _PARSER_ONLY_EXACT or m in disjoint_mods
+        for m in changed_modules
+    )
+
+
+def _is_generator_only_modules(changed_modules, disjoint_mods=()):
+    """True when every changed module is either ``sqlglot.generator`` or a dialect
+    module proven disjoint from default-dialect optimize/plan/execute."""
+    return bool(changed_modules) and all(
+        m == "sqlglot.generator" or m in disjoint_mods
+        for m in changed_modules
+    )
+
+
+def verify_internal_opt_parses(checks, digest_fn):
+    """Verify every internal default-dialect Parser call made during TPC-DS
+    optimize() + Plan() produces the exact pinned AST dump digest."""
+    try:
+        from sqlglot import exp
+        from sqlglot.parser import Parser
+        from sqlglot.tokens import Tokenizer
+
+        tok = Tokenizer()
+        par = Parser()
+        for kind, et_name, sql, expected_d in checks:
+            tokens = tok.tokenize(sql)
+            if kind == "parse":
+                res = par.parse(tokens, sql=sql)
+            elif kind == "parse_into":
+                et = getattr(exp, et_name, None)
+                if et is None:
+                    return False
+                res = par.parse_into(et, tokens, sql=sql)
+            else:
+                return False
+            got = digest_fn([e.dump() if e is not None else None for e in res])
+            if got != expected_d:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 def _load_query_exec_costs():
     p = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "ds-costs.json.gz"
     if not p.is_file():
@@ -524,6 +594,25 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                     # DuckDB + Python execution across all queries -> retain.
                     if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
+        # Zero-optimize() fast paths when changed_modules are strictly parser-only
+        # or generator-only (plus default-dialect-disjoint leaf dialect modules).
+        skip_opt_parse_only = False
+        fast_gen_plan_ids = None
+        fast_gen_in_opt = ()
+        fast_probe_eng = None
+        if plan_budget_s is None and not touches_executor and inputs and changed_modules:
+            ds_meta = _load_ds_fast_meta()
+            disjoint_mods = frozenset(ds_meta.get("default_disjoint_mods", ())) if ds_meta else frozenset()
+            if ds_meta and _is_parser_only_modules(changed_modules, disjoint_mods):
+                checks = ds_meta.get("opt_parse_checks", ())
+                if checks and verify_internal_opt_parses(checks, digest):
+                    skip_opt_parse_only = True
+            elif ds_meta and _is_generator_only_modules(changed_modules, disjoint_mods):
+                pids = ds_meta.get("plan_ids", ())
+                if pids:
+                    fast_gen_plan_ids = frozenset(pids)
+                    fast_gen_in_opt = frozenset(ds_meta.get("gen_in_opt", ()))
+                    fast_probe_eng = ex.PythonExecutor(tables={})
         # Streaming budget-guarded plan check: before executing any query when
         # called from rule_corpus Pass 2 overflow, probe the cheapest 2 queries
         # first (~0.02-0.04s). Only if BOTH produce identical plan/pygen digests
@@ -597,6 +686,23 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
             required |= i in changed_reference
             if not required and selection is not None and i not in selection["worker"] and parsed_matches:
                 continue
+            if skip_opt_parse_only and not required and parsed_matches:
+                continue
+            if (
+                fast_gen_plan_ids is not None
+                and not required
+                and i not in fast_gen_in_opt
+                and i in fast_gen_plan_ids
+            ):
+                mark("plan")
+                pinned_plan = _load_ds_plan(i)
+                if pinned_plan is not None:
+                    try:
+                        if _pygen_matches(fast_probe_eng, pinned_plan):
+                            continue
+                    except ValueError:
+                        pass
+                mark("optimize")
             if expr is None:
                 expr = tests.parse_one(sql)
             q_start = time.process_time()

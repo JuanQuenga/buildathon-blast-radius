@@ -2554,6 +2554,8 @@ def stage_edit(text, group):
         return None
     if not sql_files:
         return None
+    if any(f.is_deleted or f.is_rename for f in sql_files):
+        return None
     changes = _apply_verifiable(text)
     active_sql_files = [f for f in sql_files if not _inert_new_class_attrs(f.path, changes.get(f.path), f)]
     if not active_sql_files:
@@ -2801,12 +2803,90 @@ def _test_docker_cpu(node: str, dur_ms: int) -> float:
     return 0.66 * (dur_ms / 1000.0)
 
 
-def _bundle_setup_cost(tfiles: set[str], cases: list[str], *, no_exec_setup: bool = False) -> tuple[float, bool]:
+# Exact TestOptimizer test methods that use self.conn / duckdb / assert_frame_equal
+# or execute=True check_file fixtures (all other 96 TestOptimizer methods need zero DuckDB/pandas!).
+_OPT_DUCKDB_NODES = frozenset(
+    f"tests/test_optimizer.py::TestOptimizer::{m}"
+    for m in (
+        "test_annotate_dot_parts_of_non_column_roots",
+        "test_annotate_json_dot_parts_preserve_meta",
+        "test_annotate_row_types",
+        "test_annotate_semi_structured_dot_parts",
+        "test_annotate_struct_subquery_values",
+        "test_canonicalize_internal_names",
+        "test_case_sensitive_json_dot_access",
+        "test_eliminate_joins",
+        "test_eliminate_positional_joins",
+        "test_journal",
+        "test_map_annotation",
+        "test_merge_asof_join_inputs",
+        "test_merge_positional_join_inputs",
+        "test_merge_subqueries",
+        "test_nearest_joins",
+        "test_optimize",
+        "test_optimize_correlated_all",
+        "test_optimize_distinct_on_predicates",
+        "test_optimize_in_nulls",
+        "test_optimize_joins",
+        "test_optimize_match_selecting_joins",
+        "test_optimize_positional_joins",
+        "test_optimize_scalar_subquery_key_predicates",
+        "test_optimize_scalar_subquery_predicate_multiple_rows",
+        "test_optimize_scalar_subquery_predicates",
+        "test_optimize_snowflake_asof_without_on",
+        "test_optimize_special_joins",
+        "test_optimize_subqueries_in_aggregates",
+        "test_optimize_subqueries_in_join_on",
+        "test_optimize_uncorrelated_exists",
+        "test_qualify_columns",
+        "test_qualify_columns_using_after_outer_join",
+        "test_qualify_correlated_shadowed_struct_path",
+        "test_qualify_duckdb_collated_alias",
+        "test_qualify_group_by_conflict_bigquery",
+        "test_qualify_json_path_argument_order",
+        "test_qualify_order_by_alias_fallback",
+        "test_qualify_order_by_alias_in_subquery",
+        "test_qualify_order_by_alias_nodes",
+        "test_qualify_order_by_ambiguous_alias",
+        "test_qualify_order_by_source_columns",
+        "test_qualify_order_by_using_column",
+        "test_qualify_order_by_using_column_collision",
+        "test_qualify_parquet_alias_collision",
+        "test_qualify_semi_anti_join_alias_shadowing_column",
+        "test_qualify_semi_anti_join_column_aliases",
+        "test_qualify_struct_star_json_ordering",
+        "test_qualify_struct_star_source_types",
+        "test_qualify_unknown_tvf_table_reference",
+        "test_resolver_column_context",
+        "test_scope",
+        "test_simplify",
+        "test_simplify_string_comparisons",
+        "test_tpcds",
+        "test_union_annotation",
+        "test_unnest_offset_annotation",
+        "test_unnest_positional_join_predicates",
+        "test_unnest_subqueries",
+        "test_unpivot_cte_annotate_types",
+        "test_values_annotation",
+    )
+)
+
+
+def _bundle_setup_cost(
+    tfiles: set[str],
+    cases: list[str],
+    *,
+    no_exec_setup: bool = False,
+    can_skip_opt_duckdb: bool = False,
+) -> tuple[float, bool]:
     uses_exec = "tests/test_executor.py" in tfiles
     uses_opt = "tests/test_optimizer.py" in tfiles
     needs_tpc_setup = any(
         n.endswith(("::test_execute_tpch", "::test_optimized_tpch", "::test_execute_tpcds"))
         for n in cases
+    )
+    uses_opt_duck = uses_opt and (
+        (not can_skip_opt_duckdb) or any(n in _OPT_DUCKDB_NODES for n in cases)
     )
     if needs_tpc_setup:
         setup_cost = 0.65
@@ -2821,30 +2901,38 @@ def _bundle_setup_cost(tfiles: set[str], cases: list[str], *, no_exec_setup: boo
                 tpath, cls, _ = parts
                 if no_exec_setup and tpath == "tests/test_executor.py":
                     continue
+                if can_skip_opt_duckdb and not uses_opt_duck and tpath == "tests/test_optimizer.py":
+                    continue
                 scopes = impact._index()["scopes"].get(tpath)
                 if scopes and any(name == cls + ".setUpClass" for _, _, _, name, _ in scopes[1]):
                     setup_cost = 0.10
                     break
-    return setup_cost, (uses_exec or uses_opt)
+    return setup_cost, (uses_exec or uses_opt_duck)
 
 
-def _estimate_bundle_set(nums, catalog, dur, *, no_exec_setup: bool = False):
+def _estimate_bundle_set(
+    nums, catalog, dur, *, no_exec_setup: bool = False, can_skip_opt_duckdb: bool = False
+):
     cases = [catalog[n] for n in nums]
     tfiles = {node.split("::", 1)[0] for node in cases}
-    setup_cost, uses_heavy = _bundle_setup_cost(tfiles, cases, no_exec_setup=no_exec_setup)
+    setup_cost, uses_heavy = _bundle_setup_cost(
+        tfiles, cases, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
+    )
     run_est = sum(_test_docker_cpu(catalog[n], dur[n]) for n in nums)
     est = setup_cost + (0.14 if uses_heavy else 0.0) + 0.12 + run_est
     return run_est, est, uses_heavy
 
 
-def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup: bool = False):
+def _best_trim_subset(
+    patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup: bool = False, can_skip_opt_duckdb: bool = False
+):
     """Pick a high-ROI non-fail-fast subset S <= cand_nums for ``trim``."""
     best = None  # (score, subset_set, gain, est, uses_heavy)
 
     # Option 1: trim ALL eligible non-TPC required tests when compact.
     if cand_nums < patch.req and len(cand_nums) <= 350:
         run_est, est, uses_heavy = _estimate_bundle_set(
-            cand_nums, catalog, dur, no_exec_setup=no_exec_setup
+            cand_nums, catalog, dur, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
         )
         if run_est <= 2.8:
             rem = patch.req - cand_nums
@@ -2873,7 +2961,7 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
         run_acc += c_est
         if d_ms >= 350 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
             _, est, uses_heavy = _estimate_bundle_set(
-                prefix, catalog, dur, no_exec_setup=no_exec_setup
+                prefix, catalog, dur, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
             )
             rem = patch.req - prefix
             after = plan_cost(schedule(rem, patch.pl - prefix, dur), dur) / 1000 if rem else 0.0
@@ -3057,6 +3145,7 @@ def options(patch, catalog, targets, dur, attempted=()):
     has_fixture_edit = any(f.path and f.path.startswith("tests/fixtures/") for f in files)
     if has_fixture_edit:
         return
+    can_skip_opt_duckdb = not any(f.path == "tests/test_optimizer.py" for f in files)
 
     # Path A: complete patch.req clearance (zero remaining tests on all-pass).
     if (
@@ -3066,7 +3155,7 @@ def options(patch, catalog, targets, dur, attempted=()):
         and (patch, "trim") not in attempted
     ):
         run_est, est, uses_heavy = _estimate_bundle_set(
-            cand_nums, catalog, dur, no_exec_setup=no_exec_setup
+            cand_nums, catalog, dur, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
         )
         # Non-fail-fast trim when even a 1-failure patch yields >= 1.90x Docker ROI.
         if sim_cost >= 6.5 and run_est <= 2.8 and (sim_cost - 2.15) >= 1.90 * est:
@@ -3090,7 +3179,8 @@ def options(patch, catalog, targets, dur, attempted=()):
     # (and ultra-fast non-heavy trim for 3.2..5.5s commits without duckdb/pandas).
     if (patch, "trim") not in attempted and sim_cost >= 3.2:
         pick = _best_trim_subset(
-            patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
+            patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup,
+            can_skip_opt_duckdb=can_skip_opt_duckdb,
         )
         if pick is not None:
             _score, sub, gain, est, uses_heavy = pick
@@ -3151,9 +3241,13 @@ def run(patches, catalog, dur, t0, *, deadline=None):
     print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
     if any(p.mode != "unreached" for p in queue):
         warm_replay.prepare_base()
-    # Pre-import numpy/pandas/duckdb ONCE in parent ONLY when >= 3 queued probes
-    # truly need them, and pytest ONLY when >= 2 collection probes exist.
-    if sum(1 for p in queue if p.heavy_mod) >= 3:
+    # Pre-import numpy/pandas/duckdb ONCE in parent ONLY when enough non-bundle
+    # heavy probes (or many heavy bundles) are queued; lazy per-module loading in
+    # bundle.py avoids importing duckdb/pandas on fast-failing tier-0 bundles.
+    if (
+        sum(1 for p in queue if p.heavy_mod and p.group != "bundle") >= 2
+        or sum(1 for p in queue if p.heavy_mod) >= 6
+    ):
         warm_replay.prepare_data_libs()
     if sum(1 for p in queue if p.mode == "catalog") >= 2:
         warm_replay.prepare_pytest()
@@ -3176,7 +3270,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     min_net = 0.08
                 else:
                     p_clean = (0.9 + med_wins) / (3.0 + med_tries)
-                    fail_cost = min(probe.estimate, 0.25 if warm_replay.heavy_ready else 0.45)
+                    fail_cost = min(probe.estimate, 0.22 if (not probe.heavy_mod or warm_replay.heavy_ready) else 0.45)
                     min_net = 0.25
                 expected_net = p_clean * (probe.gain - probe.estimate) - (1.0 - p_clean) * fail_cost
                 if expected_net <= min_net:
@@ -3293,7 +3387,15 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         import gc
                         gc.collect()
                         gc.freeze()
-                if probe.heavy_mod and not warm_replay.heavy_ready and sum(1 for p in queue if p.heavy_mod) >= 2:
+                if (
+                    probe.heavy_mod
+                    and not warm_replay.heavy_ready
+                    and (
+                        probe.group != "bundle"
+                        and sum(1 for p in queue if p.heavy_mod) >= 2
+                        or sum(1 for p in queue if p.heavy_mod) >= 5
+                    )
+                ):
                     if warm_replay.prepare_data_libs():
                         import gc
                         gc.collect()
@@ -3323,8 +3425,15 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         args.append("verify-results")
                     elif probe.mode in {"front", "partial"}:
                         args.append("pygen" if probe.needs_pygen else "no-pygen")
-                    elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
-                        args.append("no-exec-setup")
+                    elif probe.mode in {"bundle", "trim"}:
+                        if "sqlglot/executor/table.py" not in probe.paths.split(","):
+                            args.append("no-exec-setup")
+                        pfiles = parse(patch.text)
+                        if (
+                            not any(f.path == "tests/test_optimizer.py" for f in pfiles)
+                            and not any(n in _OPT_DUCKDB_NODES for n in probe.cases)
+                        ):
+                            args.append("no-opt-duckdb")
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1 and (multi_probes is not None or probe.mode != "unreached"):
                     break

@@ -621,6 +621,164 @@ def _branch_map():
 
 
 @functools.lru_cache(maxsize=1)
+def _class_attr_reads():
+    """Return ``({attr_name: frozenset(outside_cls_full)}, {attr_name: {cls_full: bitmask}})``."""
+    cached = _cached_marshal("class-attr-reads")
+    if cached is not None:
+        raw_out, reads = cached
+        return {a: frozenset(cs) for a, cs in raw_out.items()}, reads
+    import gzip
+
+    gz = MAPS_DIR / "class-attr-reads.json.gz"
+    if not gz.is_file():
+        return {}, {}
+    data = json.loads(gzip.decompress(gz.read_bytes()))
+    raw_out = data.get("outside", {})
+    outside = {a: frozenset(cs) for a, cs in raw_out.items()} if isinstance(raw_out, dict) else {}
+    reads = {}
+    for attr, cmap in data.get("reads", {}).items():
+        out_c = {}
+        for cls_full, idxs in cmap.items():
+            bm = 0
+            for i in idxs:
+                bm |= 1 << i
+            out_c[cls_full] = bm
+        reads[attr] = out_c
+    return outside, reads
+
+
+@functools.lru_cache(maxsize=1)
+def _default_args_map():
+    """Return ``{site: bitmask}`` for clean non-generator sqlglot default-arg sites."""
+    cached = _cached_marshal("default-args")
+    if cached is not None:
+        return cached
+    import gzip
+
+    gz = MAPS_DIR / "default-args.json.gz"
+    if not gz.is_file():
+        return {}
+    data = json.loads(gzip.decompress(gz.read_bytes()))
+    out = {}
+    for site, idxs in data.items():
+        bm = 0
+        for i in idxs:
+            bm |= 1 << i
+        out[site] = bm
+    return out
+
+
+_DIALECT_DERIVED_ATTRS = {
+    "TIME_MAPPING": (
+        "TIME_MAPPING",
+        "TIME_TRIE",
+        "FORMAT_TRIE",
+        "INVERSE_TIME_MAPPING",
+        "INVERSE_TIME_TRIE",
+    ),
+    "INVERSE_TIME_MAPPING": ("INVERSE_TIME_MAPPING", "INVERSE_TIME_TRIE"),
+    "FORMAT_MAPPING": (
+        "FORMAT_MAPPING",
+        "FORMAT_TRIE",
+        "INVERSE_FORMAT_MAPPING",
+        "INVERSE_FORMAT_TRIE",
+    ),
+    "CREATABLE_KIND_MAPPING": ("CREATABLE_KIND_MAPPING", "INVERSE_CREATABLE_KIND_MAPPING"),
+}
+
+
+def _is_const_default(node) -> bool:
+    return (
+        isinstance(node, ast.Constant)
+        and type(node.value) in (type(None), bool, int, float, str, bytes)
+    )
+
+
+def _changed_only_defaults(o_args: ast.arguments, n_args: ast.arguments) -> list[str] | None:
+    """When ``o_args`` and ``n_args`` differ ONLY in the constant default value(s)
+    of existing parameter(s), return the list of changed parameter names."""
+    if (
+        [_dump(a) for a in o_args.posonlyargs] != [_dump(a) for a in n_args.posonlyargs]
+        or [_dump(a) for a in o_args.args] != [_dump(a) for a in n_args.args]
+        or [_dump(a) for a in o_args.kwonlyargs] != [_dump(a) for a in n_args.kwonlyargs]
+        or (_dump(o_args.vararg) if o_args.vararg else None) != (_dump(n_args.vararg) if n_args.vararg else None)
+        or (_dump(o_args.kwarg) if o_args.kwarg else None) != (_dump(n_args.kwarg) if n_args.kwarg else None)
+        or len(o_args.defaults) != len(n_args.defaults)
+        or len(o_args.kw_defaults) != len(n_args.kw_defaults)
+    ):
+        return None
+    changed = []
+    pos = list(o_args.posonlyargs) + list(o_args.args)
+    start = len(pos) - len(o_args.defaults)
+    for idx, (od, nd) in enumerate(zip(o_args.defaults, n_args.defaults)):
+        if _dump(od) != _dump(nd):
+            if not _is_const_default(nd):
+                return None
+            changed.append(pos[start + idx].arg)
+    for idx, (od, nd) in enumerate(zip(o_args.kw_defaults, n_args.kw_defaults)):
+        if (od is None) != (nd is None):
+            return None
+        if od is not None and _dump(od) != _dump(nd):
+            if not _is_const_default(nd):
+                return None
+            changed.append(o_args.kwonlyargs[idx].arg)
+    return changed if changed else None
+
+
+def _is_overload_def(s) -> bool:
+    if not isinstance(s, _DEFS) or not s.decorator_list:
+        return False
+    has_ov = any(
+        (isinstance(d, ast.Name) and d.id == "overload")
+        or (isinstance(d, ast.Attribute) and d.attr == "overload")
+        for d in s.decorator_list
+    )
+    if not has_ov:
+        return False
+    return all(
+        _is_docstring(st)
+        or isinstance(st, ast.Pass)
+        or (isinstance(st, ast.Expr) and isinstance(st.value, ast.Constant) and st.value.value is Ellipsis)
+        for st in s.body
+    )
+
+
+def _is_type_checking_if(s) -> bool:
+    if not isinstance(s, ast.If) or s.orelse:
+        return False
+    t = s.test
+    if isinstance(t, ast.Name) and t.id == "TYPE_CHECKING":
+        return True
+    return (
+        isinstance(t, ast.Attribute)
+        and isinstance(t.value, ast.Name)
+        and t.value.id in ("t", "typing")
+        and t.attr == "TYPE_CHECKING"
+    )
+
+
+def _has_future_annotations(tree) -> bool:
+    if tree is None:
+        return False
+    for st in tree.body:
+        if isinstance(st, ast.ImportFrom) and st.module == "__future__":
+            if any(a.name == "annotations" for a in st.names):
+                return True
+    return False
+
+
+def _binds_name_non_import(tree, name: str) -> bool:
+    if tree is None:
+        return True
+    for st in tree.body:
+        if isinstance(st, (ast.Import, ast.ImportFrom)):
+            continue
+        if name in _bound_names(st):
+            return True
+    return False
+
+
+@functools.lru_cache(maxsize=1)
 def _operand_map():
     """Return ``{site: [(bitmask, concrete_values), ...]}``."""
     cached = _cached_marshal("operands")
@@ -1495,6 +1653,25 @@ class PyDiff:
                 n_other.append(s)
         for name in list(o_named) + [k for k in n_named if k not in o_named]:
             ol, nl = o_named.get(name, []), n_named.get(name, [])
+            if any(_is_overload_def(s) for s in ol) or any(_is_overload_def(s) for s in nl):
+                o_ov = [s for s in ol if _is_overload_def(s)]
+                n_ov = [s for s in nl if _is_overload_def(s)]
+                ol = [s for s in ol if not _is_overload_def(s)]
+                nl = [s for s in nl if not _is_overload_def(s)]
+                if [self.otext(s) for s in o_ov] != [self.ntext(s) for s in n_ov]:
+                    if self._safe_overloads(name, o_ov, n_ov, scope, owner):
+                        self.an.reasons.append(f"{self.path}: @overload stub(s) for {name} only")
+                    else:
+                        for k in range(max(len(o_ov), len(n_ov))):
+                            oo = o_ov[k] if k < len(o_ov) else None
+                            nn = n_ov[k] if k < len(n_ov) else None
+                            if oo is not None and nn is not None:
+                                if self.otext(oo) != self.ntext(nn):
+                                    self.named_pair(oo, nn, scope, owner)
+                            elif oo is not None:
+                                self.named_removed(oo, scope, owner)
+                            else:
+                                self.named_added(nn, scope, owner, olds)
             for k in range(max(len(ol), len(nl))):
                 o = ol[k] if k < len(ol) else None
                 n = nl[k] if k < len(nl) else None
@@ -1513,6 +1690,42 @@ class PyDiff:
                     self.class_attr_change(o_other, n_other, owner, olds, i1)
                 else:
                     self.module_stmt_change(o_other, n_other, olds, i1)
+
+    def _safe_overloads(self, name: str, o_ov: list, n_ov: list, scope: str, owner) -> bool:
+        if self.is_test or self.new_tree is None or not _has_future_annotations(self.new_tree):
+            return False
+        if _binds_name_non_import(self.new_tree, "overload"):
+            return False
+        container = owner[2].body if scope == "class" and owner is not None else self.new_tree.body
+        max_ov_line = max((s.lineno for s in n_ov), default=0)
+        has_impl = any(
+            isinstance(st, _DEFS)
+            and st.name == name
+            and not _is_overload_def(st)
+            and st.lineno > max_ov_line
+            for st in container
+        )
+        if not has_impl:
+            return False
+        cls_scope = owner[2] if scope == "class" and owner is not None else None
+        for s in n_ov:
+            for d in s.decorator_list:
+                if not (
+                    (isinstance(d, ast.Name) and d.id in {"overload", "classmethod", "staticmethod"})
+                    or (
+                        isinstance(d, ast.Attribute)
+                        and isinstance(d.value, ast.Name)
+                        and d.value.id in ("t", "typing")
+                        and d.attr == "overload"
+                    )
+                ):
+                    return False
+            defaults = [d for d in (*s.args.defaults, *s.args.kw_defaults) if d is not None]
+            if any(not (_is_const_default(d) or isinstance(d, ast.Name)) for d in defaults):
+                return False
+            if self.risky_bits([s], None, class_scope=cls_scope):
+                return False
+        return True
 
     def owner_q(self, owner):
         return owner[0] if owner else None
@@ -1535,15 +1748,38 @@ class PyDiff:
             q = f"{owner[0]}.{o.name}" if owner else o.name
             if _def_header(o) != _def_header(n):
                 b = body_bits
-                if [_dump(d) for d in o.decorator_list] != [_dump(d) for d in n.decorator_list]:
-                    if scope == "class":
-                        b |= self.class_family(owner)
-                    else:
-                        b |= self.name_refs({o.name}, depth=0)
-                    b |= self.risky_bits(n.decorator_list, None)
-                if _dump(o.args) != _dump(n.args):
-                    b |= self.risky_bits([n.args], None)
-                self.add(b, f"def {q} signature/decorators L{o.lineno}")
+                same_decs = [_dump(d) for d in o.decorator_list] == [_dump(d) for d in n.decorator_list]
+                same_ret = (_dump(o.returns) if o.returns is not None else None) == (
+                    _dump(n.returns) if n.returns is not None else None
+                )
+                same_tp = [_dump(t) for t in getattr(o, "type_params", [])] == [
+                    _dump(t) for t in getattr(n, "type_params", [])
+                ]
+                narrowed_def = None
+                if not self.is_test and same_decs and same_ret and same_tp:
+                    changed_params = _changed_only_defaults(o.args, n.args)
+                    if changed_params:
+                        dmap = _default_args_map()
+                        sites = [f"{self.module}:{o.lineno}:{p}" for p in changed_params]
+                        if dmap and all(s in dmap for s in sites):
+                            risky_args = self.risky_bits([n.args], None)
+                            if risky_args == 0:
+                                dbits = _inspect_default_observers(self.an)
+                                for s in sites:
+                                    dbits |= dmap[s]
+                                narrowed_def = dbits
+                if narrowed_def is not None:
+                    self.add(narrowed_def, f"def {q} default arg(s) L{o.lineno}")
+                else:
+                    if not same_decs:
+                        if scope == "class":
+                            b |= self.class_family(owner)
+                        else:
+                            b |= self.name_refs({o.name}, depth=0)
+                        b |= self.risky_bits(n.decorator_list, None)
+                    if _dump(o.args) != _dump(n.args):
+                        b |= self.risky_bits([n.args], None)
+                    self.add(b, f"def {q} signature/decorators L{o.lineno}")
             first = next((x for x in o.body if not _is_docstring(x)), None)
             entry = self.stmt_bits(first) if first is not None else body_bits
             self.block(o.body, n.body, entry, "func", None)
@@ -1661,6 +1897,14 @@ class PyDiff:
         docs_only = all(_is_docstring(s) for s in o_other + n_other)
         if docs_only:
             self.an.reasons.append(f"{self.path}: docstring of {q} only")
+            return
+        if (
+            not self.is_test
+            and (o_other or n_other)
+            and all(_is_docstring(s) or _is_type_checking_if(s) for s in o_other + n_other)
+            and not _binds_name_non_import(self.new_tree, "TYPE_CHECKING")
+        ):
+            self.an.reasons.append(f"{self.path}: TYPE_CHECKING block in {q} only")
             return
         if not executed and o_other:
             self.an.reasons.append(f"{self.path}: class {q} body never executed")
@@ -1889,6 +2133,14 @@ class PyDiff:
         if all(_is_docstring(s) for s in o_other + n_other):
             self.an.reasons.append(f"{self.path}: module docstring only")
             return
+        if (
+            not self.is_test
+            and (o_other or n_other)
+            and all(_is_docstring(s) or _is_type_checking_if(s) for s in o_other + n_other)
+            and not _binds_name_non_import(self.new_tree, "TYPE_CHECKING")
+        ):
+            self.an.reasons.append(f"{self.path}: module TYPE_CHECKING block only")
+            return
         if not executed:
             self.an.reasons.append(f"{self.path}: module statement never executed by any test")
             return
@@ -2011,6 +2263,7 @@ class PyDiff:
 
 _OBSERVER_RE = re.compile(r"sys\.modules|\b_classes\b|subprocess|import_module|importlib"
                           r"|\.classes\b|entry_points|__import__")
+_DEFAULT_OBSERVER_RE = re.compile(r"inspect\.signature|__defaults__|__kwdefaults__|getfullargspec")
 
 
 def _import_state_observers(an: Analysis) -> int:
@@ -2028,6 +2281,23 @@ def _import_state_observers(an: Analysis) -> int:
                 if sc is not None and sc[0] == "def":
                     bits |= an.lines_bits(path, sc[4], sc[2])
     an.idx["_observers"] = bits
+    return bits
+
+
+def _inspect_default_observers(an: Analysis) -> int:
+    """Tests that inspect function signatures or ``__defaults__``."""
+    if "_default_observers" in an.idx:
+        return an.idx["_default_observers"]
+    bits = 0
+    for path, text in _sources()["src"].items():
+        if not path.startswith("tests/"):
+            continue
+        for k, line in enumerate(text.split("\n"), 1):
+            if _DEFAULT_OBSERVER_RE.search(line):
+                sc = _scope_at(an, path, k)
+                if sc is not None and sc[0] == "def":
+                    bits |= an.lines_bits(path, sc[4], sc[2])
+    an.idx["_default_observers"] = bits
     return bits
 
 
@@ -2493,6 +2763,30 @@ def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude, dep
             else:
                 derived |= xfam
     res = (fam & r1) | direct | derived
+    if (
+        def_path.startswith("sqlglot/dialects/")
+        and (
+            cls_full == "sqlglot.dialects.dialect.Dialect"
+            or "sqlglot.dialects.dialect.Dialect" in mro.get(cls_full, ())
+        )
+        and all(n.isupper() and not n.startswith("__") for n in names)
+    ):
+        outside, reads = _class_attr_reads()
+        if reads:
+            expanded = []
+            for n in names:
+                expanded.extend(_DIALECT_DERIVED_ATTRS.get(n, (n,)))
+            subclasses = {
+                c for c, bases in mro.items() if c == cls_full or cls_full in bases
+            }
+            subclasses.add(cls_full)
+            if all(subclasses.isdisjoint(outside.get(a, ())) for a in expanded):
+                traced = 0
+                for a in expanded:
+                    for c, bm in reads.get(a, {}).items():
+                        if c in subclasses:
+                            traced |= bm
+                res = traced | direct | derived
     memo[key] = res
     return res
 

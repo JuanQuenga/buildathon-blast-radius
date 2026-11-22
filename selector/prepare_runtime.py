@@ -8,7 +8,14 @@ import re
 import sqlite3
 import tarfile
 
-from selector.impact import _branch_map, _index, _operand_map, _sources
+from selector.impact import (
+    _branch_map,
+    _class_attr_reads,
+    _default_args_map,
+    _index,
+    _operand_map,
+    _sources,
+)
 from selector import dict_keys as _dict_keys, token_options as _token_options
 
 archive = Path("/app/selector/maps/pin-runtime.tar.xz")
@@ -30,6 +37,8 @@ for name, data in (
     ("operands", _operand_map()),
     ("dict-keys", _dict_keys._load()),
     ("keyword-reads", _token_options.keyword_reads()),
+    ("class-attr-reads", ({a: sorted(cs) for a, cs in _class_attr_reads()[0].items()}, _class_attr_reads()[1])),
+    ("default-args", _default_args_map()),
 ):
     if data is not None:
         (out / (name + ".marshal")).write_bytes(marshal.dumps(data))
@@ -115,15 +124,95 @@ if Path("/app/ds.json.gz").exists():
     from selector.result_replay import pygen_plan_digest as _pygen_digest
     from selector.staged import digest as _staged_digest
 
+    from sqlglot.parser import Parser as _Parser
+
     _pygen_map = {}
-    for _i, (_meta, _sql, _) in enumerate(queries):
-        if not _meta.get("execute"):
-            continue
-        _opt = _ex.optimize(sqlglot.parse_one(_sql), schema=_TPCDS_SCHEMA, leave_tables_isolated=True)
-        _plan = _ex.Plan(_opt)
-        _eng = _ex.PythonExecutor(tables={})
-        _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
+    _ds_plans = {}
+    _ds_gen_in_opt = []
+    _ds_parse_seen = {}
+    _orig_p_parse = _Parser.parse
+    _orig_p_parse_into = _Parser.parse_into
+    _orig_g_gen = _Gen.generate
+    _ds_in_opt = [False]
+    _ds_hit_gen = [False]
+
+    def _rec_parse(self, raw_tokens, sql=None):
+        res = _orig_p_parse(self, raw_tokens, sql=sql)
+        if _ds_in_opt[0] and sql is not None and type(self).__name__ in {"Parser", "BaseParser"}:
+            key = ("parse", "", sql)
+            if key not in _ds_parse_seen:
+                _ds_parse_seen[key] = _staged_digest([e.dump() if e is not None else None for e in res])
+        return res
+
+    def _rec_parse_into(self, expression_types, raw_tokens, sql=None):
+        res = _orig_p_parse_into(self, expression_types, raw_tokens, sql=sql)
+        if _ds_in_opt[0] and sql is not None and type(self).__name__ in {"Parser", "BaseParser"}:
+            et = expression_types if isinstance(expression_types, tuple) else (expression_types,)
+            if len(et) == 1 and isinstance(et[0], type):
+                key = ("parse_into", et[0].__name__, sql)
+                if key not in _ds_parse_seen:
+                    _ds_parse_seen[key] = _staged_digest([e.dump() if e is not None else None for e in res])
+        return res
+
+    def _rec_gen(self, expr, *a, **kw):
+        if _ds_in_opt[0]:
+            _ds_hit_gen[0] = True
+        return _orig_g_gen(self, expr, *a, **kw)
+
+    _Parser.parse = _rec_parse
+    _Parser.parse_into = _rec_parse_into
+    _Gen.generate = _rec_gen
+    try:
+        for _i, (_meta, _sql, _) in enumerate(queries):
+            if not _meta.get("execute"):
+                continue
+            _parsed_ds = pickle.loads(pickle.dumps(sqlglot.parse_one(_sql)))
+            _ds_hit_gen[0] = False
+            _ds_in_opt[0] = True
+            try:
+                _opt = _ex.optimize(_parsed_ds, schema=_TPCDS_SCHEMA, leave_tables_isolated=True)
+                _plan = _ex.Plan(_opt)
+            finally:
+                _ds_in_opt[0] = False
+            _eng = _ex.PythonExecutor(tables={})
+            _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
+            if _ds_hit_gen[0]:
+                _ds_gen_in_opt.append(_i)
+            else:
+                _ds_plans[_i] = _plan
+    finally:
+        _Parser.parse = _orig_p_parse
+        _Parser.parse_into = _orig_p_parse_into
+        _Gen.generate = _orig_g_gen
     (out / "pygen-digests.json").write_text(json.dumps(_pygen_map, separators=(",", ":")))
+    _ds_plans_dir = out / "ds-plans"
+    _ds_plans_dir.mkdir(exist_ok=True)
+    for _qi, _pl in _ds_plans.items():
+        (_ds_plans_dir / f"{_qi}.pkl").write_bytes(pickle.dumps(_pl, protocol=pickle.HIGHEST_PROTOCOL))
+    from selector.heavy import _leaf_dialect_targets as _leaf_dt, worker_path_queries as _wpq
+    _wfiles = set(_wpq())
+    _def_disjoint = sorted(
+        p[:-3].replace("/", ".")
+        for p in _sources()["src"]
+        if p.startswith(("sqlglot/dialects/", "sqlglot/parsers/", "sqlglot/generators/", "sqlglot/typing/"))
+        and p.endswith(".py")
+        and p not in _wfiles
+        and (_ls := _leaf_dt(p)) is not None
+        and "" not in _ls
+    )
+    (out / "ds-fast-meta.json").write_text(
+        json.dumps(
+            {
+                "gen_in_opt": _ds_gen_in_opt,
+                "plan_ids": sorted(_ds_plans),
+                "opt_parse_checks": [
+                    [k[0], k[1], k[2], v] for k, v in sorted(_ds_parse_seen.items())
+                ],
+                "default_disjoint_mods": _def_disjoint,
+            },
+            separators=(",", ":"),
+        )
+    )
 
     # Precompute pinned TPC-H transpile + PythonGenerator codegen digests for
     # test_optimized_tpch (3.537s) and test_execute_tpch (3.863s).
