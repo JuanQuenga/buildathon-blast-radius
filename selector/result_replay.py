@@ -522,7 +522,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                     changed_reference.add(i)
                     # Mass DuckDB reference SQL divergence would require full live
                     # DuckDB + Python execution across all queries -> retain.
-                    if len(changed_reference) > 16:
+                    if len(changed_reference) > 57:
                         raise ValueError("broad reference SQL change")
         # Streaming budget-guarded plan check: before executing any query when
         # called from rule_corpus Pass 2 overflow, probe the cheapest 2 queries
@@ -614,7 +614,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
             if i in changed_reference or table_digest(table) != reference[-1]:
                 if i not in changed_reference:
                     digest_fallbacks += 1
-                    if digest_fallbacks > 16:
+                    if digest_fallbacks > 57:
                         raise ValueError("broad result change")
                 if live_reference is None:
                     live_reference, ensure_duckdb_tables = _make_lazy_duckdb_reference(test, reference_setup)

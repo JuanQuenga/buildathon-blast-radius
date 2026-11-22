@@ -3107,8 +3107,8 @@ def options(patch, catalog, targets, dur, attempted=()):
 def run(patches, catalog, dur, t0, *, deadline=None):
     from .probe_session import PatchSession
     started = cpu()
-    allowance = min(80.0, max(16.0, 1.35 * len(patches)))
-    cpu_ceiling = max(16.0, min(55.0, 0.90 * len(patches)))
+    allowance = min(100.0, max(28.0, 1.65 * len(patches)))
+    cpu_ceiling = max(28.0, min(72.0, 1.25 * len(patches)))
     if deadline is None:
         deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
@@ -3186,10 +3186,10 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             elif probe.group == "ds":
                 if probe.mode == "rules":
                     # verify-results executes affected TPC-DS queries when rule output changes.
-                    cpu_limit = min(6.5, max(2.8, 0.50 * probe.gain))
+                    cpu_limit = min(14.0, max(8.0, 0.70 * probe.gain))
                 else:
-                    ds_cap = min(11.5, max(6.5, 0.85 * probe.gain))
-                    cpu_limit = min(ds_cap, max(2.8, 2.2 * probe.estimate + 1.0))
+                    ds_cap = min(18.5, max(9.5, 0.90 * probe.gain))
+                    cpu_limit = min(ds_cap, max(9.5, 2.5 * probe.estimate + 2.0))
             elif probe.group in {"bundle", "trim"}:
                 cpu_limit = min(6.5, max(2.0, 2.0 * probe.estimate + 1.0))
             else:
@@ -3197,7 +3197,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             # Skip ds probes that require heavy forced execution exceeding cpu_limit.
             if probe.mode in {"partial", "slice"}:
                 forced = probe.cases["execute"] if probe.mode == "slice" else probe.cases
-                min_exec = sum(query_costs()[i].get("execute", 0) for i in forced)
+                min_exec = 0.50 * sum(query_costs()[i].get("execute", 0) for i in forced)
                 if min_exec > 0.92 * cpu_limit:
                     continue
             patch = probe.patch

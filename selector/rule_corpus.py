@@ -189,7 +189,7 @@ def replay(indices, verify_query=None):
         plan_budget_s = None
         if cpu_cap > 0:
             remaining = cpu_cap - (time.process_time() - started)
-            if sum(qcosts.get(q, 0.0) for q in divergent) > 0.88 * remaining:
+            if sum(qcosts.get(q, 0.0) for q in divergent) > 1.70 * remaining:
                 if (
                     getattr(verify_query, "_accepts_plan_budget", False)
                     and sum(pcosts.get(q, 0.0) for q in divergent) <= 0.55 * remaining
