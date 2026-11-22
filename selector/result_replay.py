@@ -301,17 +301,10 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     check_pygen = _needs_pygen_check(changed_modules)
     pygen_digests = _load_pygen_digests() if check_pygen else None
 
-    started_env = os.environ.get("BLAST_PROBE_START_CPU")
-    started = float(started_env) if started_env else time.process_time()
-    cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
-    plan_first = not bool(full) and cpu_cap > 0
-    qcosts = _load_query_exec_costs() if plan_first else {}
-    deferred_plan = None
-
     def check_plan(engine, plan):
-        nonlocal ran, skipped, deferred_plan
+        nonlocal ran, skipped
         mark("plan")
-        if ran or skipped or deferred_plan is not None:
+        if ran or skipped:
             raise ValueError("multiple executions")
         if not required:
             if (
@@ -326,9 +319,6 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     if pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest) == pygen_digests[str(cur_i)]:
                         skipped = True
                         return None
-        if plan_first:
-            deferred_plan = (engine, plan)
-            return None
         mark("execute")
         ran = True
         return execute(engine, plan)
@@ -378,19 +368,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     # DuckDB + Python execution across all queries -> retain.
                     if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
-        # Phase 1: when plan_first is active, plan heaviest-execute queries first
-        # so broken optimizer/generator patches abort early (~0.3s) without executing;
-        # Phase 2 ALWAYS executes pending_exec in strict original fixture order (0..98).
-        plan_order = (
-            sorted(inputs, key=lambda row: (-qcosts.get(row[0], 0.0), row[0]))
-            if plan_first
-            else inputs
-        )
-        pending_exec = []
-        acc_exec_cost = 0.0
-        total_plan_cost = sum(qcosts.get(row[0], 0.0) for row in plan_order) if plan_first else 0.0
-        n_planned = 0
-        for i, meta, sql, expr, parsed_matches in plan_order:
+        # Always execute in original fixture order (0..98) to preserve cross-query state invariants.
+        for i, meta, sql, expr, parsed_matches in inputs:
             cur_i = i
             reference = expected[i]
             mark("optimize")
@@ -402,26 +381,12 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 expr = tests.parse_one(sql)
             q_start = time.process_time()
             ran = skipped = False
-            deferred_plan = None
             table = tests.mp_execute(expr, meta)
             if join_overrun:
                 raise _JoinBudgetExceeded("nested loop join budget exceeded")
             if time.process_time() - q_start > _PER_QUERY_CPU_LIMIT:
                 raise _JoinBudgetExceeded("per-query CPU budget exceeded")
-            n_planned += 1
             if skipped and table is None:
-                continue
-            if plan_first and deferred_plan is not None:
-                acc_exec_cost += qcosts.get(i, 0.0)
-                remaining = cpu_cap - (time.process_time() - started)
-                budget = 0.88 * remaining
-                if acc_exec_cost > budget:
-                    raise ValueError("changed plans exceed probe budget")
-                # If every single one of the first 6 heaviest queries changed plan
-                # and the full divergent set exceeds 1.25x budget, abort early (~0.4s).
-                if n_planned >= 6 and len(pending_exec) + 1 == n_planned and total_plan_cost > 1.25 * budget:
-                    raise ValueError("broad plan divergence exceeds probe budget")
-                pending_exec.append((i, expr, deferred_plan[0], deferred_plan[1], reference))
                 continue
             if not ran or table is None:
                 raise ValueError("missing result")
@@ -436,33 +401,6 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 if ensure_duckdb_tables is not None:
                     ensure_duckdb_tables(expr)
                 live_reference.subtestHelper(i, table, tpch=False)
-        # Phase 2: execute only queries whose plan/pygen actually changed, in strict fixture order (0..98).
-        if pending_exec:
-            pending_exec.sort(key=lambda row: row[0])
-            remaining = cpu_cap - (time.process_time() - started)
-            if acc_exec_cost > 0.88 * remaining:
-                raise ValueError("changed plans exceed probe budget")
-            for i, expr, engine, plan, reference in pending_exec:
-                mark("execute")
-                q_start = time.process_time()
-                table = execute(engine, plan)
-                if join_overrun:
-                    raise _JoinBudgetExceeded("nested loop join budget exceeded")
-                if time.process_time() - q_start > _PER_QUERY_CPU_LIMIT:
-                    raise _JoinBudgetExceeded("per-query CPU budget exceeded")
-                if table is None:
-                    raise ValueError("missing result")
-                table = pickle.loads(pickle.dumps(table))
-                if i in changed_reference or table_digest(table) != reference[-1]:
-                    if i not in changed_reference:
-                        digest_fallbacks += 1
-                        if digest_fallbacks > 16:
-                            raise ValueError("broad result change")
-                    if live_reference is None:
-                        live_reference, ensure_duckdb_tables = _make_lazy_duckdb_reference(test, reference_setup)
-                    if ensure_duckdb_tables is not None:
-                        ensure_duckdb_tables(expr)
-                    live_reference.subtestHelper(i, table, tpch=False)
     finally:
         ex.PythonExecutor.execute = execute
         if orig_nlj is not None:

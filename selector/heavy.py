@@ -405,9 +405,11 @@ def _has_hazard_token(line: str) -> bool:
     code = _strip_comment(line)
     if not code.strip():
         return False
+    # Read-only .__name__ / .__qualname__ attribute accesses are not dunder hooks.
+    cleaned = re.sub(r"\.__(?:name|qualname)__\b", "", code)
     return bool(
-        re.search(r"\b(global|nonlocal|setattr|delattr|exec|eval|_classes)\b|__\w+__|cache|registr", code, re.I)
-        or re.search(r"\bDIALECTS\b", code)
+        re.search(r"\b(global|nonlocal|setattr|delattr|exec|eval|_classes)\b|__\w+__|cache|registr", cleaned, re.I)
+        or re.search(r"\bDIALECTS\b", cleaned)
     )
 
 
@@ -655,11 +657,51 @@ def _class_attr_and_method_tail_queries(path, source, fd, rows):
     ]
 
 
+_BASE_EXPR_PROTECTED_DUNDERS = frozenset({
+    "__init__", "__new__", "__hash__", "__eq__", "__ne__", "__deepcopy__", "__copy__",
+    "__str__", "__getattr__", "__setattr__", "__delattr__", "__getattribute__",
+    "__bool__", "__len__", "__iter__", "__contains__", "__class_getitem__",
+    "__init_subclass__", "__getstate__", "__setstate__",
+})
+
+
+def _strip_docstrings(node):
+    """Return a shallow-cleaned copy of module/class/function AST without docstrings."""
+    if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+        body = list(node.body)
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            body = body[1:]
+        for st in body:
+            _strip_docstrings(st)
+        node.body = body
+    return node
+
+
+def _is_docstring_only_diff(path, source):
+    """True when ``source`` differs from pinned ``path`` ONLY in comments/docstrings."""
+    if source is None:
+        return False
+    before = impact._sources()["src"].get(path)
+    if before is None:
+        return False
+    try:
+        old_m = _strip_docstrings(ast.parse(before))
+        new_m = _strip_docstrings(ast.parse(source))
+    except SyntaxError:
+        return False
+    return ast.dump(old_m) == ast.dump(new_m)
+
+
 def _expr_subclass_tail_queries(path, source, fd, rows):
-    """For sqlglot/expressions/*.py, handle edits inside Expr subclasses (NOT
-    base Expr/Expression) that only touch ``arg_types``, simple literal class
-    constants, or non-dunder methods. ``arg_types`` is never read during
-    PythonExecutor.execute() once front() verifies identical plan_digest."""
+    """For sqlglot/expressions/*.py, handle edits inside Expr classes (including
+    adding brand-new Expr subclasses and editing non-implicit-dunder methods/attrs
+    on base Expr/Expression) by intersecting changed methods and attribute names
+    against the recorded TPC-DS execution tail."""
     if (
         source is None
         or fd.is_new
@@ -676,31 +718,62 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
         old_mod, new_mod = ast.parse(before), ast.parse(source)
     except SyntaxError:
         return None
-    if len(old_mod.body) != len(new_mod.body):
+
+    old_top = {}
+    new_top = {}
+    for idx_m, st in enumerate(old_mod.body):
+        k = ("cls", st.name) if isinstance(st, ast.ClassDef) else ("other", ast.dump(st), idx_m)
+        if k in old_top:
+            return None
+        old_top[k] = st
+    for idx_m, st in enumerate(new_mod.body):
+        k = ("cls", st.name) if isinstance(st, ast.ClassDef) else ("other", ast.dump(st), idx_m)
+        if k in new_top:
+            return None
+        new_top[k] = st
+    if [ast.dump(s) for k, s in old_top.items() if k[0] == "other"] != [
+        ast.dump(s) for k, s in new_top.items() if k[0] == "other"
+    ]:
         return None
+
+    an = None
     ranges = []
     attr_names = set()
-    for a, b in zip(old_mod.body, new_mod.body):
-        if ast.dump(a) == ast.dump(b):
+    for key in old_top.keys() | new_top.keys():
+        if key[0] == "other":
             continue
-        if not (isinstance(a, ast.ClassDef) and isinstance(b, ast.ClassDef) and a.name == b.name):
-            return None
-        if a.name in {"Expr", "Expression", "Func", "Binary", "Unary", "Condition", "Predicate", "Connector"}:
+        a = old_top.get(key)
+        b = new_top.get(key)
+        if a is not None and b is not None and ast.dump(a) == ast.dump(b):
+            continue
+        # Brand-new Expr subclass added to sqlglot/expressions/*.py whose name
+        # never appeared in pinned sources cannot be instantiated by TPC-DS tail.
+        if a is None and b is not None:
+            if an is None:
+                an = impact.Analysis()
+            if impact._name_sites(an, b.name):
+                return None
+            continue
+        if a is None or b is None:
             return None
         if [ast.dump(x) for x in a.bases] != [ast.dump(x) for x in b.bases]:
             return None
+        is_base_cls = a.name in {"Expr", "Expression", "Func", "Binary", "Unary", "Condition", "Predicate", "Connector"}
         old_map = {}
         new_map = {}
+        old_fns = {}
+        new_fns = {}
         for idx_s, s in enumerate(a.body):
             if isinstance(s, ast.FunctionDef):
-                key = ("fn", s.name)
+                old_fns.setdefault(s.name, []).append(s)
+                continue
             elif (
                 isinstance(s, ast.Assign)
                 and len(s.targets) == 1
                 and isinstance(s.targets[0], ast.Name)
                 and s.targets[0].id == "arg_types"
             ):
-                key = ("arg_types", "arg_types")
+                ckey = ("arg_types", "arg_types")
             elif (
                 (
                     isinstance(s, ast.Assign)
@@ -718,22 +791,23 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
                 )
             ):
                 nm = s.targets[0].id if isinstance(s, ast.Assign) else s.target.id
-                key = ("attr", nm)
+                ckey = ("attr", nm)
             else:
-                key = ("other", ast.dump(s), idx_s)
-            if key in old_map:
+                ckey = ("other", ast.dump(s), idx_s)
+            if ckey in old_map:
                 return None
-            old_map[key] = s
+            old_map[ckey] = s
         for idx_s, s in enumerate(b.body):
             if isinstance(s, ast.FunctionDef):
-                key = ("fn", s.name)
+                new_fns.setdefault(s.name, []).append(s)
+                continue
             elif (
                 isinstance(s, ast.Assign)
                 and len(s.targets) == 1
                 and isinstance(s.targets[0], ast.Name)
                 and s.targets[0].id == "arg_types"
             ):
-                key = ("arg_types", "arg_types")
+                ckey = ("arg_types", "arg_types")
             elif (
                 (
                     isinstance(s, ast.Assign)
@@ -751,34 +825,41 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
                 )
             ):
                 nm = s.targets[0].id if isinstance(s, ast.Assign) else s.target.id
-                key = ("attr", nm)
+                ckey = ("attr", nm)
             else:
-                key = ("other", ast.dump(s), idx_s)
-            if key in new_map:
+                ckey = ("other", ast.dump(s), idx_s)
+            if ckey in new_map:
                 return None
-            new_map[key] = s
+            new_map[ckey] = s
         old_others = [ast.dump(s) for k, s in old_map.items() if k[0] == "other"]
         new_others = [ast.dump(s) for k, s in new_map.items() if k[0] == "other"]
         if old_others != new_others:
             return None
-        for key in old_map.keys() | new_map.keys():
-            if key[0] == "other":
+        for ckey in old_map.keys() | new_map.keys():
+            if ckey[0] == "other":
                 continue
-            os_ = old_map.get(key)
-            ns_ = new_map.get(key)
+            os_ = old_map.get(ckey)
+            ns_ = new_map.get(ckey)
             if os_ is not None and ns_ is not None and ast.dump(os_) == ast.dump(ns_):
                 continue
-            if key[0] == "arg_types":
+            if ckey[0] == "arg_types":
                 attr_names.add("arg_types")
-            elif key[0] == "attr":
-                attr_names.add(key[1])
-            elif key[0] == "fn":
-                if key[1].startswith("__"):
-                    return None
-                if os_ is not None:
-                    ranges.append((os_.lineno, os_.end_lineno))
-                else:
-                    attr_names.add(key[1])
+            elif ckey[0] == "attr":
+                attr_names.add(ckey[1])
+        for fn_name in old_fns.keys() | new_fns.keys():
+            ol = old_fns.get(fn_name, ())
+            nl = new_fns.get(fn_name, ())
+            if [ast.dump(x) for x in ol] == [ast.dump(x) for x in nl]:
+                continue
+            if fn_name in _BASE_EXPR_PROTECTED_DUNDERS or (not is_base_cls and fn_name.startswith("__")):
+                return None
+            if fn_name.startswith("__") and fn_name != "__repr__":
+                return None
+            if ol:
+                for fn_node in ol:
+                    ranges.append((fn_node.lineno, fn_node.end_lineno))
+            else:
+                attr_names.add(fn_name)
     return [
         i
         for i, row in enumerate(rows)
@@ -823,6 +904,8 @@ def tail_cases(path, source, fd, *, strict=True):
         return []
     if fd.is_new or fd.is_deleted or fd.is_rename:
         return all_cases
+    if _is_docstring_only_diff(path, source):
+        return []
     # For PythonGenerator/Generator/Dialect, result_replay.py verifies exact
     # pygen_plan_digest across all 57 queries (~0.07s) and executes any query
     # whose compiled Python code actually changed.
@@ -957,6 +1040,8 @@ def _parser2_disjoint_file(f):
         if path == "sqlglot/dialects/__init__.py":
             delta = "\n".join(line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"})
             return not re.search(r"\b(Parser|max_nodes|setattr|delattr|exec|eval)\b", delta)
+        if f.is_deleted or f.is_rename:
+            return False
         return _no_cross_module_hazards(f, allow_sqlglot_imports=True)
     if f.is_new or f.is_deleted or f.is_rename or not _no_cross_module_hazards(f, allow_sqlglot_imports=True):
         return False
@@ -1077,16 +1162,16 @@ def eligible_file(f, group):
     return True
 
 
-def _parser_scaled_eligible(f, *, allow_monitored_loops=False):
+def _parser_scaled_eligible(f, *, allow_monitored_loops=False, allow_monitored_edits=False):
     """Sound eligibility gate for ``scaled()`` verification of ``test_max_nodes``.
-    Allows edits across any existing ``sqlglot/*.py`` (including dialect.py,
-    parser.py, tokens.py, tokenizer_core.py, expressions/*.py) provided no
-    threshold/node-count/recursion/loop-in-parser2 hazard is edited."""
+    Allows edits across any ``sqlglot/*.py`` provided hard node-limit/recursion/
+    metaprogramming hazards are absent; when ``allow_monitored_edits=True``,
+    big numeric literals (>= 50), ``depth``, and loops in ``p2_lines`` files are
+    verified via ``sys.monitoring`` LINE reachability in ``staged.py scaled``."""
     path = f.path
     if (
         not re.fullmatch(r"sqlglot/(?:\w+/)*\w+\.py", path)
-        or f.paths != {path}
-        or f.is_new
+        or (not allow_monitored_edits and (f.paths != {path} or f.is_new))
         or f.is_deleted
         or f.is_rename
         or f.mode_change
@@ -1098,13 +1183,16 @@ def _parser_scaled_eligible(f, *, allow_monitored_loops=False):
     lines = [line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"}]
     code_lines = [_strip_comment(ln) for ln in lines if not ln.lstrip().startswith("#")]
     delta_code = "\n".join(code_lines)
+    # Hard hazards that can never be safely cleared by scaled parity alone.
     if re.search(
-        r"\b(max_nodes|_node_count|recursion|setrecursionlimit|depth|limit|eval|exec|setattr|delattr|gc|global|nonlocal|_classes)\b",
+        r"\b(max_nodes|_node_count|recursion|setrecursionlimit|max_depth|eval|exec|setattr|delattr|gc|global|nonlocal|_classes)\b",
         delta_code,
         re.I,
     ) or re.search(r"\bDIALECTS\b", delta_code):
         return False
-    if path in p2_lines:
+    if path in p2_lines and not allow_monitored_edits:
+        if re.search(r"\bdepth\b", delta_code, re.I):
+            return False
         # Reject any numeric literal >= 50 (could distinguish width=100 from width=10000).
         for m in re.finditer(r"\b(\d[\d_]*)\b", delta_code):
             try:
@@ -1117,6 +1205,46 @@ def _parser_scaled_eligible(f, *, allow_monitored_loops=False):
             if re.search(r"\b(for|while)\b", delta_code):
                 return False
     return True
+
+
+def _parser_edited_lines(f, after_src):
+    """Return all executable new-file line numbers modified/added in ``f`` when
+    ``f.path`` is in ``p2_lines``, for exact-reachability monitoring in ``scaled()``."""
+    p2_lines = profile("parser")["parser:2"]["lines"]
+    if f.path not in p2_lines:
+        return set()
+    if not after_src:
+        return None
+    try:
+        ast.parse(after_src)
+    except SyntaxError:
+        return None
+    lines = after_src.splitlines()
+    watch = set()
+    for h in f.hunks:
+        new_ln = h.new_start
+        h_added = False
+        h_rem_code = []
+        for raw in h.lines:
+            tag = raw[:1]
+            if tag == "+":
+                h_added = True
+                if 1 <= new_ln <= len(lines):
+                    s = lines[new_ln - 1].strip()
+                    if s and not s.startswith("#"):
+                        watch.add(new_ln)
+                new_ln += 1
+            elif tag == "-":
+                h_rem_code.append(_strip_comment(raw[1:]))
+            elif tag == " ":
+                new_ln += 1
+        if not h_added and h_rem_code:
+            rem_s = "\n".join(h_rem_code)
+            if re.search(r"\bdepth\b", rem_s, re.I) or any(
+                int(m.group(1).replace("_", "")) >= 50 for m in re.finditer(r"\b(\d[\d_]*)\b", rem_s)
+            ):
+                return None
+    return watch
 
 
 def _parser_new_loop_lines(f, after_src):
@@ -1610,8 +1738,17 @@ def stage_edit(text, group):
                     return None
                 if w:
                     forbidden[f.path] = sorted(w)
-            if forbidden:
-                return "scaled", paths, changes, forbidden
+            return "scaled", paths, changes, (forbidden or [])
+        if all(_parser_scaled_eligible(f, allow_monitored_edits=True) for f in sql_files):
+            forbidden = {}
+            for f in sql_files:
+                w = _parser_edited_lines(f, changes.get(f.path))
+                if w is None:
+                    return None
+                if w:
+                    forbidden[f.path] = sorted(w)
+            if forbidden or all(f.path not in profile("parser")["parser:2"]["lines"] for f in sql_files):
+                return "scaled", paths, changes, (forbidden or [])
         return None
 
     # group == "ds"

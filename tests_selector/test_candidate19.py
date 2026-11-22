@@ -625,6 +625,88 @@ class TestCandidate19(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("new loop executed", proc.stderr)
 
+    def test_parser_scaled_allows_sql_limit_and_monitors_big_numbers(self):
+        """SQL LIMIT edits in parser.py are eligible for scaled(), while big-number
+        edits in p2_lines require exact-reachability monitoring (catching executed lines)."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        src = impact._sources()["src"]["sqlglot/parser.py"].splitlines()
+        idx = next(i for i, l in enumerate(src) if "def _parse_conjunction(" in l)
+        # SQL LIMIT comment/identifier in parser.py is NOT rejected by _parser_scaled_eligible
+        d_lim = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            f"@@ -{idx+1},1 +{idx+1},2 @@\n"
+            f" {src[idx]}\n"
+            "+        _sql_limit = exp.Limit\n"
+        )
+        self.assertTrue(heavy._parser_scaled_eligible(parse(d_lim)[0]))
+        # Numeric >= 50 requires allow_monitored_edits=True and produces watched lines
+        d_num = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            f"@@ -{idx+1},1 +{idx+1},2 @@\n"
+            f" {src[idx]}\n"
+            "+        if len(self._tokens) > 20000: raise ValueError('boom')\n"
+        )
+        fd_num = parse(d_num)[0]
+        self.assertFalse(heavy._parser_scaled_eligible(fd_num))
+        self.assertTrue(heavy._parser_scaled_eligible(fd_num, allow_monitored_edits=True))
+        after = "\n".join(src[: idx + 1] + ["        if len(self._tokens) > 20000: raise ValueError('boom')"] + src[idx + 1 :]) + "\n"
+        self.assertIn(idx + 2, heavy._parser_edited_lines(fd_num, after))
+
+    def test_expr_core_non_tail_attr_and_new_expr_subclass_tail_empty(self):
+        """Non-tail Expr class attrs (is_data_type) and brand-new Expr subclasses
+        return [] in tail_cases, while Expr.__hash__ remains conservative (99)."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        src = impact._sources()["src"]["sqlglot/expressions/core.py"].splitlines()
+        idx = next(i for i, l in enumerate(src) if "is_data_type" in l)
+        d_attr = (
+            "diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\n"
+            "--- a/sqlglot/expressions/core.py\n"
+            "+++ b/sqlglot/expressions/core.py\n"
+            f"@@ -{idx+1},1 +{idx+1},1 @@\n"
+            f"-{src[idx]}\n"
+            "+    is_data_type: t.ClassVar[bool] = True\n"
+        )
+        after_attr = "\n".join(src[:idx] + ["    is_data_type: t.ClassVar[bool] = True"] + src[idx + 1 :]) + "\n"
+        self.assertEqual(heavy.tail_cases("sqlglot/expressions/core.py", after_attr, parse(d_attr)[0]), [])
+        # Brand-new Expr subclass appended to sqlglot/expressions/query.py
+        qsrc = impact._sources()["src"]["sqlglot/expressions/query.py"].splitlines()
+        d_cls = (
+            "diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\n"
+            "--- a/sqlglot/expressions/query.py\n"
+            "+++ b/sqlglot/expressions/query.py\n"
+            f"@@ -{len(qsrc)},1 +{len(qsrc)},3 @@\n"
+            f" {qsrc[-1]}\n"
+            "+class BrandNewDummyExpr(Expr):\n"
+            "+    arg_types = {'this': False}\n"
+        )
+        after_cls = "\n".join(qsrc + ["class BrandNewDummyExpr(Expr):", "    arg_types = {'this': False}"]) + "\n"
+        self.assertEqual(heavy.tail_cases("sqlglot/expressions/query.py", after_cls, parse(d_cls)[0]), [])
+
+    def test_docstring_only_tail_cases_empty(self):
+        """Docstring-only edits to sqlglot/executor/env.py return [] in tail_cases."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        src = impact._sources()["src"]["sqlglot/executor/env.py"].splitlines()
+        d_doc = (
+            "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\n"
+            "--- a/sqlglot/executor/env.py\n"
+            "+++ b/sqlglot/executor/env.py\n"
+            "@@ -1,1 +1,2 @@\n"
+            '+"""Module docstring."""\n'
+            f" {src[0]}\n"
+        )
+        after = '"""Module docstring."""\n' + "\n".join(src) + "\n"
+        self.assertEqual(heavy.tail_cases("sqlglot/executor/env.py", after, parse(d_doc)[0]), [])
+
 
 if __name__ == "__main__":
     unittest.main()

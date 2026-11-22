@@ -171,25 +171,22 @@ def replay(indices, verify_query=None):
             if verify_query is None:
                 raise ValueError("rule result changed")
             divergent.add(queries[i])
-    # Pass 2: verify divergent queries in original fixture order (0..98) using
-    # plan-first checking in result_replay so intermediate rule AST changes that
-    # canonicalize to identical plans skip execution, while genuinely broken
-    # optimizer edits abort mid-planning once changed plans exceed the CPU budget.
+    # Pass 2: if divergent queries would exceed the remaining probe CPU budget,
+    # abort immediately instead of burning the full timeout executing half of them.
+    # Always verify in original fixture order (0..98) to preserve cross-query invariants.
     if verify_query is not None and divergent:
+        qcosts = _query_exec_costs()
+        cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
+        if cpu_cap > 0:
+            remaining = cpu_cap - (time.process_time() - started)
+            if sum(qcosts.get(q, 0.0) for q in divergent) > 0.88 * remaining:
+                raise ValueError("divergent query execution exceeds probe budget")
         ordered = sorted(divergent)
-        old_start = os.environ.get("BLAST_PROBE_START_CPU")
-        os.environ["BLAST_PROBE_START_CPU"] = str(started)
-        try:
-            if getattr(verify_query, "_accepts_batch", False):
-                verify_query(ordered)
-            else:
-                for q in ordered:
-                    verify_query(q)
-        finally:
-            if old_start is None:
-                os.environ.pop("BLAST_PROBE_START_CPU", None)
-            else:
-                os.environ["BLAST_PROBE_START_CPU"] = old_start
+        if getattr(verify_query, "_accepts_batch", False):
+            verify_query(ordered)
+        else:
+            for q in ordered:
+                verify_query(q)
     return sorted(divergent)
 
 
