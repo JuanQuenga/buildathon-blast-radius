@@ -2536,50 +2536,25 @@ def stage_edit(text, group):
         return None
 
     # group == "ds"
-    def _test_executor_tpcds_body_untouched(fd):
-        if fd.is_new or fd.is_deleted or fd.is_rename or fd.is_binary or fd.mode_change:
-            return False
-        try:
-            old_mod = impact._parse_pinned("tests/test_executor.py")
-            after = verify._apply_file(fd, verify.PRISTINE)
-            if old_mod is None or after is None:
-                return False
-            new_mod = ast.parse(after)
-            def _find_tpcds(mod):
-                for st in mod.body:
-                    if isinstance(st, ast.ClassDef) and st.name == "TestExecutor":
-                        for m in st.body:
-                            if isinstance(m, ast.FunctionDef) and m.name == "test_execute_tpcds":
-                                return ast.dump(m)
-                return None
-            o_fn, n_fn = _find_tpcds(old_mod), _find_tpcds(new_mod)
-            return o_fn is not None and o_fn == n_fn
-        except Exception:
-            return False
-
-    needs_full_ds_setup = False
-    if not non_sql_inert:
-        for f in non_sql_files:
-            if f.path == "tests/test_executor.py":
-                if not _test_executor_tpcds_body_untouched(f):
-                    return None
-                needs_full_ds_setup = True
-            elif f.path == "tests/helpers.py" or (
-                f.path and f.path.startswith(("tests/fixtures/optimizer/tpc-ds/", "tests/fixtures/optimizer/tpc-h/"))
-            ):
-                needs_full_ds_setup = True
+    forbid_ds = (
+        ()
+        if non_sql_inert
+        else (
+            "tests/test_executor.py",
+            "tests/helpers.py",
+            "tests/fixtures/optimizer/tpc-ds/",
+            "tests/fixtures/optimizer/tpc-h/",
+        )
+    )
     if not patch_verifiable_files(
         files,
-        forbid_prefixes=(),
+        forbid_prefixes=forbid_ds,
         allow_structural=True,
     ):
         return None
-    if not sql_files and not needs_full_ds_setup:
+    if not sql_files:
         return None
     changes = _apply_verifiable(text)
-    if needs_full_ds_setup:
-        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
-        return "front", paths, changes, ([], True, True)
     active_sql_files = [f for f in sql_files if not _inert_new_class_attrs(f.path, changes.get(f.path), f)]
     if not active_sql_files:
         if non_sql_inert:
@@ -2698,7 +2673,6 @@ class Probe:
     estimate: float
     heavy_mod: bool = False
     needs_pygen: bool = False
-    full_setup: bool = False
 
     @property
     def priority(self):
@@ -2963,12 +2937,8 @@ def options(patch, catalog, targets, dur, attempted=()):
         if edit:
             mode, paths, changes, cases = edit
             needs_pygen = False
-            full_setup = False
-            if mode in {"partial", "front"} and isinstance(cases, tuple):
-                if len(cases) == 3:
-                    cases, needs_pygen, full_setup = cases
-                elif len(cases) == 2:
-                    cases, needs_pygen = cases
+            if mode in {"partial", "front"} and isinstance(cases, tuple) and len(cases) == 2:
+                cases, needs_pygen = cases
             probability, estimate = economics(mode, cases)
             if group == "tpcds_opt" and mode not in {"unreached", "imported"}:
                 min_mult = 1.55 if len(cases) <= 45 else 1.30
@@ -2996,16 +2966,15 @@ def options(patch, catalog, targets, dur, attempted=()):
                 continue
             if mode == "annotate_funcs" and isinstance(cases, tuple):
                 cases = cases[0]
-            needs_heavy = full_setup
+            needs_heavy = False
             if group == "ds" and mode in {"front", "partial"}:
                 changed_paths = {p for p in paths.split(",") if p}
-                if full_setup or (changed_paths & ds_setup_paths()):
+                if changed_paths & ds_setup_paths():
                     estimate += 0.9
                     needs_heavy = True
             heavy_yielded = True
             yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
-                        gain, probability, estimate, heavy_mod=needs_heavy, needs_pygen=needs_pygen,
-                        full_setup=full_setup)
+                        gain, probability, estimate, heavy_mod=needs_heavy, needs_pygen=needs_pygen)
 
     # Zero-CPU unreached / imported proofs for top 5 opt-medium tests (stay in bundle/trim if reached).
     if not patch.missing and patch.workers:
@@ -3373,8 +3342,6 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         args.append("verify-results")
                     elif probe.mode in {"front", "partial"}:
                         args.append("pygen" if probe.needs_pygen else "no-pygen")
-                        if probe.full_setup:
-                            args.append("full-setup")
                     elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
                         args.append("no-exec-setup")
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)

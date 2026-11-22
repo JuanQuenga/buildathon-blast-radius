@@ -1238,12 +1238,12 @@ class TestCandidate19(unittest.TestCase):
             if added:
                 sys.path.remove(verify.PRISTINE)
 
-    def test_c42_ds_full_setup_and_tpcds_body_guard(self):
-        """stage_edit('ds') stages tests/helpers.py and non-tpcds tests/test_executor.py edits
-        with full_setup=True, while refusing edits inside TestExecutor.test_execute_tpcds itself."""
+    def test_c42b_ds_forbids_test_executor_and_helpers(self):
+        """stage_edit('ds') soundly refuses edits to tests/helpers.py and tests/test_executor.py
+        (both inside TestExecutor.test_execute_tpcds and in setUpClass)."""
         from selector import heavy, impact
 
-        # 1. Editing TPCDS_SCHEMA in tests/helpers.py -> stages ds with full_setup=True
+        # 1. Editing TPCDS_SCHEMA in tests/helpers.py -> MUST return None (sound!)
         hlines = impact._sources()["src"]["tests/helpers.py"].splitlines()
         hln = next(i for i, l in enumerate(hlines, 1) if '"cs_sold_date_sk": "bigint",' in l)
         h_patch = (
@@ -1254,10 +1254,7 @@ class TestCandidate19(unittest.TestCase):
             f"-{hlines[hln-1]}\n"
             f"+{hlines[hln-1].replace('bigint', 'text')}\n"
         )
-        ed_h = heavy.stage_edit(h_patch, "ds")
-        self.assertIsNotNone(ed_h)
-        self.assertEqual(ed_h[0], "front")
-        self.assertEqual(ed_h[3], ([], True, True))
+        self.assertIsNone(heavy.stage_edit(h_patch, "ds"))
 
         # 2. Editing TestExecutor.test_execute_tpcds body directly -> MUST return None (sound!)
         elines = impact._sources()["src"]["tests/test_executor.py"].splitlines()
@@ -1271,6 +1268,18 @@ class TestCandidate19(unittest.TestCase):
             "+        assert False, 'mutated test_execute_tpcds'\n"
         )
         self.assertIsNone(heavy.stage_edit(e_patch, "ds"))
+
+        # 3. Editing TestExecutor.setUpClass (outside test_execute_tpcds) -> MUST return None (sound!)
+        sln = next(i for i, l in enumerate(elines, 1) if "def setUpClass(" in l) + 1
+        s_patch = (
+            "diff --git a/tests/test_executor.py b/tests/test_executor.py\n"
+            "--- a/tests/test_executor.py\n"
+            "+++ b/tests/test_executor.py\n"
+            f"@@ -{sln},1 +{sln},2 @@\n"
+            f" {elines[sln-1]}\n"
+            "+        assert False, 'mutated setUpClass'\n"
+        )
+        self.assertIsNone(heavy.stage_edit(s_patch, "ds"))
 
     def test_c42_bundle_test_lazy_load_and_trim_early_stop(self):
         """bundle.py passes test_lazy_load cleanly with overlay PYTHONPATH and early-stops

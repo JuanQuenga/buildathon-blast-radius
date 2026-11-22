@@ -389,7 +389,7 @@ def _load_query_exec_costs():
     }
 
 
-def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, check_pygen=None, plan_budget_s=None, force_check=False):
+def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, check_pygen=None, plan_budget_s=None):
     from phase import mark
     from sqlglot import planner as planner_mod
     from sqlglot.generator import Generator as generator_cls
@@ -408,9 +408,9 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
     reference_setup = contextlib.ExitStack()
     changed_reference = set()
     changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
-    check_parse = True if force_check else _needs_parse_check(changed_modules)
-    check_transpile = True if force_check else _needs_transpile_check(changed_modules)
-    touches_executor = True if force_check else any(m.startswith("sqlglot.executor") for m in changed_modules)
+    check_parse = _needs_parse_check(changed_modules)
+    check_transpile = _needs_transpile_check(changed_modules)
+    touches_executor = any(m.startswith("sqlglot.executor") for m in changed_modules)
     if check_pygen is None:
         check_pygen = _needs_pygen_check(changed_modules)
     pygen_digests = _load_pygen_digests() if check_pygen else None
