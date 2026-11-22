@@ -137,3 +137,18 @@ class TestPerTestSubstitution(unittest.TestCase):
     def test_unknown_test_falls_back_to_static_analysis(self):
         result = self.select(["tests/test_nowhere.py::T::test_missing"])
         self.assertGreater(len(result["required"]), 100, result["reasons"])
+
+
+class TestJsonPathTransformsNarrowing(unittest.TestCase):
+    """Cherry-picked from candidate 37: JSON_PATH_PART_TRANSFORMS edits narrow via per-key dispatch observations."""
+
+    def test_literal_edit_does_not_select_every_test(self):
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        lines = impact._sources()["src"]["sqlglot/jsonpath.py"].splitlines()
+        ln = next(i for i, line in enumerate(lines, 1) if '"" if p is False' in line)
+        patch = ("--- a/sqlglot/jsonpath.py\n+++ b/sqlglot/jsonpath.py\n"
+                 f"@@ -{ln},1 +{ln},1 @@\n-{lines[ln - 1]}\n+{lines[ln - 1].replace('False', '0')}\n")
+        result = select(patch, cat)
+        self.assertFalse(result["full"], result["reasons"])
+        self.assertLess(len(result["required"]), 100, result["reasons"])

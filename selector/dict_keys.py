@@ -235,14 +235,17 @@ def _single_assign_rhs(stmts: list[ast.stmt], target_name: str) -> ast.AST | Non
     return None
 
 
-def changed_keys(table: str, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt]) -> set[str] | None:
+def changed_keys(
+    table: str, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt], *, target_name: str | None = None
+) -> set[str] | None:
     """If ``o_stmts`` -> ``n_stmts`` only changes literal entries or filtered
     base-dict exclusions of ``table`` (preserving all ``**base`` unpacks),
     return the exact set of changed key tokens."""
     if table not in TABLES:
         return None
-    o_rhs = _single_assign_rhs(o_stmts, table)
-    n_rhs = _single_assign_rhs(n_stmts, table)
+    tname = target_name or table
+    o_rhs = _single_assign_rhs(o_stmts, tname)
+    n_rhs = _single_assign_rhs(n_stmts, tname)
     if o_rhs is None or n_rhs is None:
         return None
     old_parsed = _extract_entries(o_rhs, table)
@@ -262,12 +265,14 @@ def changed_keys(table: str, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt]) -
     return delta
 
 
-def narrow_bits(table: str, bits: int, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt]) -> int | None:
+def narrow_bits(
+    table: str, bits: int, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt], *, target_name: str | None = None
+) -> int | None:
     """Return narrowed bitmask ``bits & (bulk[table] | union(obs[k]))`` or ``None``."""
     loaded = _load()
     if loaded is None:
         return None
-    delta = changed_keys(table, o_stmts, n_stmts)
+    delta = changed_keys(table, o_stmts, n_stmts, target_name=target_name)
     if delta is None:
         return None
     bulk, keys = loaded
