@@ -192,7 +192,7 @@ def rule_query_check():
     return check
 
 
-def executor(record, expected, full, selection=None, *, check_pygen=None):
+def executor(record, expected, full, selection=None, *, check_pygen=None, force_full_setup=False):
     if selection is not None and not selection["active"]:
         return [], []
     if not record:
@@ -201,7 +201,7 @@ def executor(record, expected, full, selection=None, *, check_pygen=None):
         # edits, the pinned tables & SQL fixtures are bit-for-bit identical,
         # avoiding ~2.0s of CSV decompression and duckdb/pandas imports.
         changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
-        touches_table_setup = any(
+        touches_table_setup = force_full_setup or any(
             m in {"sqlglot.executor.table", "tests.helpers", "tests.test_executor"}
             for m in changed_modules
         )
@@ -240,7 +240,10 @@ def executor(record, expected, full, selection=None, *, check_pygen=None):
         sys.path.append(str(Path(__file__).parent))
         from result_replay import run
         try:
-            run(test, tests, ex, expected, full, selection, digest, plan_digest, check_pygen=check_pygen)
+            run(
+                test, tests, ex, expected, full, selection, digest, plan_digest,
+                check_pygen=check_pygen, force_check=force_full_setup,
+            )
         finally:
             test.tearDownClass()
         return [], []
@@ -833,11 +836,13 @@ def main():
     else:
         extra = sys.argv[3:] if group == "partial" else sys.argv[2:]
         check_pygen = True if "pygen" in extra else (False if "no-pygen" in extra else None)
+        force_full_setup = "full-setup" in extra
         executor(
             False,
             data["ds"],
             json.loads(sys.argv[2]) if group == "partial" else group == "full",
             check_pygen=check_pygen,
+            force_full_setup=force_full_setup,
         )
 
 

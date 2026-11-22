@@ -58,8 +58,14 @@ def _install_inline_pool() -> None:
 
 
 def main():
-    sys.path.insert(0, str(Path.cwd()))
+    cwd_str = str(Path.cwd())
+    sys.path.insert(0, cwd_str)
     os.environ["SKIP_INTEGRATION"] = "0"
+    os.environ["PYTHONPATH"] = cwd_str
+    py_bin = os.path.dirname(sys.executable)
+    cur_path = os.environ.get("PATH", "")
+    if py_bin and py_bin not in cur_path.split(os.pathsep):
+        os.environ["PATH"] = py_bin + os.pathsep + cur_path
     sys.modules["__main__"] = types.ModuleType("__main__")
     _install_inline_pool()
 
@@ -75,23 +81,12 @@ def main():
         "no-exec-setup" in sys.argv[3:]
         and not (tpc_exec_nodes & set(ids))
     )
-    suite = unittest.TestSuite()
+    import itertools
+    groups = [
+        (mod_path, list(grp))
+        for mod_path, grp in itertools.groupby(ids, key=lambda n: n.split("::", 1)[0])
+    ]
     nodes = {}
-    exec_stubbed = False
-    for node in ids:
-        path, cls, method = node.split("::")
-        module = importlib.import_module(path[:-3].replace("/", "."))
-        if skip_exec_setup and not exec_stubbed and path == "tests/test_executor.py":
-            tcls = getattr(module, "TestExecutor", None)
-            if tcls is not None:
-                tcls.setUpClass = classmethod(lambda c: None)
-                tcls.tearDownClass = classmethod(lambda c: None)
-                exec_stubbed = True
-        case = getattr(module, cls)(method)
-        if not isinstance(case, unittest.TestCase):
-            raise TypeError(node)
-        suite.addTest(case)
-        nodes[case.id()] = node
 
     class Results(unittest.TestResult):
         def __init__(self):
@@ -107,6 +102,11 @@ def main():
                 self.stray = True
             else:
                 self.bad_nodes.add(node)
+                if is_trim and (
+                    len(self.bad_nodes) >= 8
+                    or (len(self.bad_nodes) >= 5 and len(self.bad_nodes) > len(self.passed))
+                ):
+                    self.stop()
 
         def addSuccess(self, case):
             super().addSuccess(case)
@@ -146,7 +146,36 @@ def main():
 
     result = Results()
     result.failfast = not is_trim
-    suite.run(result)
+    exec_stubbed = False
+    for path, grp_nodes in groups:
+        module = importlib.import_module(path[:-3].replace("/", "."))
+        if skip_exec_setup and not exec_stubbed and path == "tests/test_executor.py":
+            tcls = getattr(module, "TestExecutor", None)
+            if tcls is not None:
+                tcls.setUpClass = classmethod(lambda c: None)
+                tcls.tearDownClass = classmethod(lambda c: None)
+                exec_stubbed = True
+        suite = unittest.TestSuite()
+        for node in grp_nodes:
+            _, cls, method = node.split("::")
+            case = getattr(module, cls)(method)
+            if not isinstance(case, unittest.TestCase):
+                raise TypeError(node)
+            suite.addTest(case)
+            nodes[case.id()] = node
+        suite.run(result)
+        if result.shouldStop:
+            break
+        if result.failfast and (
+            result.failures
+            or result.errors
+            or result.subtest_failed
+            or result.skipped
+            or result.expectedFailures
+            or result.unexpectedSuccesses
+            or result.stray
+        ):
+            break
     clean_passed = [n for n in result.passed if n not in result.bad_nodes]
     if is_trim:
         if not ids or result.stray or not clean_passed:

@@ -68,8 +68,8 @@ _TRANSPILE_MODULES = frozenset({
 # Pinned max nested-loop join pair count across all 57 TPC-DS queries is 10,000.
 # 80x that limit prevents quadratic join blowups from burning 10-35s CPU.
 _NLJ_PAIR_LIMIT = 800_000
-# Slowest pinned TPC-DS query takes ~0.62s Mac / ~1.0s Linux CPU; 3.5s catches blowups without false aborts.
-_PER_QUERY_CPU_LIMIT = 3.5
+# Slowest pinned TPC-DS query takes ~0.62s Mac / ~1.0s Linux CPU; 2.2s catches blowups without false aborts.
+_PER_QUERY_CPU_LIMIT = 2.2
 
 
 class _JoinBudgetExceeded(BaseException):
@@ -389,7 +389,7 @@ def _load_query_exec_costs():
     }
 
 
-def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, check_pygen=None, plan_budget_s=None):
+def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, check_pygen=None, plan_budget_s=None, force_check=False):
     from phase import mark
     from sqlglot import planner as planner_mod
     from sqlglot.generator import Generator as generator_cls
@@ -408,9 +408,9 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
     reference_setup = contextlib.ExitStack()
     changed_reference = set()
     changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
-    check_parse = _needs_parse_check(changed_modules)
-    check_transpile = _needs_transpile_check(changed_modules)
-    touches_executor = any(m.startswith("sqlglot.executor") for m in changed_modules)
+    check_parse = True if force_check else _needs_parse_check(changed_modules)
+    check_transpile = True if force_check else _needs_transpile_check(changed_modules)
+    touches_executor = True if force_check else any(m.startswith("sqlglot.executor") for m in changed_modules)
     if check_pygen is None:
         check_pygen = _needs_pygen_check(changed_modules)
     pygen_digests = _load_pygen_digests() if check_pygen else None
@@ -520,9 +520,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                     ):
                         continue
                     changed_reference.add(i)
-                    # Mass DuckDB reference SQL divergence would require full live
-                    # DuckDB + Python execution across all queries -> retain.
-                    if len(changed_reference) > 16:
+                    if len(changed_reference) > 57:
                         raise ValueError("broad reference SQL change")
         # Streaming budget-guarded plan check: before executing any query when
         # called from rule_corpus Pass 2 overflow, probe the cheapest 2 queries
@@ -614,7 +612,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
             if i in changed_reference or table_digest(table) != reference[-1]:
                 if i not in changed_reference:
                     digest_fallbacks += 1
-                    if digest_fallbacks > 16:
+                    if digest_fallbacks > 57:
                         raise ValueError("broad result change")
                 if live_reference is None:
                     live_reference, ensure_duckdb_tables = _make_lazy_duckdb_reference(test, reference_setup)

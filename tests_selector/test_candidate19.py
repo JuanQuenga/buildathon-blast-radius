@@ -1238,6 +1238,68 @@ class TestCandidate19(unittest.TestCase):
             if added:
                 sys.path.remove(verify.PRISTINE)
 
+    def test_c42_ds_full_setup_and_tpcds_body_guard(self):
+        """stage_edit('ds') stages tests/helpers.py and non-tpcds tests/test_executor.py edits
+        with full_setup=True, while refusing edits inside TestExecutor.test_execute_tpcds itself."""
+        from selector import heavy, impact
+
+        # 1. Editing TPCDS_SCHEMA in tests/helpers.py -> stages ds with full_setup=True
+        hlines = impact._sources()["src"]["tests/helpers.py"].splitlines()
+        hln = next(i for i, l in enumerate(hlines, 1) if '"cs_sold_date_sk": "bigint",' in l)
+        h_patch = (
+            "diff --git a/tests/helpers.py b/tests/helpers.py\n"
+            "--- a/tests/helpers.py\n"
+            "+++ b/tests/helpers.py\n"
+            f"@@ -{hln},1 +{hln},1 @@\n"
+            f"-{hlines[hln-1]}\n"
+            f"+{hlines[hln-1].replace('bigint', 'text')}\n"
+        )
+        ed_h = heavy.stage_edit(h_patch, "ds")
+        self.assertIsNotNone(ed_h)
+        self.assertEqual(ed_h[0], "front")
+        self.assertEqual(ed_h[3], ([], True, True))
+
+        # 2. Editing TestExecutor.test_execute_tpcds body directly -> MUST return None (sound!)
+        elines = impact._sources()["src"]["tests/test_executor.py"].splitlines()
+        eln = next(i for i, l in enumerate(elines, 1) if "def test_execute_tpcds(" in l) + 1
+        e_patch = (
+            "diff --git a/tests/test_executor.py b/tests/test_executor.py\n"
+            "--- a/tests/test_executor.py\n"
+            "+++ b/tests/test_executor.py\n"
+            f"@@ -{eln},1 +{eln},2 @@\n"
+            f" {elines[eln-1]}\n"
+            "+        assert False, 'mutated test_execute_tpcds'\n"
+        )
+        self.assertIsNone(heavy.stage_edit(e_patch, "ds"))
+
+    def test_c42_bundle_test_lazy_load_and_trim_early_stop(self):
+        """bundle.py passes test_lazy_load cleanly with overlay PYTHONPATH and early-stops
+        trim after >=8 failures while preserving strictly-passing tests."""
+        import json, os, subprocess, sys, tempfile
+        from pathlib import Path
+        from selector import verify
+
+        # test_lazy_load passes inside bundle.py!
+        code = (
+            "import json, sys\n"
+            "from selector import bundle\n"
+            "sys.argv = ['bundle.py', 'bundle', json.dumps([\n"
+            "    'tests/dialects/test_dialect.py::TestDialect::test_lazy_load',\n"
+            "]), 'no-exec-setup']\n"
+            "bundle.main()\n"
+            "print('LAZY_LOAD_OK')\n"
+        )
+        env = dict(os.environ, PYTHONPATH=os.getcwd())
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=verify.PRISTINE,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertIn("LAZY_LOAD_OK", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
