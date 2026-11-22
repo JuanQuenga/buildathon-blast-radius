@@ -81,6 +81,13 @@ def _load_map(name):
     return pickle.loads(zlib.decompress((MAPS_DIR / (name + ".pkl.z")).read_bytes()))
 
 
+def _cached_marshal(name):
+    cache = _PIN_CACHE / (name + ".marshal")
+    if cache.exists():
+        return marshal.loads(cache.read_bytes())
+    return None
+
+
 def _index() -> dict:
     global _IDX
     if _IDX is None:
@@ -484,6 +491,9 @@ def _same_observed_comparison(path, old, new):
 def _branch_map():
     """Return ``(sites_dict, tail_both_dict)`` where ``sites_dict[site] = (b0, b1)``
     bitmasks of tests where ``site`` was always False / always True."""
+    cached = _cached_marshal("branches")
+    if cached is not None:
+        return cached
     import gzip
 
     gz = MAPS_DIR / "branches.json.gz"
@@ -523,6 +533,9 @@ def _branch_map():
 @functools.lru_cache(maxsize=1)
 def _operand_map():
     """Return ``{site: [(bitmask, concrete_values), ...]}``."""
+    cached = _cached_marshal("operands")
+    if cached is not None:
+        return cached
     import gzip
 
     gz = MAPS_DIR / "operands.json.gz"

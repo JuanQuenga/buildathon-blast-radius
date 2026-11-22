@@ -1155,12 +1155,90 @@ def _target_bit(group):
     return 0
 
 
+_TARGET_TEST_PROTECTED = {
+    "ds": (
+        "tests/test_executor.py",
+        "TestExecutor",
+        frozenset({
+            "test_execute_tpcds", "setUpClass", "tearDownClass", "setUp", "tearDown",
+            "subtestHelper", "cached_execute", "_mp_execute",
+        }),
+    ),
+    "parser": (
+        "tests/test_parser.py",
+        "TestParser",
+        frozenset({"test_max_nodes", "setUpClass", "tearDownClass", "setUp", "tearDown"}),
+    ),
+    "generator": (
+        "tests/test_generator.py",
+        "TestGenerator",
+        frozenset({"test_generator_memory", "setUpClass", "tearDownClass", "setUp", "tearDown"}),
+    ),
+}
+
+
+def _test_file_disjoint_from_target(fd, group):
+    """True when a modification to ``tests/test_{executor,parser,generator}.py``
+    ONLY touches unrelated ``def test_*`` methods inside the test class and
+    never edits module-level code, setup/helper methods, or the heavy target."""
+    spec = _TARGET_TEST_PROTECTED.get(group)
+    if not spec or fd.path != spec[0] or fd.is_new or fd.is_deleted or fd.is_rename or fd.is_binary or fd.mode_change or not fd.hunks:
+        return False
+    tpath, cls_name, protected = spec
+    before = impact._sources()["src"].get(tpath)
+    if before is None:
+        return False
+    try:
+        after = verify._apply_file(fd, verify.PRISTINE)
+        if after is None:
+            return False
+        old_mod, new_mod = ast.parse(before), ast.parse(after)
+    except Exception:
+        return False
+    if len(old_mod.body) != len(new_mod.body):
+        return False
+    for a, b in zip(old_mod.body, new_mod.body):
+        if ast.dump(a) == ast.dump(b):
+            continue
+        if not (isinstance(a, ast.ClassDef) and isinstance(b, ast.ClassDef) and a.name == b.name == cls_name):
+            return False
+        if [ast.dump(x) for x in a.bases] != [ast.dump(x) for x in b.bases]:
+            return False
+        old_fns, new_fns = {}, {}
+        old_other, new_other = [], []
+        for s in a.body:
+            if isinstance(s, ast.FunctionDef):
+                if s.name in old_fns:
+                    return False
+                old_fns[s.name] = s
+            else:
+                old_other.append(ast.dump(s))
+        for s in b.body:
+            if isinstance(s, ast.FunctionDef):
+                if s.name in new_fns:
+                    return False
+                new_fns[s.name] = s
+            else:
+                new_other.append(ast.dump(s))
+        if old_other != new_other:
+            return False
+        for nm in old_fns.keys() | new_fns.keys():
+            os_, ns_ = old_fns.get(nm), new_fns.get(nm)
+            if os_ is not None and ns_ is not None and ast.dump(os_) == ast.dump(ns_):
+                continue
+            if nm in protected or not nm.startswith("test_"):
+                return False
+    return True
+
+
 def _target_unreachable(fd, group):
     """True when a non-sqlglot file under tests/ (or harmless doc file) is
     provably never imported, executed, or opened by the heavy target test."""
     p = fd.path
     if not p or fd.is_binary or fd.mode_change:
         return False
+    if _test_file_disjoint_from_target(fd, group):
+        return True
     if not (p.startswith("tests/") or _is_doc_path(p)):
         return False
     if p in {"tests/__init__.py", "tests/helpers.py", "tests/conftest.py"}:
@@ -1357,9 +1435,10 @@ def stage_edit(text, group):
     strict_all = bool(sql_files) and non_sql_inert and all(eligible_file(f, "ds") for f in sql_files)
 
     if group == "generator":
+        forbid = ("tests/helpers.py",) if non_sql_inert else ("tests/test_generator.py", "tests/helpers.py")
         if not patch_verifiable_files(
             files,
-            forbid_prefixes=("tests/test_generator.py", "tests/helpers.py"),
+            forbid_prefixes=forbid,
             allow_structural=True,
         ):
             return None
@@ -1379,9 +1458,10 @@ def stage_edit(text, group):
         return "generator", paths, changes, []
 
     if group == "parser":
+        forbid = ("tests/helpers.py",) if non_sql_inert else ("tests/test_parser.py", "tests/helpers.py")
         if not patch_verifiable_files(
             files,
-            forbid_prefixes=("tests/test_parser.py", "tests/helpers.py"),
+            forbid_prefixes=forbid,
             allow_structural=True,
         ):
             return None
@@ -1401,14 +1481,19 @@ def stage_edit(text, group):
         return None
 
     # group == "ds"
-    if not patch_verifiable_files(
-        files,
-        forbid_prefixes=(
+    forbid_ds = (
+        ("tests/helpers.py", "tests/fixtures/optimizer/tpc-ds/", "tests/fixtures/optimizer/tpc-h/")
+        if non_sql_inert
+        else (
             "tests/test_executor.py",
             "tests/helpers.py",
             "tests/fixtures/optimizer/tpc-ds/",
             "tests/fixtures/optimizer/tpc-h/",
-        ),
+        )
+    )
+    if not patch_verifiable_files(
+        files,
+        forbid_prefixes=forbid_ds,
         allow_structural=True,
     ):
         return None
@@ -1680,16 +1765,16 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
     best = None  # (score, subset_set, gain, est, uses_heavy)
 
     # Option 1: trim ALL eligible non-TPC required tests when compact.
-    if cand_nums < patch.req and len(cand_nums) <= 450:
+    if cand_nums < patch.req and len(cand_nums) <= 350:
         run_est, est, uses_heavy = _estimate_bundle_set(
             cand_nums, catalog, dur, no_exec_setup=no_exec_setup
         )
-        if run_est <= 3.6:
+        if run_est <= 2.6:
             rem = patch.req - cand_nums
             after = plan_cost(schedule(rem, patch.pl - cand_nums, dur), dur) / 1000 if rem else 0.0
             gain = sim_cost - after
-            if gain >= 1.65 * est and gain - est >= 1.25:
-                best = (gain - 1.40 * est, cand_nums, gain, est, uses_heavy)
+            if gain >= 2.05 * est and gain - est >= 1.60:
+                best = (gain - 1.50 * est, cand_nums, gain, est, uses_heavy)
 
     # Option 2: greedy high-ROI prefix (highest catalog/docker_cpu ratio first).
     ranked = []
@@ -1698,26 +1783,26 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
         c_est = _test_docker_cpu(node, dur[n])
         cat_s = dur[n] / 1000.0
         ratio = cat_s / max(0.01, c_est)
-        if dur[n] >= 300 or ratio >= 1.35:
+        if dur[n] >= 350 or ratio >= 1.45:
             ranked.append((ratio, dur[n], c_est, n))
     ranked.sort(key=lambda x: (-x[0], -x[1], x[3]))
 
     prefix = set()
     run_acc = 0.0
     for idx, (_ratio, d_ms, c_est, n) in enumerate(ranked):
-        if len(prefix) >= 100 or run_acc + c_est > 2.60:
+        if len(prefix) >= 80 or run_acc + c_est > 2.20:
             continue
         prefix.add(n)
         run_acc += c_est
-        if d_ms >= 300 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
+        if d_ms >= 350 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
             _, est, uses_heavy = _estimate_bundle_set(
                 prefix, catalog, dur, no_exec_setup=no_exec_setup
             )
             rem = patch.req - prefix
             after = plan_cost(schedule(rem, patch.pl - prefix, dur), dur) / 1000 if rem else 0.0
             gain = sim_cost - after
-            if gain >= 1.75 * est and gain - est >= 1.25:
-                score = gain - 1.45 * est
+            if gain >= 2.05 * est and gain - est >= 1.60:
+                score = gain - 1.55 * est
                 if best is None or score > best[0]:
                     best = (score, set(prefix), gain, est, uses_heavy)
     return best
@@ -1737,9 +1822,12 @@ def options(patch, catalog, targets, dur, attempted=()):
     if not patch.req:
         return
     heavy_yielded = False
+    dominant_heavy_in_req = False
     for number, group in targets:
         if number not in patch.req or number in patch.missing:
             continue
+        if group in {"ds", "parser"}:
+            dominant_heavy_in_req = True
         req, pl = patch.req - {number}, patch.pl - {number}
         workers = schedule(req, pl, dur) if req else []
         gain = (plan_cost(patch.workers, dur) - plan_cost(workers, dur)) / 1000
@@ -1766,7 +1854,7 @@ def options(patch, catalog, targets, dur, attempted=()):
                         gain, probability, estimate, heavy_mod=needs_heavy)
 
     # Warm-fork verification (bundle / trim) once no heavy probes are yielded.
-    if patch.missing or heavy_yielded or not patch.workers:
+    if patch.missing or heavy_yielded or dominant_heavy_in_req or not patch.workers:
         return
     files = parse(patch.text)
     sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
@@ -1811,17 +1899,17 @@ def options(patch, catalog, targets, dur, attempted=()):
         run_est, est, uses_heavy = _estimate_bundle_set(
             cand_nums, catalog, dur, no_exec_setup=no_exec_setup
         )
-        # Non-fail-fast trim when even a 1-failure patch yields >= 1.50x Docker ROI.
-        if sim_cost >= 5.2 and run_est <= 3.6 and (sim_cost - 2.15) >= 1.50 * est:
+        # Non-fail-fast trim when even a 1-failure patch yields >= 2.00x Docker ROI.
+        if sim_cost >= 6.5 and run_est <= 2.8 and (sim_cost - 2.15) >= 2.00 * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "trim", None, "trim", sql_paths,
                         cases, (set(), set(), []), sim_cost,
                         0.85, est, heavy_mod=uses_heavy)
             return
-        # Fail-fast bundle for cheaper / smaller-sim patches.
-        is_tiny = (not uses_heavy) and est <= 0.60
-        min_roi = 1.65 if is_tiny else (2.05 if uses_heavy else 1.85)
-        max_run = 3.2 if sim_cost >= 5.5 else (1.8 if uses_heavy else 2.2)
+        # Fail-fast bundle for cheaper / smaller-sim patches (C20-tight ROI).
+        is_tiny = (not uses_heavy) and est <= 0.55
+        min_roi = 1.75 if is_tiny else (2.30 if uses_heavy else 1.95)
+        max_run = 2.6 if sim_cost >= 6.0 else (1.6 if uses_heavy else 2.0)
         if run_est <= max_run and sim_cost >= min_roi * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "bundle", None, "bundle", sql_paths,
@@ -1829,9 +1917,8 @@ def options(patch, catalog, targets, dur, attempted=()):
                         0.45 if is_tiny else 0.40, est, heavy_mod=uses_heavy)
             return
 
-    # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches
-    # (e.g. patches containing TPC tests, test_tpcds, or >3.6s total run_est).
-    if (patch, "trim") not in attempted and sim_cost >= 5.2:
+    # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches.
+    if (patch, "trim") not in attempted and sim_cost >= 6.8:
         pick = _best_trim_subset(
             patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
         )
@@ -1877,7 +1964,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         executed = cases["execute"]
                     else:
                         cost, executed = 2.0, probe.cases
-                    cost += 0.82 * sum(query_costs()[i].get("execute", 0) for i in executed)
+                    cost += sum(query_costs()[i].get("execute", 0) for i in executed)
                     if cost >= probe.gain:
                         continue
                 # Never admit a full 33-dialect generator probe unless gain > estimate.
@@ -1923,13 +2010,9 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             elif probe.group == "ds":
                 if probe.mode == "rules":
                     # verify-results executes affected TPC-DS queries when rule output changes.
-                    # rule_corpus.py runs a fast 0.35s Pass 1 budget check before executing queries.
-                    cpu_limit = min(13.5, max(3.5, 0.80 * probe.gain))
-                elif probe.heavy_mod:
-                    ds_cap = min(11.5, max(6.5, 0.85 * probe.gain))
-                    cpu_limit = min(ds_cap, max(2.8, 2.2 * probe.estimate + 1.0))
+                    cpu_limit = min(6.5, max(2.8, 0.50 * probe.gain))
                 else:
-                    ds_cap = min(13.0, max(7.0, 0.88 * probe.gain))
+                    ds_cap = min(11.5, max(6.5, 0.85 * probe.gain))
                     cpu_limit = min(ds_cap, max(2.8, 2.2 * probe.estimate + 1.0))
             elif probe.group in {"bundle", "trim"}:
                 cpu_limit = min(6.5, max(2.0, 2.0 * probe.estimate + 1.0))
@@ -1938,8 +2021,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             # Skip ds probes that require heavy forced execution exceeding cpu_limit.
             if probe.mode in {"partial", "slice"}:
                 forced = probe.cases["execute"] if probe.mode == "slice" else probe.cases
-                exec_scale = 1.0 if probe.heavy_mod else 0.82
-                min_exec = exec_scale * sum(query_costs()[i].get("execute", 0) for i in forced)
+                min_exec = sum(query_costs()[i].get("execute", 0) for i in forced)
                 if min_exec > 0.92 * cpu_limit:
                     continue
             patch = probe.patch
@@ -1974,7 +2056,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         stack.callback(session.close)
                 if probe.mode == "catalog" and not warm_replay.pytest_ready:
                     warm_replay.prepare_pytest()
-                if probe.heavy_mod and not warm_replay.heavy_ready and sum(1 for p in queue if p.heavy_mod) >= 1:
+                if probe.heavy_mod and not warm_replay.heavy_ready and sum(1 for p in queue if p.heavy_mod) >= 2:
                     warm_replay.prepare_data_libs()
                 args = ([json.dumps(probe.cases)] if probe.mode in
                         {"partial", "slice", "rules", "dialects", "bundle", "trim"} else [])

@@ -8,7 +8,7 @@ import re
 import sqlite3
 import tarfile
 
-from selector.impact import _index, _sources
+from selector.impact import _branch_map, _index, _operand_map, _sources
 
 archive = Path("/app/selector/maps/pin-runtime.tar.xz")
 with tarfile.open(archive) as recorded:
@@ -22,7 +22,12 @@ for raw in Path("/app").rglob("*.gz.raw"):
 
 out = Path("/app/pin-cache")
 out.mkdir()
-for name, data in (("index", _index()), ("src", _sources())):
+for name, data in (
+    ("index", _index()),
+    ("src", _sources()),
+    ("branches", _branch_map()),
+    ("operands", _operand_map()),
+):
     (out / (name + ".marshal")).write_bytes(marshal.dumps(data))
 
 db = sqlite3.connect(out / "names.db")

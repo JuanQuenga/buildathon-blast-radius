@@ -173,16 +173,15 @@ def replay(indices, verify_query=None):
             divergent.add(queries[i])
     # Pass 2: if divergent queries would exceed the remaining probe CPU budget,
     # abort immediately instead of burning the full timeout executing half of them.
-    # Sort shortest-first so genuinely broken optimizer edits fail fast.
+    # Always verify in original fixture order (0..98) to preserve cross-query invariants.
     if verify_query is not None and divergent:
         qcosts = _query_exec_costs()
         cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
         if cpu_cap > 0:
             remaining = cpu_cap - (time.process_time() - started)
-            # ds-costs was traced with sys.monitoring (~1.2x untraced execute).
-            if 0.85 * sum(qcosts.get(q, 0.0) for q in divergent) > 0.92 * remaining:
+            if sum(qcosts.get(q, 0.0) for q in divergent) > 0.88 * remaining:
                 raise ValueError("divergent query execution exceeds probe budget")
-        ordered = sorted(divergent, key=lambda q: (qcosts.get(q, 0.0), q))
+        ordered = sorted(divergent)
         if getattr(verify_query, "_accepts_batch", False):
             verify_query(ordered)
         else:

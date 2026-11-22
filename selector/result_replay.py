@@ -197,7 +197,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         live_reference = None
         ensure_duckdb_tables = None
         digest_fallbacks = 0
-        active = list(dict.fromkeys(selection["active"])) if selection is not None else list(range(99))
+        active = sorted(set(selection["active"])) if selection is not None else list(range(99))
         mark("parse")
         for i in active:
             meta, sql, _ = test.tpcds_sqls[i]
@@ -206,8 +206,12 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 continue
             if not check_parse and not check_transpile and selection is not None and i not in selection["worker"]:
                 continue
-            expr = pickle.loads(pickle.dumps(tests.parse_one(sql)))
-            matches = (digest(expr.dump()) == expected[i][2]) if check_parse else True
+            if check_parse:
+                expr = pickle.loads(pickle.dumps(tests.parse_one(sql)))
+                matches = digest(expr.dump()) == expected[i][2]
+            else:
+                expr = None
+                matches = True
             if is_exec:
                 inputs.append((i, meta, sql, expr, matches))
         if check_transpile:
@@ -228,20 +232,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     # DuckDB + Python execution across all queries -> retain.
                     if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
-        # Run required/forced queries shortest-first so broken patches fail fast.
-        if full:
-            import gzip as _gzip
-            import json as _json
-            from pathlib import Path as _Path
-            _costs_p = _Path(os.environ.get("BLAST_APP_DIR", "/app")) / "ds-costs.json.gz"
-            if _costs_p.is_file():
-                _crows = _json.loads(_gzip.open(_costs_p, "rt", encoding="utf-8").read())
-                inputs.sort(
-                    key=lambda row: (
-                        _crows.get(f"ds:{row[0]}", {}).get("phases", {}).get("execute", 0.0),
-                        row[0],
-                    )
-                )
+        # Always execute in original fixture order (0..98) to preserve cross-query state invariants.
         for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
             mark("optimize")
@@ -249,6 +240,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             required |= i in changed_reference
             if not required and selection is not None and i not in selection["worker"] and parsed_matches:
                 continue
+            if expr is None:
+                expr = tests.parse_one(sql)
             q_start = time.process_time()
             ran = skipped = False
             table = tests.mp_execute(expr, meta)

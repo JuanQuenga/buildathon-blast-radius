@@ -480,6 +480,35 @@ class TestCandidate19(unittest.TestCase):
             )
         )
 
+    def test_companion_test_method_disjoint_from_heavy_target(self):
+        from selector.patch import parse
+
+        ex_src = impact._sources()["src"]["tests/test_executor.py"].splitlines()
+        idx_py = next(i for i, l in enumerate(ex_src) if "def test_py_dialect(" in l)
+        # Adding an assertion inside unrelated test_py_dialect -> disjoint from ds
+        d_ok = (
+            "diff --git a/tests/test_executor.py b/tests/test_executor.py\n"
+            "--- a/tests/test_executor.py\n"
+            "+++ b/tests/test_executor.py\n"
+            f"@@ -{idx_py+1},2 +{idx_py+1},3 @@\n"
+            f" {ex_src[idx_py]}\n"
+            f" {ex_src[idx_py+1]}\n"
+            "+        self.assertTrue(True)\n"
+        )
+        self.assertTrue(heavy._test_file_disjoint_from_target(parse(d_ok)[0], "ds"))
+        # Editing setUpClass -> MUST NOT be disjoint
+        idx_su = next(i for i, l in enumerate(ex_src) if "def setUpClass(" in l)
+        d_bad = (
+            "diff --git a/tests/test_executor.py b/tests/test_executor.py\n"
+            "--- a/tests/test_executor.py\n"
+            "+++ b/tests/test_executor.py\n"
+            f"@@ -{idx_su+1},2 +{idx_su+1},3 @@\n"
+            f" {ex_src[idx_su]}\n"
+            f" {ex_src[idx_su+1]}\n"
+            "+        pass\n"
+        )
+        self.assertFalse(heavy._test_file_disjoint_from_target(parse(d_bad)[0], "ds"))
+
 
 if __name__ == "__main__":
     unittest.main()
