@@ -59,6 +59,65 @@ def table_digest(table):
     return result.hexdigest()
 
 
+import re as _re
+
+_SQL_WS_TOKEN_RE = _re.compile(
+    r"'(?:''|[^'\\])*'|\"(?:\"\"|[^\"\\])*\"|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|::|!=|<>|<=|>=|\|\||->|->>|[^\s]"
+)
+
+
+def _duckdb_sql_ws_equivalent(old_sql: str, new_sql: str) -> bool:
+    """True when ``old_sql`` and ``new_sql`` differ ONLY in insignificant
+    whitespace (e.g. ``pretty=True`` formatting) without altering any literal,
+    comment, identifier, number, or operator token."""
+    if not old_sql or not new_sql:
+        return False
+    for s in (old_sql, new_sql):
+        if "--" in s or "/*" in s or "\\" in s:
+            return False
+    old_toks = _SQL_WS_TOKEN_RE.findall(old_sql)
+    new_toks = _SQL_WS_TOKEN_RE.findall(new_sql)
+    if old_toks != new_toks:
+        return False
+    # Verify every non-whitespace character was consumed cleanly by the tokenizer.
+    if _SQL_WS_TOKEN_RE.sub("", old_sql).strip() or _SQL_WS_TOKEN_RE.sub("", new_sql).strip():
+        return False
+    return True
+
+
+def _make_lazy_duckdb_reference(test, reference_setup):
+    """Create a TestExecutor-compatible live DuckDB reference whose TPC-DS views
+    are registered lazily per referenced table (~0.05s vs ~0.87s for full
+    TestExecutor.setUpClass() CSV parsing)."""
+    if hasattr(test, "tpcds_conn"):
+        return test, None
+    import duckdb
+    from tests.test_executor import DIR_TPCDS, TPCDS_SCHEMA, TestExecutor
+
+    ref = TestExecutor("test_execute_tpcds")
+    conn = duckdb.connect()
+    ref.tpcds_conn = conn
+    ref.tpcds_sqls = test.tpcds_sqls
+    ref.cache = {}
+    reference_setup.callback(conn.close)
+    loaded = set()
+
+    def ensure_tables_for(expr):
+        import sqlglot
+        names = {t.name for t in sqlglot.find_tables(expr)}
+        if not names or not (names <= TPCDS_SCHEMA.keys()):
+            names = set(TPCDS_SCHEMA.keys())
+        for table in names - loaded:
+            columns = TPCDS_SCHEMA[table]
+            file_name = f"{DIR_TPCDS}{table}.csv.gz"
+            conn.execute(
+                f"CREATE VIEW {table} AS SELECT * FROM READ_CSV('{file_name}', delim='|', header=True, columns={columns})"
+            )
+            loaded.add(table)
+
+    return ref, ensure_tables_for
+
+
 def _needs_parse_check(changed_modules):
     if not changed_modules:
         return True
@@ -136,10 +195,11 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             raise ValueError("incomplete fixtures")
         inputs = []
         live_reference = None
+        ensure_duckdb_tables = None
         digest_fallbacks = 0
-        active = set(selection["active"]) if selection is not None else range(99)
+        active = list(dict.fromkeys(selection["active"])) if selection is not None else list(range(99))
         mark("parse")
-        for i in sorted(active):
+        for i in active:
             meta, sql, _ = test.tpcds_sqls[i]
             is_exec = bool(meta.get("execute"))
             if not check_parse and not is_exec:
@@ -153,12 +213,35 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         if check_transpile:
             mark("generate")
             for i, meta, sql, expr, parsed_matches in inputs:
-                if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
+                new_list = tests.transpile(sql, write="duckdb")
+                if digest(new_list) != expected[i][4]:
+                    old_list = tests.transpile(sql, write="duckdb", pretty=False)
+                    if (
+                        len(old_list) == 1
+                        and len(new_list) == 1
+                        and digest(old_list) == expected[i][4]
+                        and _duckdb_sql_ws_equivalent(old_list[0], new_list[0])
+                    ):
+                        continue
                     changed_reference.add(i)
-                    # Mass DuckDB reference SQL divergence (e.g. pretty=True) would
-                    # require full live DuckDB execution across all queries -> retain.
+                    # Mass DuckDB reference SQL divergence would require full live
+                    # DuckDB + Python execution across all queries -> retain.
                     if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
+        # Run required/forced queries shortest-first so broken patches fail fast.
+        if full:
+            import gzip as _gzip
+            import json as _json
+            from pathlib import Path as _Path
+            _costs_p = _Path(os.environ.get("BLAST_APP_DIR", "/app")) / "ds-costs.json.gz"
+            if _costs_p.is_file():
+                _crows = _json.loads(_gzip.open(_costs_p, "rt", encoding="utf-8").read())
+                inputs.sort(
+                    key=lambda row: (
+                        _crows.get(f"ds:{row[0]}", {}).get("phases", {}).get("execute", 0.0),
+                        row[0],
+                    )
+                )
         for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
             mark("optimize")
@@ -184,13 +267,9 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     if digest_fallbacks > 16:
                         raise ValueError("broad result change")
                 if live_reference is None:
-                    from tests.test_executor import TestExecutor
-                    if hasattr(test, "tpcds_conn"):
-                        live_reference = test
-                    else:
-                        live_reference = TestExecutor("test_execute_tpcds")
-                        live_reference.setUpClass()
-                        reference_setup.callback(live_reference.tearDownClass)
+                    live_reference, ensure_duckdb_tables = _make_lazy_duckdb_reference(test, reference_setup)
+                if ensure_duckdb_tables is not None:
+                    ensure_duckdb_tables(expr)
                 live_reference.subtestHelper(i, table, tpch=False)
     finally:
         ex.PythonExecutor.execute = execute

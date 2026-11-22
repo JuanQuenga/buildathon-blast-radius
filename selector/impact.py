@@ -1486,8 +1486,30 @@ class PyDiff:
             self.an.reasons.append(f"{self.path}: class {q} body never executed")
             return
         if _copies(o_other) > _copies(n_other):
-            raise Unsupported(f"{self.path}: copy removed in class body of {q} "
-                              "(shared state aliasing across tests)")
+            # Pure deletion of a subclass override of a read-only dispatch dict
+            # (e.g. ``FUNCTION_PARSERS = {**Parser.FUNCTION_PARSERS, ...}`` or
+            # ``PROPERTIES_LOCATION = {**PostgresGenerator.PROPERTIES_LOCATION, ...}``)
+            # simply inherits the base dict without introducing shared-state aliasing.
+            _IMMUTABLE_DISPATCH_DICTS = frozenset({
+                "FUNCTION_PARSERS", "PROPERTIES_LOCATION", "TRANSFORMS",
+                "TYPE_MAPPING", "KEYWORDS", "NO_PAREN_FUNCTIONS",
+                "SINGLE_TOKENS", "RANGE_PARSERS", "PROPERTY_PARSERS",
+                "STATEMENT_PARSERS", "PRIMARY_PARSERS",
+            })
+            old_bound = set().union(*(_bound_names(s) for s in o_other)) if o_other else set()
+            new_bound = set().union(*(_bound_names(s) for s in n_other)) if n_other else set()
+            pure_dict_del = (
+                bool(old_bound)
+                and old_bound <= _IMMUTABLE_DISPATCH_DICTS
+                and not (old_bound & new_bound)
+                and all(
+                    isinstance(s, (ast.Pass,)) or _is_docstring(s)
+                    for s in n_other
+                )
+            )
+            if not pure_dict_del:
+                raise Unsupported(f"{self.path}: copy removed in class body of {q} "
+                                  "(shared state aliasing across tests)")
         fam = self.class_family(owner)
         risky = self.risky_bits(n_other, None, class_scope=owner[2])
         names = set()

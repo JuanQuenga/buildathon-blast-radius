@@ -124,21 +124,23 @@ def select(regions):
     return selected if selected is not None and all(costs()[i] is not None for i in selected) else None
 
 
-def _divergent_exec_cost(divergent):
+def _query_exec_costs():
     costs_path = ROOT.parent / "ds-costs.json.gz"
     if not costs_path.is_file():
-        return 0.0
+        return {}
     with gzip.open(costs_path, "rt", encoding="utf-8") as stream:
         rows = json.load(stream)
-    total = 0.0
-    for q in divergent:
-        phases = rows.get(f"ds:{q}", {}).get("phases", {})
-        total += (
-            phases.get("optimize", 0.0)
-            + phases.get("plan", 0.0)
-            + phases.get("execute", 0.0)
-        )
-    return total
+    out = {}
+    for k, v in rows.items():
+        if k.startswith("ds:") and k[3:].isdigit():
+            ph = v.get("phases", {})
+            out[int(k[3:])] = ph.get("optimize", 0.0) + ph.get("plan", 0.0) + ph.get("execute", 0.0)
+    return out
+
+
+def _divergent_exec_cost(divergent):
+    qcosts = _query_exec_costs()
+    return sum(qcosts.get(q, 0.0) for q in divergent)
 
 
 def replay(indices, verify_query=None):
@@ -171,14 +173,21 @@ def replay(indices, verify_query=None):
             divergent.add(queries[i])
     # Pass 2: if divergent queries would exceed the remaining probe CPU budget,
     # abort immediately instead of burning the full timeout executing half of them.
+    # Sort shortest-first so genuinely broken optimizer edits fail fast.
     if verify_query is not None and divergent:
+        qcosts = _query_exec_costs()
         cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
         if cpu_cap > 0:
             remaining = cpu_cap - (time.process_time() - started)
-            if _divergent_exec_cost(divergent) > 0.88 * remaining:
+            # ds-costs was traced with sys.monitoring (~1.2x untraced execute).
+            if 0.85 * sum(qcosts.get(q, 0.0) for q in divergent) > 0.92 * remaining:
                 raise ValueError("divergent query execution exceeds probe budget")
-        for q in sorted(divergent):
-            verify_query(q)
+        ordered = sorted(divergent, key=lambda q: (qcosts.get(q, 0.0), q))
+        if getattr(verify_query, "_accepts_batch", False):
+            verify_query(ordered)
+        else:
+            for q in ordered:
+                verify_query(q)
     return sorted(divergent)
 
 
@@ -194,8 +203,9 @@ if __name__ == "__main__":
             from phase import mark
             from staged import rule_query_check
 
-            def check_query(query):
+            def check_queries(qs):
                 mark("divergent")
-                rule_query_check()(query)
+                rule_query_check()(qs)
 
-            replay(indices, verify_query=check_query)
+            check_queries._accepts_batch = True
+            replay(indices, verify_query=check_queries)

@@ -39,6 +39,10 @@ def parser():
             results.append([type(exc).__qualname__, str(exc)])
         else:
             results.append([sum(1 for _ in expr.walk()), digest(expr.dump())])
+    # Catch accidental recursion in comma-separated column parsing (width > 1000).
+    wide = parse_one("SELECT " + ",".join(["x=x"] * 1100), max_nodes=10000)
+    if len(wide.expressions) != 1100:
+        raise ValueError("wide select parse mismatch")
     pinned_assertions(Recorder(False), {"parser:3"})
     return results
 
@@ -135,8 +139,9 @@ def rule_query_check():
     test, tests, ex = _build_lightweight_tpcds()
     reference = json.loads(BASE.read_text())["ds"]
 
-    def check(i):
-        selection = {"active": [i], "worker": [i]}
+    def check(qs):
+        qlist = [qs] if isinstance(qs, int) else list(qs)
+        selection = {"active": qlist, "worker": qlist}
         run(test, tests, ex, reference, [], selection, digest, plan_digest)
 
     return check

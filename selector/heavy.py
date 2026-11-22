@@ -382,16 +382,37 @@ def _inert_new_class_attrs(path, source, fd=None):
     return added_any and ast.dump(old) == ast.dump(new)
 
 
+def _strip_comment(line: str) -> str:
+    """Strip a trailing # comment only when there are no quotes before it."""
+    if "#" not in line:
+        return line
+    idx = line.find("#")
+    prefix = line[:idx]
+    if "'" not in prefix and '"' not in prefix:
+        return prefix
+    return line
+
+
+def _has_hazard_token(line: str) -> bool:
+    code = _strip_comment(line)
+    if not code.strip():
+        return False
+    return bool(
+        re.search(r"\b(global|nonlocal|setattr|delattr|exec|eval|_classes)\b|__\w+__|cache|registr", code, re.I)
+        or re.search(r"\bDIALECTS\b", code)
+    )
+
+
 def _no_cross_module_hazards(fd, *, allow_sqlglot_imports=False):
     """True when diff lines have no global/setattr/eval/registry/non-stdlib-import hazards."""
     lines = [line[1:] for h in fd.hunks for line in h.lines if line[:1] in {"+", "-"}]
     for line in lines:
         stripped = line.strip()
-        if stripped == "from __future__ import annotations" or stripped.startswith(">>> "):
+        if stripped == "from __future__ import annotations" or stripped.startswith((">>> ", "#")):
             continue
-        if re.search(r"\b(global|nonlocal|setattr|delattr|exec|eval|_classes|DIALECTS)\b|__\w+__|cache|registr", line, re.I):
+        if _has_hazard_token(line):
             return False
-        if re.search(r"\bimport\b", line):
+        if re.search(r"\bimport\b", _strip_comment(line)):
             if _STDLIB_IMPORT_RE.match(line):
                 continue
             if allow_sqlglot_imports and _SQLGLOT_SAFE_IMPORT_RE.match(line):
@@ -501,16 +522,44 @@ def _method_tail_queries(path, source, fd, rows):
     ]
 
 
+def _is_simple_static_expr(node) -> bool:
+    if isinstance(node, ast.Constant):
+        return type(node.value) in (bool, int, float, str, bytes, type(None))
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Attribute):
+        return _is_simple_static_expr(node.value)
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return all(_is_simple_static_expr(e) for e in node.elts)
+    if isinstance(node, ast.Dict):
+        return all(
+            (k is None or _is_simple_static_expr(k)) and _is_simple_static_expr(v)
+            for k, v in zip(node.keys, node.values)
+        )
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"frozenset", "set", "tuple"}
+        and len(node.args) <= 1
+        and not node.keywords
+    ):
+        return all(_is_simple_static_expr(a) for a in node.args)
+    return False
+
+
 def _class_attr_and_method_tail_queries(path, source, fd, rows):
-    """For Generator files, handle mixed edits of class-level literal constant
-    attributes and non-dunder methods by intersecting method call sites and
-    attribute names against the recorded execution tail."""
+    """For Generator and Dialect files, handle mixed edits of class-level static
+    constant/collection attributes and non-dunder methods by intersecting method
+    call sites and attribute names against the recorded execution tail."""
     if (
         source is None
         or fd.is_new
         or fd.is_deleted
         or fd.is_rename
-        or not (path == "sqlglot/generator.py" or path.startswith("sqlglot/generators/"))
+        or not (
+            path in {"sqlglot/generator.py", "sqlglot/dialects/dialect.py"}
+            or path.startswith("sqlglot/generators/")
+        )
     ):
         return None
     before = impact._sources()["src"].get(path)
@@ -534,7 +583,7 @@ def _class_attr_and_method_tail_queries(path, source, fd, rows):
             return None
         if name.startswith("__") or name.endswith("_sql"):
             return None
-        if isinstance(val, ast.Constant) and type(val.value) in (bool, int, float, str, type(None)):
+        if _is_simple_static_expr(val):
             return name
         return None
 
@@ -642,14 +691,23 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
             ):
                 key = ("arg_types", "arg_types")
             elif (
-                isinstance(s, ast.Assign)
-                and len(s.targets) == 1
-                and isinstance(s.targets[0], ast.Name)
-                and not s.targets[0].id.startswith("__")
-                and isinstance(s.value, ast.Constant)
-                and type(s.value.value) in (bool, int, float, str, type(None))
+                (
+                    isinstance(s, ast.Assign)
+                    and len(s.targets) == 1
+                    and isinstance(s.targets[0], ast.Name)
+                    and not s.targets[0].id.startswith("__")
+                    and _is_simple_static_expr(s.value)
+                )
+                or (
+                    isinstance(s, ast.AnnAssign)
+                    and isinstance(s.target, ast.Name)
+                    and s.value is not None
+                    and not s.target.id.startswith("__")
+                    and _is_simple_static_expr(s.value)
+                )
             ):
-                key = ("attr", s.targets[0].id)
+                nm = s.targets[0].id if isinstance(s, ast.Assign) else s.target.id
+                key = ("attr", nm)
             else:
                 key = ("other", ast.dump(s), idx_s)
             if key in old_map:
@@ -666,14 +724,23 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
             ):
                 key = ("arg_types", "arg_types")
             elif (
-                isinstance(s, ast.Assign)
-                and len(s.targets) == 1
-                and isinstance(s.targets[0], ast.Name)
-                and not s.targets[0].id.startswith("__")
-                and isinstance(s.value, ast.Constant)
-                and type(s.value.value) in (bool, int, float, str, type(None))
+                (
+                    isinstance(s, ast.Assign)
+                    and len(s.targets) == 1
+                    and isinstance(s.targets[0], ast.Name)
+                    and not s.targets[0].id.startswith("__")
+                    and _is_simple_static_expr(s.value)
+                )
+                or (
+                    isinstance(s, ast.AnnAssign)
+                    and isinstance(s.target, ast.Name)
+                    and s.value is not None
+                    and not s.target.id.startswith("__")
+                    and _is_simple_static_expr(s.value)
+                )
             ):
-                key = ("attr", s.targets[0].id)
+                nm = s.targets[0].id if isinstance(s, ast.Assign) else s.target.id
+                key = ("attr", nm)
             else:
                 key = ("other", ast.dump(s), idx_s)
             if key in new_map:
@@ -937,21 +1004,21 @@ def eligible_file(f, group):
     ):
         return None
     lines = [line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"}]
-    delta = "\n".join(lines)
+    delta_code = "\n".join(_strip_comment(ln) for ln in lines if not ln.lstrip().startswith("#"))
     if path in {
         "sqlglot/dialects/dialect.py",
         "sqlglot/dialects/__init__.py",
         "sqlglot/dialects/doris.py",
     } or re.search(
-        r"\b(import|global|nonlocal|setattr|delattr|exec|eval|_classes|DIALECTS)\b|__\w+__|cache|registr",
-        delta,
+        r"\b(import|global|nonlocal|setattr|delattr|exec|eval|_classes)\b|__\w+__|cache|registr",
+        delta_code,
         re.I,
-    ):
+    ) or re.search(r"\bDIALECTS\b", delta_code):
         return None
     if group == "parser":
         if re.search(
             r"\b(?:\d[\d_]*|for|while|range|len|limit|depth|recursion|max_nodes)\b",
-            delta,
+            delta_code,
             re.I,
         ):
             return None
@@ -965,6 +1032,55 @@ def eligible_file(f, group):
                 for h in f.hunks
             ):
                 return None
+    return True
+
+
+def _parser_scaled_eligible(f):
+    """Sound eligibility gate for ``scaled()`` verification of ``test_max_nodes``.
+    Allows edits across any existing ``sqlglot/*.py`` (including dialect.py,
+    parser.py, tokens.py, tokenizer_core.py, expressions/*.py) provided no
+    threshold/node-count/recursion/loop-in-parser2 hazard is edited."""
+    path = f.path
+    if (
+        not re.fullmatch(r"sqlglot/(?:\w+/)*\w+\.py", path)
+        or f.paths != {path}
+        or f.is_new
+        or f.is_deleted
+        or f.is_rename
+        or f.mode_change
+        or f.is_binary
+        or not f.hunks
+    ):
+        return False
+    p2_lines = profile("parser")["parser:2"]["lines"]
+    lines = [line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"}]
+    code_lines = [_strip_comment(ln) for ln in lines if not ln.lstrip().startswith("#")]
+    delta_code = "\n".join(code_lines)
+    if re.search(
+        r"\b(max_nodes|_node_count|recursion|setrecursionlimit|depth|limit|eval|exec|setattr|delattr|gc|global|nonlocal|_classes)\b",
+        delta_code,
+        re.I,
+    ) or re.search(r"\bDIALECTS\b", delta_code):
+        return False
+    if path in p2_lines:
+        # Reject any numeric literal >= 50 (could distinguish width=100 from width=10000).
+        for m in re.finditer(r"\b(\d[\d_]*)\b", delta_code):
+            try:
+                if int(m.group(1).replace("_", "")) >= 50:
+                    return False
+            except ValueError:
+                return False
+        # Reject loop edits overlapping parser:2 lines (guards against O(N^2) blowups).
+        reached = p2_lines[path]
+        for h in f.hunks:
+            if any(h.old_start <= n < h.old_start + max(h.old_len, 1) for n in reached):
+                h_code = "\n".join(
+                    _strip_comment(line[1:])
+                    for line in h.lines
+                    if line[:1] in {"+", "-"} and not line[1:].lstrip().startswith("#")
+                )
+                if re.search(r"\b(for|while)\b", h_code):
+                    return False
     return True
 
 
@@ -1139,6 +1255,42 @@ def _dialect_reverse_deps():
     return dep_to_dialects, all_dialects
 
 
+_GEN_LOOP_ATTRS_RE = re.compile(
+    r"\b(__slots__|_DISPATCH_CACHE|NORMALIZE_FUNCTIONS|QUOTE_END|BYTE_END|"
+    r"IDENTIFIER_END|IDENTIFIER_ESCAPED_SEQUENCES|IDENTIFIER_START|"
+    r"STRING_ESCAPES|SELECT_KINDS|generator_class|tokenizer_class|"
+    r"_classes|DIALECTS|__init__|_build_dispatch|name_sequence|"
+    r"get_or_raise|exec|eval|setattr|delattr)\b"
+)
+
+
+def _core_file_disjoint_from_gen_loop(f):
+    """True when an edit to generator.py, dialects/dialect.py, or helper.py
+    never touches any line executed inside ``for _ in range(1000): dialect.generator()``
+    or any class attribute read during Generator.__init__."""
+    path = f.path
+    if f.is_new or f.is_deleted or f.is_rename or not f.hunks:
+        return False
+    lines = [line[1:] for h in f.hunks for line in h.lines if line[:1] in {"+", "-"}]
+    code = "\n".join(_strip_comment(ln) for ln in lines if not ln.lstrip().startswith("#"))
+    if _GEN_LOOP_ATTRS_RE.search(code):
+        return False
+    if re.search(r"\bimport\b", code):
+        for ln in lines:
+            if re.search(r"\bimport\b", _strip_comment(ln)) and not (
+                _STDLIB_IMPORT_RE.match(ln) or _SQLGLOT_SAFE_IMPORT_RE.match(ln)
+            ):
+                return False
+    gp = probe_profiles("generator")
+    gen_lines = {n for k, v in gp.items() if k.startswith("gen:") for n in v.get(path, ())}
+    for h in f.hunks:
+        lo = h.old_start
+        hi = h.old_start + max(h.old_len, 1)
+        if any(lo <= n < hi for n in gen_lines):
+            return False
+    return True
+
+
 def _affected_generator_dialects(sqlglot_files):
     """Return the exact subset of Dialects whose ``dialect.generator()`` memory
     loop can be affected by ``sqlglot_files``, or None if full check is needed."""
@@ -1146,7 +1298,11 @@ def _affected_generator_dialects(sqlglot_files):
     affected_set = set()
     for f in sqlglot_files:
         p = f.path
-        if p in _GEN_LOOP_CORE or p == "sqlglot/dialects/__init__.py":
+        if p == "sqlglot/dialects/__init__.py":
+            return None
+        if p in _GEN_LOOP_CORE:
+            if _core_file_disjoint_from_gen_loop(f):
+                continue
             return None
         if re.fullmatch(r"sqlglot/(dialects|generators)/\w+\.py", p):
             stem = p.rsplit("/", 1)[-1][:-3]
@@ -1157,13 +1313,12 @@ def _affected_generator_dialects(sqlglot_files):
                 return None
             affected_set.update(hits)
             continue
-        # Files outside dialects/generators/core (e.g. parser.py, parsers/*,
-        # tokens.py, tokenizer_core.py, expressions/*, typing/*, optimizer/*)
-        # are never executed inside ``for _ in range(1000): dialect.generator()``.
-        # The cold/reset Dialect.get_or_raise check in generator_cases.py still
-        # verifies every dialect imports and resets cleanly.
+        # Files outside dialects/generators/core are never executed inside
+        # ``for _ in range(1000): dialect.generator()``. The cold/reset
+        # Dialect.get_or_raise check in generator_cases.py still verifies every
+        # dialect imports and resets cleanly.
         if re.fullmatch(
-            r"sqlglot/(parser|tokens|tokenizer_core|(?:parsers|typing|optimizer|expressions)/\w+)\.py",
+            r"sqlglot/(parser|tokens|tokenizer_core|errors|schema|planner|lineage|diff|serde|transforms|trie|anonymize|(?:parsers|typing|optimizer|expressions|executor)/\w+)\.py",
             p,
         ):
             continue
@@ -1236,14 +1391,14 @@ def stage_edit(text, group):
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         if all(_parser2_disjoint_file(f) for f in sql_files):
             return "small", paths, changes, []
-        if not all(eligible_file(f, "ds") for f in sql_files):
-            return None
         regions = changed_regions(text, sqlglot_only=bool(non_sql_files)) if strict_all else None
         if regions and not any(query_slice.reached(profile("parser")[k]["lines"], regions) for k in ("parser:setup", "parser:2")):
             return "small", paths, changes, []
-        if not all(eligible_file(f, "parser") for f in sql_files):
-            return None
-        return "scaled", paths, changes, []
+        if all(eligible_file(f, "ds") and eligible_file(f, "parser") for f in sql_files):
+            return "scaled", paths, changes, []
+        if all(_parser_scaled_eligible(f) for f in sql_files):
+            return "scaled", paths, changes, []
+        return None
 
     # group == "ds"
     if not patch_verifiable_files(
@@ -1463,15 +1618,16 @@ _MEDIUM_DOCKER_CPU = {
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 0.90,
     "tests/test_executor.py::TestExecutor::test_agg_order": 0.40,
     "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 1.01,
-    "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.05,
+    "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.30,
     "tests/test_optimizer.py::TestOptimizer::test_scope": 1.36,
     "tests/test_executor.py::TestExecutor::test_optimized_tpch": 4.20,
     "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.85,
 }
 
-# Negative-ROI or slow-TPC tests excluded from warm-fork bundle/trim.
+# Negative-ROI or TPC-setup tests excluded from warm-fork bundle/trim.
 _BUNDLE_EXCLUDE_NODES = frozenset({
     "tests/test_optimizer.py::TestOptimizer::test_tpcds",
+    "tests/test_executor.py::TestExecutor::test_execute_tpch",
     "tests/test_executor.py::TestExecutor::test_optimized_tpch",
 }) | frozenset(TARGETS)
 
@@ -1721,7 +1877,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         executed = cases["execute"]
                     else:
                         cost, executed = 2.0, probe.cases
-                    cost += sum(query_costs()[i].get("execute", 0) for i in executed)
+                    cost += 0.82 * sum(query_costs()[i].get("execute", 0) for i in executed)
                     if cost >= probe.gain:
                         continue
                 # Never admit a full 33-dialect generator probe unless gain > estimate.
@@ -1767,9 +1923,13 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             elif probe.group == "ds":
                 if probe.mode == "rules":
                     # verify-results executes affected TPC-DS queries when rule output changes.
-                    cpu_limit = min(6.5, max(2.8, 0.50 * probe.gain))
-                else:
+                    # rule_corpus.py runs a fast 0.35s Pass 1 budget check before executing queries.
+                    cpu_limit = min(13.5, max(3.5, 0.80 * probe.gain))
+                elif probe.heavy_mod:
                     ds_cap = min(11.5, max(6.5, 0.85 * probe.gain))
+                    cpu_limit = min(ds_cap, max(2.8, 2.2 * probe.estimate + 1.0))
+                else:
+                    ds_cap = min(13.0, max(7.0, 0.88 * probe.gain))
                     cpu_limit = min(ds_cap, max(2.8, 2.2 * probe.estimate + 1.0))
             elif probe.group in {"bundle", "trim"}:
                 cpu_limit = min(6.5, max(2.0, 2.0 * probe.estimate + 1.0))
@@ -1778,7 +1938,8 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             # Skip ds probes that require heavy forced execution exceeding cpu_limit.
             if probe.mode in {"partial", "slice"}:
                 forced = probe.cases["execute"] if probe.mode == "slice" else probe.cases
-                min_exec = sum(query_costs()[i].get("execute", 0) for i in forced)
+                exec_scale = 1.0 if probe.heavy_mod else 0.82
+                min_exec = exec_scale * sum(query_costs()[i].get("execute", 0) for i in forced)
                 if min_exec > 0.92 * cpu_limit:
                     continue
             patch = probe.patch

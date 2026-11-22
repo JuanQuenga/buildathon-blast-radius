@@ -376,6 +376,110 @@ class TestCandidate19(unittest.TestCase):
         self.assertGreater(cost, 0.5)
         self.assertTrue(uses_heavy)
 
+    def test_dialects_comment_word_not_hazard(self):
+        self.assertFalse(heavy._has_hazard_token("    # leaks into other dialects"))
+        self.assertTrue(heavy._has_hazard_token("    x = DIALECTS"))
+        self.assertTrue(heavy._has_hazard_token("    self._cache = {}"))
+
+    def test_parser_scaled_eligible_guards_thresholds_and_loops(self):
+        from selector.patch import parse
+
+        # Benign parser.py edit with small int (< 50) outside loop -> eligible
+        d_ok = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            "@@ -100,1 +100,1 @@\n"
+            "-    x = self._tokens[self._index - 2]\n"
+            "+    x = self._tokens[self._index - 1]\n"
+        )
+        self.assertTrue(heavy._parser_scaled_eligible(parse(d_ok)[0]))
+        # Numeric literal >= 50 -> rejected
+        d_big = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            "@@ -100,1 +100,1 @@\n"
+            "-    x = 1\n"
+            "+    x = 50000\n"
+        )
+        self.assertFalse(heavy._parser_scaled_eligible(parse(d_big)[0]))
+        # max_nodes mention -> rejected
+        d_mn = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            "@@ -100,1 +100,1 @@\n"
+            "-    x = self.max_nodes\n"
+            "+    x = None\n"
+        )
+        self.assertFalse(heavy._parser_scaled_eligible(parse(d_mn)[0]))
+
+    def test_core_file_disjoint_from_gen_loop(self):
+        from selector.patch import parse
+
+        # Edit inside a *_sql method far outside Generator.__init__ -> disjoint
+        d_sql = (
+            "diff --git a/sqlglot/generator.py b/sqlglot/generator.py\n"
+            "--- a/sqlglot/generator.py\n"
+            "+++ b/sqlglot/generator.py\n"
+            "@@ -3900,1 +3900,1 @@\n"
+            "-        return 'A'\n"
+            "+        return 'B'\n"
+        )
+        self.assertTrue(heavy._core_file_disjoint_from_gen_loop(parse(d_sql)[0]))
+        # Edit inside Generator.__init__ (L970) -> NOT disjoint
+        d_init = (
+            "diff --git a/sqlglot/generator.py b/sqlglot/generator.py\n"
+            "--- a/sqlglot/generator.py\n"
+            "+++ b/sqlglot/generator.py\n"
+            "@@ -970,1 +970,1 @@\n"
+            "-        self.normalize = normalize\n"
+            "+        self.normalize = True\n"
+        )
+        self.assertFalse(heavy._core_file_disjoint_from_gen_loop(parse(d_init)[0]))
+
+    def test_pure_immutable_dispatch_dict_deletion_no_full_fallback(self):
+        src = impact._sources()["src"]["sqlglot/parsers/druid.py"].splitlines()
+        idx = next(i for i, ln in enumerate(src) if "FUNCTION_PARSERS = {" in ln)
+        end = next(i for i in range(idx, len(src)) if src[i].strip() == "}")
+        removed = "\n".join(f"-{src[i]}" for i in range(idx, end + 1))
+        diff = (
+            "diff --git a/sqlglot/parsers/druid.py b/sqlglot/parsers/druid.py\n"
+            "--- a/sqlglot/parsers/druid.py\n"
+            "+++ b/sqlglot/parsers/druid.py\n"
+            f"@@ -{idx+1},{end-idx+1} +{idx+1},1 @@\n"
+            f"{removed}\n"
+            "+    pass\n"
+        )
+        cat = [{"number": i, "id": t, "seconds": 0.01} for i, t in enumerate(impact._index()["tests"])]
+        res = impact.select(diff, cat)
+        self.assertFalse(res.get("full"), res.get("reasons"))
+
+    def test_duckdb_sql_ws_equivalent(self):
+        from selector import result_replay
+
+        self.assertTrue(
+            result_replay._duckdb_sql_ws_equivalent(
+                "SELECT a, b FROM t WHERE x = 'hello  world'",
+                "SELECT\n  a,\n  b\nFROM t\nWHERE\n  x = 'hello  world'",
+            )
+        )
+        # String literal whitespace change -> NOT equivalent
+        self.assertFalse(
+            result_replay._duckdb_sql_ws_equivalent(
+                "SELECT 'a b'",
+                "SELECT 'a  b'",
+            )
+        )
+        # Comment present -> rejected conservatively
+        self.assertFalse(
+            result_replay._duckdb_sql_ws_equivalent(
+                "SELECT 1 -- hi",
+                "SELECT 1 -- hi",
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
