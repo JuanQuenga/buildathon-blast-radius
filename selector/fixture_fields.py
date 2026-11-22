@@ -38,6 +38,19 @@ def load_fields(text, paired):
     return rows
 
 
+TPC_FIXTURES = {"optimizer/tpc-ds/tpc-ds.sql", "optimizer/tpc-h/tpc-h.sql"}
+
+
+def tpc_consumers(new, entry):
+    """Shared executor setup materializes both lists. Only one is passed to each test."""
+    rows = load_fields(new, paired=True)
+    # The pin's _extract_meta splits each leading directive at its first colon.
+    # A missing SQL line or malformed directive raises during shared class setup.
+    if not rows or any(":" not in line for meta, _, _ in rows for line in meta):
+        raise ValueError("invalid TPC fixture metadata")
+    return set(entry["raw"]) | set(entry["reads"])
+
+
 def binary_result(lines, old):
     # git binary patches use the Git/base85 alphabet, zlib, and either raw
     # target bytes or a pack-format delta against the pristine blob.
@@ -116,6 +129,39 @@ def checked_table(raw, changed):
     return all(all(x in col for x, col in zip(r, columns)) for r in new[2:])
 
 
+def _exact_parsed_fixture(text, paired):
+    """Mirror tests/helpers.py load_sql_fixture_pairs / load_sql_fixtures exactly."""
+    filtered = "\n".join(line for line in text.splitlines() if line and not line.startswith("--"))
+    if paired:
+        statements = filtered.split(";")
+        size = len(statements)
+        out = []
+        for i in range(0, size, 2):
+            if i + 1 < size:
+                sql_lines = statements[i].strip().split("\n")
+                meta = {}
+                j = 0
+                while j < len(sql_lines) and sql_lines[j].startswith("#"):
+                    if ":" not in sql_lines[j]:
+                        raise ValueError("invalid meta")
+                    key, val = sql_lines[j].split(":", maxsplit=1)
+                    meta[key.lstrip("#").strip()] = val.strip()
+                    j += 1
+                if j >= len(sql_lines):
+                    raise ValueError("missing SQL")
+                out.append((meta, "\n".join(sql_lines[j:]), statements[i + 1].strip()))
+        return out
+    out, lines = [], []
+    for line in filtered.splitlines():
+        lines.append(line)
+        if not line.startswith("#"):
+            out.append("\n".join(lines))
+            lines.clear()
+    if lines:
+        raise ValueError("dangling meta")
+    return out
+
+
 def project(fp, readers, tests, apply_hunks):
     if fp.status != "M" or fp.old_path != fp.new_path or not fp.path.startswith("tests/fixtures/"):
         return readers
@@ -137,12 +183,25 @@ def project(fp, readers, tests, apply_hunks):
                 return readers
             old = raw.decode()
             new, _ = apply_hunks(old, fp.hunks)
+            # If no test reads raw bytes and the exact fixture loader output is
+            # identical (e.g. -- comment edit or # key: value spacing), 0 tests observe it.
+            if not entry["raw"]:
+                try:
+                    if _exact_parsed_fixture(old, entry["paired"]) == _exact_parsed_fixture(new, entry["paired"]):
+                        return 0
+                except (ValueError, IndexError):
+                    pass
             # Edits touching separators, meta directives or comment lines are
             # structurally ambiguous even if the total pair count is unchanged.
-            for h in fp.hunks:
-                for tag, line in h.lines:
-                    if tag != " " and (";" in line or line.lstrip().startswith(("#", "--"))):
-                        return readers
+            structural = any(
+                tag != " " and (";" in line or line.lstrip().startswith(("#", "--")))
+                for hunk in fp.hunks for tag, line in hunk.lines
+            )
+            if structural:
+                if name not in TPC_FIXTURES:
+                    return readers
+                keep = tpc_consumers(new, entry)
+                return readers & sum(1 << i for i, node in enumerate(tests) if node in keep)
             before, after = (load_fields(s, entry["paired"]) for s in (old,new))
             if len(before) != len(after) or len(before) != entry["size"]:
                 return readers

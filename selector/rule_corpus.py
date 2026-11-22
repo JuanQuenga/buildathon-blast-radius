@@ -11,7 +11,7 @@ import pickle
 import sys
 import time
 
-ROOT = Path("/app/rules")
+ROOT = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "rules"
 
 
 def fingerprint(expr):

@@ -1,0 +1,120 @@
+"""Unit tests for candidate-19 mechanisms and safety invariants."""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from selector import fixture_fields, heavy, impact, result_replay, runtime_paths
+
+
+class TestCandidate19(unittest.TestCase):
+    def test_fixture_exact_parsed_comment_and_meta_spacing(self):
+        base = (
+            "-- header comment\n"
+            "# title: foo\n"
+            "SELECT 1;\n"
+            "SELECT 1;\n"
+        )
+        same_comment = (
+            "-- header comment\n"
+            "-- extra comment\n"
+            "\n"
+            "# title:foo\n"
+            "SELECT 1;\n"
+            "SELECT 1;\n"
+        )
+        changed_sql = (
+            "-- header comment\n"
+            "# title: foo\n"
+            "SELECT 2;\n"
+            "SELECT 1;\n"
+        )
+        self.assertEqual(
+            fixture_fields._exact_parsed_fixture(base, paired=True),
+            fixture_fields._exact_parsed_fixture(same_comment, paired=True),
+        )
+        self.assertNotEqual(
+            fixture_fields._exact_parsed_fixture(base, paired=True),
+            fixture_fields._exact_parsed_fixture(changed_sql, paired=True),
+        )
+
+    def test_tpc_consumers_rejects_malformed_meta(self):
+        entry = {"raw": [], "reads": {"tests/test_executor.py::TestExecutor::test_execute_tpch": [2]}}
+        valid = "# execute: false\nSELECT 1;\nSELECT 1;\n"
+        self.assertEqual(
+            fixture_fields.tpc_consumers(valid, entry),
+            {"tests/test_executor.py::TestExecutor::test_execute_tpch"},
+        )
+        bad = "# malformed_without_colon\nSELECT 1;\nSELECT 1;\n"
+        with self.assertRaises(ValueError):
+            fixture_fields.tpc_consumers(bad, entry)
+
+    def test_join_budget_exceeded_is_base_exception(self):
+        # Must not be caught by ``except Exception:`` in patched code.
+        self.assertTrue(issubclass(result_replay._JoinBudgetExceeded, BaseException))
+        self.assertFalse(issubclass(result_replay._JoinBudgetExceeded, Exception))
+
+    def test_needs_transpile_check(self):
+        self.assertFalse(result_replay._needs_transpile_check(["sqlglot.optimizer.simplify"]))
+        self.assertFalse(result_replay._needs_transpile_check(["sqlglot.executor.python", "sqlglot.planner"]))
+        self.assertTrue(result_replay._needs_transpile_check(["sqlglot.optimizer.scope"]))
+        self.assertTrue(result_replay._needs_transpile_check(["sqlglot.generators.duckdb"]))
+        self.assertTrue(result_replay._needs_transpile_check([]))
+
+    def test_bundle_trim_preserves_subtest_and_failures(self):
+        bundle_script = Path(__file__).resolve().parents[1] / "selector" / "bundle.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            tdir = Path(tmp) / "tests"
+            tdir.mkdir()
+            (tdir / "__init__.py").write_text("")
+            (tdir / "test_dummy.py").write_text(
+                "import unittest\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_ok(self):\n"
+                "        self.assertEqual(1, 1)\n"
+                "    def test_fail(self):\n"
+                "        self.assertEqual(1, 2)\n"
+                "    def test_sub_fail(self):\n"
+                "        with self.subTest('a'):\n"
+                "            self.assertEqual(1, 1)\n"
+                "        with self.subTest('b'):\n"
+                "            self.assertEqual(1, 2)\n"
+                "    def test_skip(self):\n"
+                "        self.skipTest('nope')\n"
+            )
+            nodes = [
+                "tests/test_dummy.py::T::test_ok",
+                "tests/test_dummy.py::T::test_fail",
+                "tests/test_dummy.py::T::test_sub_fail",
+                "tests/test_dummy.py::T::test_skip",
+            ]
+            r = subprocess.run(
+                [sys.executable, str(bundle_script), "trim", json.dumps(nodes)],
+                cwd=tmp,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            passed = json.loads((Path(tmp) / ".blast-passed.json").read_text())
+            self.assertEqual(passed, ["tests/test_dummy.py::T::test_ok"])
+
+    def test_inert_new_class_attrs(self):
+        src = impact._sources()["src"]["sqlglot/dialects/dialect.py"]
+        idx = src.index("class Dialect(")
+        line_end = src.index("\n", idx) + 1
+        added = src[:line_end] + "    _BRAND_NEW_UNREAD_FLAG_999 = False\n" + src[line_end:]
+        self.assertTrue(heavy._inert_new_class_attrs("sqlglot/dialects/dialect.py", added))
+        # Existing attribute name must NOT be considered inert.
+        existing = src[:line_end] + "    NORMALIZE_FUNCTIONS = False\n" + src[line_end:]
+        self.assertFalse(heavy._inert_new_class_attrs("sqlglot/dialects/dialect.py", existing))
+
+    def test_runtime_paths_defaults(self):
+        self.assertIsInstance(runtime_paths.APP_DIR, Path)
+        self.assertIsInstance(runtime_paths.DATA_DIR, Path)
+
+
+if __name__ == "__main__":
+    unittest.main()

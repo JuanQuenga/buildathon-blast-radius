@@ -4,7 +4,10 @@ import functools
 import gzip
 import json
 import marshal
+import os
 from pathlib import Path
+
+APP_DIR = Path(os.environ.get("BLAST_APP_DIR", "/app"))
 
 
 def spans(before, after):
@@ -82,7 +85,7 @@ def spans(before, after):
 
 @functools.cache
 def trace():
-    with gzip.open("/app/query-lines.json.gz") as stream:
+    with gzip.open(APP_DIR / "query-lines.json.gz") as stream:
         data = json.load(stream)
     if len(data["worker"]) != 99 or len(data["all"]) != 99:
         raise ValueError("incomplete trace")
@@ -96,7 +99,7 @@ def reached(row, changed):
 
 @functools.cache
 def _hits(name):
-    return marshal.loads(Path(f"/app/pin-cache/{name}-hits.marshal").read_bytes())
+    return marshal.loads((APP_DIR / "pin-cache" / f"{name}-hits.marshal").read_bytes())
 
 
 def indices(name, changed):

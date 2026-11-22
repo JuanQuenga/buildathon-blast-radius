@@ -1,5 +1,6 @@
 """Record missing catalog nodes after a complete patched pytest collection."""
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -27,7 +28,7 @@ if __name__ == "__main__":
     if not Path(sqlglot.__file__).is_relative_to(Path.cwd()):
         raise RuntimeError("wrong package")
     catalog = Catalog()
-    tests = json.loads(Path("/data/tests.json").read_text())["tests"]
+    tests = json.loads((Path(os.environ.get("BLAST_DATA", "/data")) / "tests.json").read_text())["tests"]
     status = pytest.main(["--collect-only", "--continue-on-collection-errors",
                           "-qq", "-p", "no:cacheprovider", "tests"], plugins=[catalog])
     files = {row["file"] for row in tests}

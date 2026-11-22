@@ -9,11 +9,13 @@ import multiprocessing
 import time
 
 from . import impact, warm_replay
+from .runtime_paths import set_memory_limit
 
 
 def serve(conn, work, paths):
     from . import heavy
     os.setsid()
+    set_memory_limit(1800)
     with open(os.devnull, "r+") as sink:
         for fd in (0, 1, 2):
             os.dup2(sink.fileno(), fd)

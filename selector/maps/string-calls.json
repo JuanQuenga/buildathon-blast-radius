@@ -1,0 +1,1 @@
+{"sqlglot/generator.py:Generator.escape_str": ["tests/test_executor.py::TestExecutor::test_execute_tpcds", "tests/test_executor.py::TestExecutor::test_optimized_tpch"], "sqlglot/generator.py:Generator.identifier_sql": ["tests/test_executor.py::TestExecutor::test_execute_tpcds", "tests/test_executor.py::TestExecutor::test_optimized_tpch"]}

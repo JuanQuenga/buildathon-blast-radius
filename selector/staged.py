@@ -1,5 +1,6 @@
 """Differential probes run from the overlay in a fresh interpreter."""
 
+import ast
 import functools
 import hashlib
 import json
@@ -8,9 +9,11 @@ import os
 from pathlib import Path
 import pickle
 import sys
+import types
 
 sys.path.insert(0, os.getcwd())
-BASE = Path("/app/staged.json")
+APP_DIR = Path(os.environ.get("BLAST_APP_DIR", "/app"))
+BASE = APP_DIR / "staged.json"
 
 
 def digest(value):
@@ -75,22 +78,15 @@ def plan_digest(plan):
     return step(plan.root)
 
 
-@functools.cache
-def rule_query_check():
-    """Set up the pin's worker function without importing the DataFrame comparator.
-
-    Rule replay is restricted to edits inside optimizer methods. Setup, teardown
-    and execution-tail coverage must exclude them before admission.
-    """
-    import ast
-    import types
+def _build_lightweight_tpcds():
+    """Build lightweight test/tests namespaces using lazy per-table loading
+    without importing duckdb/pandas/numpy or unpickling the 15 MB table blob."""
     import sqlglot
     import sqlglot.executor as ex
     from tests.helpers import TPCDS_SCHEMA
-    from result_replay import run
 
-    test = types.SimpleNamespace()
     cache = BASE.with_name("pin-cache")
+    test = types.SimpleNamespace()
     test.tpcds_sqls = pickle.loads((cache / "query-fixtures.pkl").read_bytes())
 
     class Tables(dict):
@@ -102,13 +98,36 @@ def rule_query_check():
 
     tables = Tables()
     path = Path("tests/test_executor.py")
-    worker = next(node for node in ast.parse(path.read_text()).body
-                  if isinstance(node, ast.FunctionDef) and node.name == "mp_execute")
-    scope = dict(find_tables=sqlglot.find_tables, execute=ex.execute,
-                 _tables=tables, _schema=TPCDS_SCHEMA)
+    worker = next(
+        node
+        for node in ast.parse(path.read_text()).body
+        if isinstance(node, ast.FunctionDef) and node.name == "mp_execute"
+    )
+    scope = dict(
+        find_tables=sqlglot.find_tables,
+        execute=ex.execute,
+        _tables=tables,
+        _schema=TPCDS_SCHEMA,
+    )
     exec(compile(ast.Module([worker], []), str(path), "exec"), scope)
-    tests = types.SimpleNamespace(parse_one=sqlglot.parse_one, transpile=sqlglot.transpile,
-                                  mp_execute=scope["mp_execute"])
+    tests = types.SimpleNamespace(
+        parse_one=sqlglot.parse_one,
+        transpile=sqlglot.transpile,
+        mp_execute=scope["mp_execute"],
+    )
+    return test, tests, ex
+
+
+@functools.cache
+def rule_query_check():
+    """Set up the pin's worker function without importing the DataFrame comparator.
+
+    Rule replay is restricted to edits inside optimizer methods. Setup, teardown
+    and execution-tail coverage must exclude them before admission.
+    """
+    from result_replay import run
+
+    test, tests, ex = _build_lightweight_tpcds()
     reference = json.loads(BASE.read_text())["ds"]
 
     def check(i):
@@ -121,6 +140,34 @@ def rule_query_check():
 def executor(record, expected, full, selection=None):
     if selection is not None and not selection["active"]:
         return [], []
+    if not record:
+        changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
+        setup_files = set(json.loads((APP_DIR / "pin-cache/ds-setup.json").read_text()))
+        pristine_setup = bool(expected) and (
+            selection is not None
+            or (
+                bool(changed_modules)
+                and all(m.replace(".", "/") + ".py" not in setup_files for m in changed_modules)
+            )
+            or (
+                len(changed_modules) == 1
+                and (
+                    changed_modules[0] == "sqlglot.parser"
+                    or changed_modules[0].startswith(("sqlglot.parsers.", "sqlglot.optimizer."))
+                )
+                and changed_modules[0].replace(".", "/") + ".py" not in setup_files
+            )
+        )
+        # Allow lazy lightweight setup whenever setup files are untouched or
+        # query_slice proved setup/teardown do not touch any changed region.
+        if pristine_setup:
+            test, tests, ex = _build_lightweight_tpcds()
+            sys.path.append(str(Path(__file__).parent))
+            from result_replay import run
+
+            run(test, tests, ex, expected, full, selection, digest, plan_digest)
+            return [], []
+
     import sqlglot
     import sqlglot.executor as ex
     from tests import test_executor as tests
@@ -137,31 +184,11 @@ def executor(record, expected, full, selection=None):
         return sys.monitoring.DISABLE
 
     test = tests.TestExecutor("test_execute_tpcds")
-    changed_module = os.environ.get("BLAST_CHANGED_MODULE", "")
-    pristine_setup = (
-        not record
-        and expected
-        and "," not in changed_module
-        and (
-            changed_module == "sqlglot.parser"
-            or changed_module.startswith(("sqlglot.parsers.", "sqlglot.optimizer."))
-        )
-    )
-    if pristine_setup:
-        setup = json.loads(Path("/app/pin-cache/ds-setup.json").read_text())
-        pristine_setup = changed_module.replace(".", "/") + ".py" not in setup
-    # A query slice requires both the inline and the original spawned setup
-    # traces to miss every changed region. Its table inputs are pinned.
-    pristine_setup = pristine_setup or selection is not None
     tables_file = BASE.with_name("staged-tables.pkl")
-    if pristine_setup:
-        with tables_file.open("rb") as stream:
-            test.tpcds_sqls, test.tpcds_tables = pickle.load(stream)
-    else:
-        test.setUpClass()
-        if record:
-            with tables_file.open("wb") as stream:
-                pickle.dump((test.tpcds_sqls, test.tpcds_tables), stream)
+    test.setUpClass()
+    if record:
+        with tables_file.open("wb") as stream:
+            pickle.dump((test.tpcds_sqls, test.tpcds_tables), stream)
     tests.initializer(tests.TPCDS_SCHEMA, test.tpcds_tables)
     if not record:
         sys.path.append(str(Path(__file__).parent))
@@ -169,8 +196,7 @@ def executor(record, expected, full, selection=None):
         try:
             run(test, tests, ex, expected, full, selection, digest, plan_digest)
         finally:
-            if not pristine_setup:
-                test.tearDownClass()
+            test.tearDownClass()
         return [], []
     original_optimize = ex.optimize
 
@@ -246,8 +272,7 @@ def executor(record, expected, full, selection=None):
         if len(test.tpcds_sqls) != 99:
             raise ValueError("fixture count")
     finally:
-        if not pristine_setup:
-            test.tearDownClass()
+        test.tearDownClass()
     return rows, tail
 
 

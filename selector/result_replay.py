@@ -1,7 +1,43 @@
 """Compare the reference SQL and the observable result of each executed query."""
 import contextlib
 import hashlib
+import os
 import pickle
+
+
+# Exact modules executed by transpile(sql, write="duckdb") on the 57 executed TPC-DS queries.
+_TRANSPILE_MODULES = frozenset({
+    "sqlglot",
+    "sqlglot.dialects",
+    "sqlglot.dialects.dialect",
+    "sqlglot.dialects.duckdb",
+    "sqlglot.errors",
+    "sqlglot.expressions.builders",
+    "sqlglot.expressions.core",
+    "sqlglot.expressions.datatypes",
+    "sqlglot.expressions.query",
+    "sqlglot.generator",
+    "sqlglot.generators",
+    "sqlglot.generators.duckdb",
+    "sqlglot.helper",
+    "sqlglot.jsonpath",
+    "sqlglot.optimizer.scope",
+    "sqlglot.parser",
+    "sqlglot.parsers.duckdb",
+    "sqlglot.tokenizer_core",
+    "sqlglot.tokens",
+    "sqlglot.transforms",
+    "sqlglot.trie",
+    "sqlglot.typing.duckdb",
+})
+
+# Pinned max nested-loop join pair count across all 57 TPC-DS queries is 10,000.
+# 100x that limit prevents quadratic join blowups from burning 10-35s CPU.
+_NLJ_PAIR_LIMIT = 1_000_000
+
+
+class _JoinBudgetExceeded(BaseException):
+    """BaseException so patched ``except Exception`` cannot swallow an overrun."""
 
 
 def table_digest(table):
@@ -11,10 +47,34 @@ def table_digest(table):
     return result.hexdigest()
 
 
+def _needs_transpile_check(changed_modules):
+    if not changed_modules:
+        return True
+    for mod in changed_modules:
+        if mod in _TRANSPILE_MODULES:
+            return True
+        if not (
+            (mod.startswith("sqlglot.optimizer.") and mod != "sqlglot.optimizer.scope")
+            or mod.startswith("sqlglot.executor.")
+            or mod == "sqlglot.planner"
+        ):
+            return True
+    return False
+
+
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
 
     execute = ex.PythonExecutor.execute
+    orig_nlj = getattr(ex.PythonExecutor, "nested_loop_join", None)
+    join_overrun = False
+
+    def guarded_nlj(engine, join, source_context, join_context, condition, condition_context):
+        nonlocal join_overrun
+        if len(source_context.table.rows) * len(join_context.table.rows) > _NLJ_PAIR_LIMIT:
+            join_overrun = True
+            raise _JoinBudgetExceeded("nested loop join budget exceeded")
+        return orig_nlj(engine, join, source_context, join_context, condition, condition_context)
 
     def check_plan(engine, plan):
         nonlocal ran, skipped
@@ -22,8 +82,11 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         if ran or skipped:
             raise ValueError("multiple executions")
         if not required:
-            if (parsed_matches and digest(plan.expression.dump()) == reference[6]
-                    and plan_digest(plan) == reference[7]):
+            if (
+                parsed_matches
+                and digest(plan.expression.dump()) == reference[6]
+                and plan_digest(plan) == reference[7]
+            ):
                 skipped = True
                 return None
         mark("execute")
@@ -32,7 +95,12 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
 
     reference_setup = contextlib.ExitStack()
     changed_reference = set()
+    changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
+    check_transpile = _needs_transpile_check(changed_modules)
+
     ex.PythonExecutor.execute = check_plan
+    if orig_nlj is not None:
+        ex.PythonExecutor.nested_loop_join = guarded_nlj
     try:
         if len(test.tpcds_sqls) != len(expected) or len(expected) != 99:
             raise ValueError("incomplete fixtures")
@@ -46,10 +114,11 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             matches = digest(expr.dump()) == expected[i][2]
             if meta.get("execute"):
                 inputs.append((i, meta, sql, expr, matches))
-        mark("generate")
-        for i, meta, sql, expr, parsed_matches in inputs:
-            if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
-                changed_reference.add(i)
+        if check_transpile:
+            mark("generate")
+            for i, meta, sql, expr, parsed_matches in inputs:
+                if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
+                    changed_reference.add(i)
         for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
             mark("optimize")
@@ -59,6 +128,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 continue
             ran = skipped = False
             table = tests.mp_execute(expr, meta)
+            if join_overrun:
+                raise _JoinBudgetExceeded("nested loop join budget exceeded")
             if skipped and table is None:
                 continue
             if not ran or table is None:
@@ -79,4 +150,6 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 raise ValueError("result changed")
     finally:
         ex.PythonExecutor.execute = execute
+        if orig_nlj is not None:
+            ex.PythonExecutor.nested_loop_join = orig_nlj
         reference_setup.close()

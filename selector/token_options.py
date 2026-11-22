@@ -3,6 +3,7 @@ import ast
 import functools
 import copy
 import json
+import os
 from pathlib import Path
 
 
@@ -109,7 +110,7 @@ def read_bits(an, name):
 
 @functools.cache
 def site_map():
-    return json.loads(Path("/app/pin-cache/token-options.json").read_text())
+    return json.loads((Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache/token-options.json").read_text())
 
 
 def sites(name):

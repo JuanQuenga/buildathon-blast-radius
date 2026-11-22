@@ -18,7 +18,8 @@ def main():
         # A parser or serialization exception is conclusive. Changed values
         # continue to ordered-result verification below.
         from sqlglot import parse_one
-        inputs = json.loads(Path("/app/pin-cache/ds-inputs.json").read_text())
+        app_dir = Path(os.environ.get("BLAST_APP_DIR", "/app"))
+        inputs = json.loads((app_dir / "pin-cache/ds-inputs.json").read_text())
         mark("parse")
         for i in json.loads(sys.argv[2])["active"][:6]:
             pickle.loads(pickle.dumps(parse_one(inputs[i])))

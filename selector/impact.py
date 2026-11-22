@@ -52,6 +52,7 @@ from pathlib import Path
 from types import CodeType
 
 MAPS_DIR = Path(os.environ.get("BLAST_MAPS", str(Path(__file__).resolve().parent / "maps")))
+_PIN_CACHE = Path(os.environ.get("BLAST_APP_DIR", str(MAPS_DIR.parents[1]))) / "pin-cache"
 
 # How a change that breaks a module imported while collecting tests is handled:
 # "full" (default): plain pytest aborts the whole session on a collection
@@ -74,7 +75,7 @@ CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 
 
 def _load_map(name):
-    cache = MAPS_DIR.parents[1] / "pin-cache" / (name + ".marshal")
+    cache = _PIN_CACHE / (name + ".marshal")
     if cache.exists():
         return marshal.loads(cache.read_bytes())
     return pickle.loads(zlib.decompress((MAPS_DIR / (name + ".pkl.z")).read_bytes()))
@@ -412,7 +413,7 @@ def _code_scopes(code):
 
 @functools.lru_cache(maxsize=12)
 def _pinned_scopes(path):
-    cache = MAPS_DIR.parents[1] / "pin-cache" / (path + ".marshal")
+    cache = _PIN_CACHE / (path + ".marshal")
     if cache.exists():
         return _code_scopes(marshal.loads(cache.read_bytes()))
     source = _sources()["src"][path]
@@ -976,6 +977,21 @@ class Analysis:
             changed = [(tag, text) for tag, text in placed[0][0].lines if tag in ("+", "-")]
             identity_edit = (len(changed) == 2 and " is " in changed[0][1]
                              and ("==" in changed[1][1] or "!=" in changed[1][1]))
+        if self.single_file and oldp.startswith("sqlglot/typing/"):
+            from .metadata_keys import removed_keys, observations
+            keys = removed_keys(oldp, new_src)
+            if keys:
+                # Always retain independent readers (including source inspection).
+                prior = self.req
+                self.python_body(fp, oldp, old_src, new_src, placed, identity_edit)
+                for test, seen in observations().items():
+                    if keys.isdisjoint(seen) and test in self.idx["tests"]:
+                        self.req &= ~(1 << self.idx["tests"].index(test))
+                self.req |= prior
+                return
+        self.python_body(fp, oldp, old_src, new_src, placed, identity_edit)
+
+    def python_body(self, fp, oldp, old_src, new_src, placed, identity_edit):
         if self.fast_function_path(oldp, old_src, new_src, placed, identity_edit):
             return
         try:
@@ -1077,10 +1093,20 @@ class Analysis:
         if identity_edit and _same_observed_comparison(path, o, n):
             self.reasons.append(f"{path}: identity and equality agreed on pinned operands")
             return True
+        excluded = ()
+        if (self.single_file and path == "sqlglot/generator.py" and qual.startswith("Generator.")
+                and "_replace_line_breaks(" in "\n".join(old_seg)):
+            from .string_calls import transparent_for
+            excluded = transparent_for(path, o, n)
+        prior = self.req
         pd = PyDiff(self, path, None, None, old_src, new_src)
         first = next((x for x in o.body if not _is_docstring(x)), None)
         entry = pd.stmt_bits(first) if first is not None else pd.lb(body_start, d_end)
         pd.block(o.body, n.body, entry, "func", None)
+        for node in excluded:
+            if node in self.idx["tests"]:
+                self.req &= ~(1 << self.idx["tests"].index(node))
+        self.req |= prior
         return True
 
     def _name_users_of_module(self, path: str) -> int:
@@ -1945,7 +1971,7 @@ def _matching_lines(text, pattern):
 
 @functools.lru_cache(maxsize=1)
 def _name_index():
-    path = MAPS_DIR.parents[1] / "pin-cache" / "names.db"
+    path = _PIN_CACHE / "names.db"
     if path.exists():
         import sqlite3
         return sqlite3.connect(f"file:{path}?immutable=1", uri=True)

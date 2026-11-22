@@ -8,7 +8,8 @@ from pathlib import Path
 import pickle
 import sys
 
-DATA = Path("/app/parse-corpus.pkl.gz")
+APP_DIR = Path(os.environ.get("BLAST_APP_DIR", "/app"))
+DATA = APP_DIR / "parse-corpus.pkl.gz"
 
 
 def fingerprint(expressions):
@@ -110,7 +111,7 @@ def token_digest(tokens):
 
 def replay_tokens():
     from sqlglot.dialects.dialect import Dialect, Dialects
-    with gzip.open("/app/token-corpus.pkl.gz", "rb") as stream:
+    with gzip.open(APP_DIR / "token-corpus.pkl.gz", "rb") as stream:
         corpus = pickle.load(stream)
     for key, expected in corpus.items():
         dialect, factory, sql = pickle.loads(key)
