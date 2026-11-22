@@ -1124,5 +1124,71 @@ class TestCandidate19(unittest.TestCase):
                 sys.path.remove(verify.PRISTINE)
 
 
+    def test_c34_removed_attr_and_method_static_narrowing(self):
+        """Removing an inherited dialect class attribute (StarRocks.Tokenizer.COMMENTS) or
+        uncalled *_sql method does not fan out to all 1,618 tests."""
+        from selector import impact
+
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        sr_lines = impact._sources()["src"]["sqlglot/dialects/starrocks.py"].splitlines()
+        ln = next(i for i, l in enumerate(sr_lines, 1) if 'COMMENTS = ["--", ("/*", "*/")]' in l)
+        patch = (
+            "diff --git a/sqlglot/dialects/starrocks.py b/sqlglot/dialects/starrocks.py\n"
+            "--- a/sqlglot/dialects/starrocks.py\n"
+            "+++ b/sqlglot/dialects/starrocks.py\n"
+            f"@@ -{ln},1 +{ln},0 @@\n"
+            f"-{sr_lines[ln-1]}\n"
+        )
+        res = impact.select(patch, cat)
+        self.assertFalse(res["full"])
+        self.assertLess(len(res["required"]), 120)
+
+    def test_c34_new_targets_staging_and_live_probes(self):
+        """tpcds_opt, scope, annotate_funcs, and agg_order stage soundly and pass on pin."""
+        import os, sys
+        from selector import heavy, impact, staged, verify
+
+        glines = impact._sources()["src"]["sqlglot/generators/clickhouse.py"].splitlines()
+        ln = next(i for i, l in enumerate(glines, 1) if l.strip().startswith("return "))
+        ch_patch = (
+            "diff --git a/sqlglot/generators/clickhouse.py b/sqlglot/generators/clickhouse.py\n"
+            "--- a/sqlglot/generators/clickhouse.py\n"
+            "+++ b/sqlglot/generators/clickhouse.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{glines[ln-1]}\n"
+            f"+{glines[ln-1]}  # c34\n"
+        )
+        # ClickHouse generator is unreached by test_tpcds, disjoint from test_scope
+        # stress loops, safe for agg_order, and slices annotate_funcs to <= 50 pairs.
+        e_to = heavy.stage_edit(ch_patch, "tpcds_opt")
+        e_sc = heavy.stage_edit(ch_patch, "scope")
+        e_af = heavy.stage_edit(ch_patch, "annotate_funcs")
+        e_ao = heavy.stage_edit(ch_patch, "agg_order")
+        self.assertEqual(e_to[0], "unreached")
+        self.assertEqual(e_sc[0], "scope_scaled")
+        self.assertIn(e_af[0], {"unreached", "annotate_funcs"})
+        if e_af[0] == "annotate_funcs":
+            self.assertLess(e_af[3][1], 50)
+        self.assertEqual(e_ao[0], "agg_order")
+
+        # Live probes pass on pinned sqlglot
+        added = False
+        old_cwd = os.getcwd()
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        try:
+            os.chdir(verify.PRISTINE)
+            staged._agg_order()
+            staged._tpcds_opt([0, 1])
+            staged._scope_check(True)
+            staged._annotate_funcs(["tsql"])
+        finally:
+            os.chdir(old_cwd)
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
+
 if __name__ == "__main__":
     unittest.main()

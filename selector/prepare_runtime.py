@@ -152,6 +152,142 @@ if Path("/app/ds.json.gz").exists():
         )
     (out / "tpch-digests.json").write_text(json.dumps(_tpch_rows, separators=(",", ":")))
 
+    # Precompute pinned per-query line coverage & digests for TestOptimizer.test_tpcds (2.232s),
+    # stress-loop line coverage for TestOptimizer.test_scope (2.533s), and per-dialect
+    # line coverage for TestOptimizer.test_annotate_funcs (1.963s).
+    from sqlglot import optimizer as _opt_mod
+    from sqlglot.optimizer.annotate_types import annotate_types as _annotate_types
+    from sqlglot.optimizer.scope import build_scope as _build_scope, traverse_scope as _traverse_scope
+    from tests.helpers import string_to_bool as _str_to_bool
+
+    # Pre-warm all dialects and lazy caches BEFORE tracing so one-time imports
+    # never pollute query 0 / group 0 line coverage.
+    for _dname in sqlglot.dialects.Dialects:
+        sqlglot.Dialect.get_or_raise(_dname)
+    _opt_mod.optimize(sqlglot.parse_one("SELECT 1"), schema=_TPCDS_SCHEMA).sql(pretty=True)
+
+    _pin_prefix = str(Path("/app/sqlglot").resolve()) + "/"
+    _cur_hits = {}
+
+    def _trace_line(code, lineno):
+        fn = code.co_filename
+        if fn.startswith(_pin_prefix):
+            rel = fn[len(_pin_prefix):]
+            if rel.startswith("sqlglot/"):
+                _cur_hits.setdefault(rel, set()).add(lineno)
+        return sys.monitoring.DISABLE
+
+    _tid = 5
+    sys.monitoring.use_tool_id(_tid, "c34 pin profiles")
+    sys.monitoring.register_callback(_tid, sys.monitoring.events.LINE, _trace_line)
+    try:
+        # 1. TestOptimizer.test_tpcds: all 99 queries
+        _tpcds_opt_rows = []
+        _tpcds_opt_hits = {}
+        _tpcds_opt_files = set()
+        for _qi, (_meta, _sql, _expected) in enumerate(_load_pairs("optimizer/tpc-ds/tpc-ds.sql")):
+            _cur_hits = {}
+            sys.monitoring.restart_events()
+            sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+            try:
+                _d = _meta.get("dialect")
+                _kw = {"schema": _TPCDS_SCHEMA}
+                if _s := _meta.get("schema"):
+                    _kw["schema"] = json.loads(_s)
+                if (_lti := _meta.get("leave_tables_isolated")) is not None:
+                    _kw["leave_tables_isolated"] = _str_to_bool(_lti)
+                if (_vqc := _meta.get("validate_qualify_columns")) is not None:
+                    _kw["validate_qualify_columns"] = _str_to_bool(_vqc)
+                if _d:
+                    _kw["dialect"] = _d
+                if (_cta := _meta.get("canonicalize_table_aliases")) is not None:
+                    _kw["canonicalize_table_aliases"] = _str_to_bool(_cta)
+                _res = _opt_mod.optimize(sqlglot.parse_one(_sql, read=_d), **_kw)
+                _actual = _res.sql(pretty=True, dialect=_d)
+                assert _actual == _expected
+            finally:
+                sys.monitoring.set_events(_tid, 0)
+            _bit = 1 << _qi
+            for _p, _lns in _cur_hits.items():
+                _tpcds_opt_files.add(_p)
+                _fh = _tpcds_opt_hits.setdefault(_p, {})
+                for _ln in _lns:
+                    _fh[_ln] = _fh.get(_ln, 0) | _bit
+            _tpcds_opt_rows.append([_meta, _sql, _staged_digest(_expected)])
+        (out / "tpcds-opt-digests.json").write_text(json.dumps(_tpcds_opt_rows, separators=(",", ":")))
+        (out / "tpcds-opt-hits.marshal").write_bytes(
+            marshal.dumps({"hits": _tpcds_opt_hits, "files": sorted(_tpcds_opt_files)})
+        )
+
+        # 2. TestOptimizer.test_scope stress loops (N=8 captures 100% of executed lines)
+        _cur_hits = {}
+        sys.monitoring.restart_events()
+        sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+        try:
+            _mu = sqlglot.parse_one(" UNION ALL ".join(["SELECT x FROM t"] * 8))
+            list(_build_scope(_mu).traverse())
+            _traverse_scope(_mu)
+            _ch = sqlglot.parse_one("SELECT 1" + " UNION SELECT 1 INTERSECT SELECT 1" * 8, read="hive")
+            list(_build_scope(_ch).traverse())
+        finally:
+            sys.monitoring.set_events(_tid, 0)
+        (out / "scope-stress-lines.json").write_text(
+            json.dumps({p: sorted(lns) for p, lns in _cur_hits.items()}, separators=(",", ":"))
+        )
+
+        # 3. TestOptimizer.test_annotate_funcs: grouped by meta.get("dialect") or ""
+        _af_schema = {
+            "tbl": {
+                "bin_col": "BINARY", "str_col": "STRING", "bignum_col": "BIGNUMERIC",
+                "date_col": "DATE", "decfloat_col": "DECFLOAT", "float_col": "FLOAT",
+                "timestamp_col": "TIMESTAMP", "double_col": "DOUBLE", "bigint_col": "BIGINT",
+                "smallint_col": "SMALLINT", "bit_col": "BIT", "obj_col": "OBJECT",
+                "int_col": "INT", "bool_col": "BOOLEAN", "bytes_col": "BYTES",
+                "interval_col": "INTERVAL", "array_col": "ARRAY<STRING>",
+            }
+        }
+        _af_by_group = {}
+        for _meta, _sql, _exp_t in _load_pairs("optimizer/annotate_functions.sql"):
+            _gk = _meta.get("dialect") or ""
+            _af_by_group.setdefault(_gk, []).append((_sql, _exp_t))
+        _af_groups = sorted(_af_by_group)
+        _af_counts = [len(_af_by_group[g]) for g in _af_groups]
+        _af_hits = {}
+        _af_file_groups = {}
+        for _gi, _gk in enumerate(_af_groups):
+            _cur_hits = {}
+            sys.monitoring.restart_events()
+            sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
+            try:
+                for _sql, _exp_t in _af_by_group[_gk]:
+                    _full_sql = f"SELECT {_sql} FROM tbl"
+                    for _d in _gk.split(", "):
+                        _r = _annotate_types(
+                            sqlglot.parse_one(_full_sql, read=_d), dialect=_d, schema=_af_schema
+                        ).expressions[0]
+                        _r.type.sql(_d)
+                        sqlglot.exp.DataType.build(_exp_t, dialect=_d).sql(_d)
+            finally:
+                sys.monitoring.set_events(_tid, 0)
+            _bit = 1 << _gi
+            for _p, _lns in _cur_hits.items():
+                _af_file_groups[_p] = _af_file_groups.get(_p, 0) | _bit
+                _fh = _af_hits.setdefault(_p, {})
+                for _ln in _lns:
+                    _fh[_ln] = _fh.get(_ln, 0) | _bit
+        (out / "annotate-funcs-hits.marshal").write_bytes(
+            marshal.dumps({
+                "groups": _af_groups,
+                "counts": _af_counts,
+                "hits": _af_hits,
+                "file_groups": _af_file_groups,
+            })
+        )
+    finally:
+        sys.monitoring.set_events(_tid, 0)
+        sys.monitoring.register_callback(_tid, sys.monitoring.events.LINE, None)
+        sys.monitoring.free_tool_id(_tid)
+
     if Path("/app/staged.json").is_file():
         (out / "staged.marshal").write_bytes(marshal.dumps(json.loads(Path("/app/staged.json").read_text())))
 

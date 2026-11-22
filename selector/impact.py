@@ -1446,6 +1446,37 @@ class PyDiff:
 
     def named_removed(self, o, scope, owner):
         if scope == "class":
+            if (
+                not self.is_test
+                and isinstance(o, _DEFS)
+                and not o.name.startswith("__")
+            ):
+                safe_decs = all(
+                    _is_safe_sql_decorator(d)
+                    or (isinstance(d, ast.Name) and d.id in {"property", "staticmethod", "classmethod"})
+                    for d in o.decorator_list
+                )
+                header_exprs = [
+                    *o.args.defaults,
+                    *o.args.kw_defaults,
+                    o.returns,
+                    *(a.annotation for a in ast.walk(o.args) if isinstance(a, ast.arg)),
+                ]
+                safe_hdr = safe_decs and all(
+                    e is None or isinstance(e, (ast.Constant, ast.Name)) for e in header_exprs
+                )
+                b = self.lb(o.body[0].lineno, o.end_lineno) if o.body else 0
+                if not safe_hdr:
+                    b |= self.all_bits(o)
+                b |= self.name_refs({o.name}, depth=0, exclude=[o])
+                b |= _import_state_observers(self.an)
+                if o.name.endswith("_sql") and owner[0].split(".")[-1].endswith("Generator"):
+                    from . import dict_keys
+                    sql_bits = dict_keys.sql_method_bits(o.name)
+                    fam = self.class_family(owner)
+                    b |= (fam & sql_bits) if sql_bits is not None else fam
+                self.add(b, f"{owner[0]}.{o.name} removed L{o.lineno}")
+                return
             self.add(self.class_family(owner) | self.all_bits(o),
                      f"{owner[0]}.{o.name} removed L{o.lineno}")
         else:
@@ -1571,7 +1602,7 @@ class PyDiff:
             gone -= _bound_names(st)
         gone &= names
         if gone:
-            risky |= self.removed_class_attrs(gone, q)
+            risky |= self.removed_class_attrs(gone, q, fam)
         # pure addition of duplicate identical literal class constant already in class body
         if not o_other and n_other:
             old_dumps = {_dump(st) for st in owner[1].body}
@@ -1680,16 +1711,50 @@ class PyDiff:
         self.add(b | risky, f"class attribute(s) {sorted(names)[:3]} of {q} ({how}) "
                             f"L{o_other[0].lineno if o_other else '+'}")
 
-    def removed_class_attrs(self, gone, q) -> int:
+    def _inherited_from_unmodified_base(self, q: str, name: str) -> bool:
+        cls_full = f"{self.module}.{q}"
+        mro = self.an.idx.get("mro", {}).get(cls_full, ())
+        ns_cls = self.an.idx.get("ns_cls", {})
+        changed = self.an.__dict__.get("changed_paths", ())
+        srcs = _sources()["src"]
+        for base in mro:
+            if base == cls_full:
+                continue
+            if name not in ns_cls.get(base, ()):
+                continue
+            # Resolve base module path; conservatively bail if base file is also edited.
+            parts = base.split(".")
+            base_path = None
+            for i in range(len(parts) - 1, 0, -1):
+                cand = "/".join(parts[:i]) + ".py"
+                if cand in srcs:
+                    base_path = cand
+                    break
+                cand_init = "/".join(parts[:i]) + "/__init__.py"
+                if cand_init in srcs:
+                    base_path = cand_init
+                    break
+            if base_path is None or base_path in changed:
+                continue
+            return True
+        return False
+
+    def removed_class_attrs(self, gone, q, fam: int = 0) -> int:
         simple = q.rsplit(".", 1)[-1]
         b = 0
         for name in gone:
+            if self._inherited_from_unmodified_base(q, name):
+                continue
             qual = re.compile(r"\b" + re.escape(simple) + r"\s*\.\s*" + re.escape(name) + r"\b")
             for path, ln, lo, hi, sc in _name_sites(self.an, name):
                 if path == self.path and sc is not None and sc[3] == q:
                     continue
                 if sc is not None and sc[0] == "def" and ln >= sc[4]:
-                    b |= self.an.lines_bits(path, lo, hi)
+                    bits = self.an.lines_bits(path, lo, hi)
+                    if fam and not qual.search("\n".join(_src_lines(path)[lo - 1: hi])):
+                        b |= (bits & fam) | _import_state_observers(self.an)
+                    else:
+                        b |= bits
                     continue
                 if qual.search("\n".join(_src_lines(path)[lo - 1: hi])):
                     b |= self.an.import_break(path, f"reads removed {simple}.{name}")
@@ -2792,6 +2857,9 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
         if not files:
             raise Unsupported("no file diffs found")
         an.single_file = len(files) == 1
+        an.changed_paths = frozenset(
+            p for f in files for p in (f.old_path, f.new_path) if p
+        )
         an.fixture_only = all(f.path and f.path.startswith("tests/fixtures/") for f in files)
         an.safe_fixture_proj = not any(
             p in {"tests/helpers.py", "tests/test_executor.py", "tests/test_optimizer.py"}

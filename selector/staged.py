@@ -414,6 +414,161 @@ def _tpch_exec():
             raise ValueError("tpch pygen plan diverged")
 
 
+def _check_expr_tree(optimized):
+    import sqlglot.expressions as exp
+
+    for expression in optimized.walk():
+        for arg_key, arg in expression.args.items():
+            for child in arg if isinstance(arg, list) else [arg]:
+                if isinstance(child, exp.Expr):
+                    if child.arg_key != arg_key:
+                        raise ValueError(f"{child.sql()} isn't {arg_key}")
+                    if child.parent is not expression:
+                        raise ValueError(f"{child.sql()} isn't a child of its parent")
+
+
+def _tpcds_opt(indices):
+    """Verify tests/test_optimizer.py::TestOptimizer::test_tpcds (2.232s)
+    on the exact subset of TPC-DS queries touched by the patch."""
+    import sqlglot
+    from sqlglot import optimizer
+    from tests.helpers import TPCDS_SCHEMA, string_to_bool
+
+    rows = json.loads((BASE.with_name("pin-cache") / "tpcds-opt-digests.json").read_text())
+    if len(rows) != 99:
+        raise ValueError("incomplete tpcds-opt digests")
+    for qi in indices:
+        meta, sql, exp_digest = rows[qi]
+        dialect = meta.get("dialect")
+        func_kwargs = {"schema": TPCDS_SCHEMA}
+        if schema := meta.get("schema"):
+            func_kwargs["schema"] = json.loads(schema)
+        if (lti := meta.get("leave_tables_isolated")) is not None:
+            func_kwargs["leave_tables_isolated"] = string_to_bool(lti)
+        if (vqc := meta.get("validate_qualify_columns")) is not None:
+            func_kwargs["validate_qualify_columns"] = string_to_bool(vqc)
+        if dialect:
+            func_kwargs["dialect"] = dialect
+        if (cta := meta.get("canonicalize_table_aliases")) is not None:
+            func_kwargs["canonicalize_table_aliases"] = string_to_bool(cta)
+        optimized = optimizer.optimize(sqlglot.parse_one(sql, read=dialect), **func_kwargs)
+        _check_expr_tree(optimized)
+        if digest(optimized.sql(pretty=True, dialect=dialect)) != exp_digest:
+            raise ValueError(f"tpcds_opt diverged on query {qi}")
+
+
+def _agg_order():
+    """Verify tests/test_executor.py::TestExecutor::test_agg_order (1.364s)
+    directly (~0.002s CPU, zero TPC-DS table load)."""
+    from sqlglot.executor import Plan, optimize
+
+    plan = Plan(
+        optimize(
+            """
+            SELECT
+              AVG(bill_length_mm) AS avg_bill_length,
+              AVG(bill_depth_mm) AS avg_bill_depth
+            FROM penguins
+            """,
+            schema={"penguins": {"bill_length_mm": "DOUBLE", "bill_depth_mm": "DOUBLE"}},
+        )
+    )
+    if [agg.alias for agg in plan.root.aggregations] != [
+        "avg_bill_length",
+        "avg_bill_depth",
+    ]:
+        raise ValueError("test_agg_order assertion failed")
+
+
+def _scope_check(scaled):
+    """Verify tests/test_optimizer.py::TestOptimizer::test_scope (2.533s),
+    scaling only the two stress loops (10000->20, 1000->10) when no line of
+    those loops was touched."""
+    import ast
+    import unittest
+
+    import sqlglot
+    from sqlglot import exp, optimizer, parse_one
+    from sqlglot.optimizer.scope import build_scope, traverse_scope, walk_in_scope
+
+    src_path = Path.cwd() / "tests/test_optimizer.py"
+    tree = ast.parse(src_path.read_text(), filename=str(src_path))
+    cls_node = next(
+        n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "TestOptimizer"
+    )
+    fn_node = next(
+        n for n in cls_node.body if isinstance(n, ast.FunctionDef) and n.name == "test_scope"
+    )
+    if scaled:
+        replaced = {10000: 0, 1000: 0, 4001: 0}
+        mapping = {10000: 20, 1000: 10, 4001: 41}
+        for node in ast.walk(fn_node):
+            if (
+                isinstance(node, ast.Constant)
+                and type(node.value) is int
+                and node.value in mapping
+            ):
+                replaced[node.value] += 1
+                node.value = mapping[node.value]
+        if replaced != {10000: 1, 1000: 1, 4001: 1}:
+            raise ValueError(f"unexpected test_scope stress constants: {replaced}")
+
+    mod_ast = ast.Module(body=[fn_node], type_ignores=[])
+    ast.fix_missing_locations(mod_ast)
+    ns = {
+        "sqlglot": sqlglot,
+        "exp": exp,
+        "optimizer": optimizer,
+        "parse_one": parse_one,
+        "build_scope": build_scope,
+        "traverse_scope": traverse_scope,
+        "walk_in_scope": walk_in_scope,
+    }
+    exec(compile(mod_ast, str(src_path), "exec"), ns)
+
+    class _Runner(unittest.TestCase):
+        maxDiff = None
+
+        def runTest(self):
+            pass
+
+    runner = _Runner()
+    ns["test_scope"](runner)
+
+
+def _annotate_funcs(dialects_filter):
+    """Verify tests/test_optimizer.py::TestOptimizer::test_annotate_funcs (1.963s)
+    on the exact dialect groups touched by the patch."""
+    import sqlglot
+    from sqlglot import exp
+    from sqlglot.optimizer.annotate_types import annotate_types
+    from tests.helpers import load_sql_fixture_pairs
+
+    test_schema = {
+        "tbl": {
+            "bin_col": "BINARY", "str_col": "STRING", "bignum_col": "BIGNUMERIC",
+            "date_col": "DATE", "decfloat_col": "DECFLOAT", "float_col": "FLOAT",
+            "timestamp_col": "TIMESTAMP", "double_col": "DOUBLE", "bigint_col": "BIGINT",
+            "smallint_col": "SMALLINT", "bit_col": "BIT", "obj_col": "OBJECT",
+            "int_col": "INT", "bool_col": "BOOLEAN", "bytes_col": "BYTES",
+            "interval_col": "INTERVAL", "array_col": "ARRAY<STRING>",
+        }
+    }
+    allowed = set(dialects_filter) if dialects_filter is not None else None
+    for meta, sql, expected in load_sql_fixture_pairs("optimizer/annotate_functions.sql"):
+        gk = meta.get("dialect") or ""
+        if allowed is not None and gk not in allowed:
+            continue
+        full_sql = f"SELECT {sql} FROM tbl"
+        for dialect in gk.split(", "):
+            parsed = sqlglot.parse_one(full_sql, read=dialect)
+            annotated = annotate_types(parsed, dialect=dialect, schema=test_schema)
+            result = annotated.expressions[0]
+            _check_expr_tree(result)
+            if result.type.sql(dialect) != exp.DataType.build(expected, dialect=dialect).sql(dialect):
+                raise ValueError(f"annotate_funcs mismatch ({dialect}): {sql}")
+
+
 def main():
     group = sys.argv[1]
     if group == "record":
@@ -425,6 +580,18 @@ def main():
         return
     if group == "tpch_exec":
         _tpch_exec()
+        return
+    if group == "tpcds_opt":
+        _tpcds_opt(json.loads(sys.argv[2]))
+        return
+    if group == "agg_order":
+        _agg_order()
+        return
+    if group in {"scope_scaled", "scope_full"}:
+        _scope_check(group == "scope_scaled")
+        return
+    if group == "annotate_funcs":
+        _annotate_funcs(json.loads(sys.argv[2]) if len(sys.argv) > 2 else None)
         return
     if group in {"corpus", "tokens"}:
         sys.path.append(str(Path(__file__).parent))

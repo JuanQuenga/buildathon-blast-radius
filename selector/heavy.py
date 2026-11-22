@@ -27,6 +27,10 @@ TARGETS = {
     "tests/test_parser.py::TestParser::test_max_nodes": "parser",
     "tests/test_executor.py::TestExecutor::test_optimized_tpch": "tpch_opt",
     "tests/test_executor.py::TestExecutor::test_execute_tpch": "tpch_exec",
+    "tests/test_optimizer.py::TestOptimizer::test_tpcds": "tpcds_opt",
+    "tests/test_optimizer.py::TestOptimizer::test_scope": "scope",
+    "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": "annotate_funcs",
+    "tests/test_executor.py::TestExecutor::test_agg_order": "agg_order",
 }
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
 
@@ -246,7 +250,10 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
         script = SCRIPT.with_name("bundle.py")
     elif group in {"generator", "dialects"}:
         script = SCRIPT.with_name("generator_cases.py")
-    elif group in {"imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial", "tpch_opt", "tpch_exec"}:
+    elif group in {
+        "imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial",
+        "tpch_opt", "tpch_exec", "tpcds_opt", "scope_scaled", "scope_full", "annotate_funcs", "agg_order",
+    }:
         script = SCRIPT.with_name("stage_check.py")
     else:
         script = SCRIPT
@@ -1647,6 +1654,34 @@ _TARGET_TEST_PROTECTED = {
             "subtestHelper", "cached_execute", "_mp_execute",
         }),
     ),
+    "agg_order": (
+        "tests/test_executor.py",
+        "TestExecutor",
+        frozenset({
+            "test_agg_order", "setUpClass", "tearDownClass", "setUp", "tearDown",
+        }),
+    ),
+    "tpcds_opt": (
+        "tests/test_optimizer.py",
+        "TestOptimizer",
+        frozenset({
+            "test_tpcds", "setUpClass", "tearDownClass", "setUp", "tearDown", "check_file",
+        }),
+    ),
+    "scope": (
+        "tests/test_optimizer.py",
+        "TestOptimizer",
+        frozenset({
+            "test_scope", "setUpClass", "tearDownClass", "setUp", "tearDown",
+        }),
+    ),
+    "annotate_funcs": (
+        "tests/test_optimizer.py",
+        "TestOptimizer",
+        frozenset({
+            "test_annotate_funcs", "setUpClass", "tearDownClass", "setUp", "tearDown",
+        }),
+    ),
     "parser": (
         "tests/test_parser.py",
         "TestParser",
@@ -1752,6 +1787,10 @@ _HELPERS_UNUSED = {
     "ds": frozenset({"TPCH_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
     "tpch_opt": frozenset({"TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
     "tpch_exec": frozenset({"TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "agg_order": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+    "tpcds_opt": frozenset({"TPCH_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "scope": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+    "annotate_funcs": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
     "parser": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
     "generator": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
 }
@@ -1861,7 +1900,10 @@ def changed_regions(text, *, sqlglot_only=False):
             continue
         if source is None or not re.fullmatch(r"sqlglot/(?:\w+/)*\w+\.py", path):
             return None
-        original = (Path(verify.PRISTINE) / path).read_text()
+        orig_path = Path(verify.PRISTINE) / path
+        if not orig_path.is_file():
+            return None
+        original = orig_path.read_text()
         removed = [n for h in files[path].hunks for n in h.removed_old_lines]
         scopes = impact._index()["scopes"].get(path)
         if scopes and any(not any(k == "def" and body <= n <= end
@@ -2001,6 +2043,79 @@ def _hunks_miss_lines(files, outside):
     return True
 
 
+@functools.cache
+def _tpcds_opt_profile():
+    import marshal
+    p = APP_DIR / "pin-cache" / "tpcds-opt-hits.marshal"
+    if not p.is_file():
+        return None
+    return marshal.loads(p.read_bytes())
+
+
+@functools.cache
+def _scope_stress_lines():
+    p = APP_DIR / "pin-cache" / "scope-stress-lines.json"
+    if not p.is_file():
+        return None
+    return {k: frozenset(v) for k, v in json.loads(p.read_text()).items()}
+
+
+@functools.cache
+def _annotate_funcs_profile():
+    import marshal
+    p = APP_DIR / "pin-cache" / "annotate-funcs-hits.marshal"
+    if not p.is_file():
+        return None
+    return marshal.loads(p.read_bytes())
+
+
+def _mask_indices(mask: int) -> list[int]:
+    out = []
+    i = 0
+    while mask:
+        if mask & 1:
+            out.append(i)
+        mask >>= 1
+        i += 1
+    return out
+
+
+def _hits_mask(hits_map: dict, regions: dict) -> int:
+    mask = 0
+    for path, spans in regions.items():
+        fh = hits_map.get(path)
+        if not fh:
+            continue
+        for lo, hi in spans:
+            for ln in range(lo, hi + 1):
+                bit = fh.get(ln)
+                if bit:
+                    mask |= bit
+    return mask
+
+
+def _all_compile(sql_files, changes) -> bool:
+    for f in sql_files:
+        src = changes.get(f.path)
+        if src is None:
+            return False
+        try:
+            compile(src, f.path, "exec", dont_inherit=True)
+        except SyntaxError:
+            return False
+    return True
+
+
+def _leaf_dialect_targets(path: str):
+    """For leaf dialect/parser/generator/typing files, return the complete MRO+import
+    closure of dialect names that depend on ``path``; else None."""
+    m = re.fullmatch(r"sqlglot/(?:dialects|parsers|generators|typing)/(\w+)\.py", path)
+    if not m or m.group(1) in {"dialect", "__init__", "base", "python"}:
+        return None
+    dep_map, _ = _dialect_reverse_deps()
+    return dep_map.get(impact._module_name(path))
+
+
 @functools.lru_cache(maxsize=256)
 def stage_edit(text, group):
     files = parse(text)
@@ -2015,6 +2130,139 @@ def stage_edit(text, group):
     non_sql_files = [f for f in files if f not in sql_files]
     non_sql_inert = all(_target_unreachable(f, group) for f in non_sql_files)
     strict_all = bool(sql_files) and non_sql_inert and all(eligible_file(f, "ds") for f in sql_files)
+
+    if group == "agg_order":
+        forbid_ao = () if non_sql_inert else ("tests/test_executor.py", "tests/helpers.py")
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_ao, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert:
+            return None
+        if any(f.path == "sqlglot/executor/table.py" for f in sql_files):
+            return None
+        changes = _apply_verifiable(text)
+        if not _all_compile(sql_files, changes):
+            return None
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        return "agg_order", paths, changes, []
+
+    if group == "tpcds_opt":
+        prof = _tpcds_opt_profile()
+        if prof is None or not (APP_DIR / "pin-cache" / "tpcds-opt-digests.json").is_file():
+            return None
+        forbid_to = (
+            ()
+            if non_sql_inert
+            else (
+                "tests/test_optimizer.py",
+                "tests/helpers.py",
+                "tests/fixtures/optimizer/tpc-ds/",
+            )
+        )
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_to, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert:
+            return None
+        changes = _apply_verifiable(text)
+        if not _all_compile(sql_files, changes):
+            return None
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        safe_files = all(
+            not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+            for f in sql_files
+        )
+        tfiles = set(prof["files"])
+        if strict_all:
+            if all(f.path not in tfiles for f in sql_files):
+                return "unreached", paths, changes, []
+            regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
+            if regions:
+                mask = _hits_mask(prof["hits"], regions)
+                if not mask:
+                    return "unreached", paths, changes, []
+                return "tpcds_opt", paths, changes, _mask_indices(mask)
+        if safe_files:
+            leaf_sets = [_leaf_dialect_targets(f.path) for f in sql_files]
+            if all(ls is not None and "" not in ls for ls in leaf_sets) and all(
+                f.path not in tfiles for f in sql_files
+            ):
+                return ("unreached" if strict_all else "imported"), paths, changes, []
+        return "tpcds_opt", paths, changes, list(range(99))
+
+    if group == "scope":
+        stress = _scope_stress_lines()
+        if stress is None:
+            return None
+        forbid_sc = () if non_sql_inert else ("tests/test_optimizer.py", "tests/helpers.py")
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_sc, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert:
+            return None
+        changes = _apply_verifiable(text)
+        if not _all_compile(sql_files, changes):
+            return None
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        safe_files = all(
+            not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+            for f in sql_files
+        )
+        if safe_files and all(
+            f.path not in stress or (strict_all and _hunks_miss_lines([f], stress))
+            for f in sql_files
+        ):
+            return "scope_scaled", paths, changes, []
+        return "scope_full", paths, changes, []
+
+    if group == "annotate_funcs":
+        prof = _annotate_funcs_profile()
+        if prof is None:
+            return None
+        forbid_af = (
+            ()
+            if non_sql_inert
+            else (
+                "tests/test_optimizer.py",
+                "tests/helpers.py",
+                "tests/fixtures/optimizer/annotate_functions.sql",
+            )
+        )
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_af, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert:
+            return None
+        changes = _apply_verifiable(text)
+        if not _all_compile(sql_files, changes):
+            return None
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        safe_files = all(
+            not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+            for f in sql_files
+        )
+        groups = prof["groups"]
+        counts = prof["counts"]
+        if strict_all:
+            regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
+            if regions:
+                mask = _hits_mask(prof["hits"], regions)
+                if not mask:
+                    return "unreached", paths, changes, []
+                idxs = _mask_indices(mask)
+                sel_groups = [groups[i] for i in idxs]
+                n_pairs = sum(counts[i] for i in idxs)
+                return "annotate_funcs", paths, changes, (sel_groups, n_pairs)
+        if safe_files:
+            leaf_sets = [_leaf_dialect_targets(f.path) for f in sql_files]
+            if all(ls is not None for ls in leaf_sets):
+                aff = set().union(*leaf_sets)
+                idxs = [
+                    i for i, gk in enumerate(groups)
+                    if any(d in aff for d in gk.split(", "))
+                ]
+                if not idxs:
+                    return ("unreached" if strict_all else "imported"), paths, changes, []
+                sel_groups = [groups[i] for i in idxs]
+                n_pairs = sum(counts[i] for i in idxs)
+                return "annotate_funcs", paths, changes, (sel_groups, n_pairs)
+        return "annotate_funcs", paths, changes, (None, sum(counts))
 
     if group in {"tpch_opt", "tpch_exec"}:
         if not (APP_DIR / "pin-cache" / "tpch-digests.json").is_file():
@@ -2042,6 +2290,8 @@ def stage_edit(text, group):
         if group == "tpch_exec" and any(f.path.startswith("sqlglot/executor/") for f in sql_files):
             return None
         changes = _apply_verifiable(text)
+        if not _all_compile(sql_files, changes):
+            return None
         paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
         return group, paths, changes, []
 
@@ -2278,6 +2528,11 @@ def economics(mode, cases):
         return 0.76, query_price(range(99), range(99), cases)
     if mode == "dialects":
         return 0.85, 0.16 + 0.025 * len(cases)
+    if mode == "tpcds_opt":
+        return 0.85, 0.05 + 0.015 * len(cases)
+    if mode == "annotate_funcs":
+        n_pairs = cases[1] if isinstance(cases, tuple) else 1973
+        return 0.85, 0.05 + 0.00045 * n_pairs
     return {
         "fixture-query": (0.75, 0.18),
         "unreached": (1.00, 0.005),
@@ -2289,6 +2544,9 @@ def economics(mode, cases):
         "generator": (0.35, 1.85),
         "tpch_opt": (0.90, 0.06),
         "tpch_exec": (0.92, 0.05),
+        "agg_order": (0.92, 0.04),
+        "scope_scaled": (0.90, 0.06),
+        "scope_full": (0.75, 1.15),
     }[mode]
 
 
@@ -2337,7 +2595,7 @@ _MEDIUM_DOCKER_CPU = {
     "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.66,
     "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": 0.78,
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 0.90,
-    "tests/test_executor.py::TestExecutor::test_agg_order": 0.40,
+    "tests/test_executor.py::TestExecutor::test_agg_order": 0.02,
     "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 1.01,
     "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.30,
     "tests/test_optimizer.py::TestOptimizer::test_scope": 1.36,
@@ -2489,6 +2747,32 @@ def options(patch, catalog, targets, dur, attempted=()):
             if mode in {"partial", "front"} and isinstance(cases, tuple) and len(cases) == 2:
                 cases, needs_pygen = cases
             probability, estimate = economics(mode, cases)
+            if group == "tpcds_opt" and mode not in {"unreached", "imported"}:
+                if len(cases) <= 45:
+                    if gain < max(0.30, 1.50 * estimate):
+                        continue
+                elif gain < 1.75:
+                    continue
+            elif group == "scope":
+                if mode == "scope_scaled" and gain < 0.25:
+                    continue
+                if mode == "scope_full" and gain < 1.75:
+                    continue
+            elif group == "annotate_funcs" and mode not in {"unreached", "imported"}:
+                n_pairs = cases[1] if isinstance(cases, tuple) else 1973
+                if n_pairs > 400 and any(
+                    f.path and f.path.startswith("tests/fixtures/") for f in parse(patch.text)
+                ):
+                    continue
+                if n_pairs <= 600:
+                    if gain < max(0.30, 1.50 * estimate):
+                        continue
+                elif gain < 1.45:
+                    continue
+            elif group == "agg_order" and gain < 0.20:
+                continue
+            if mode == "annotate_funcs" and isinstance(cases, tuple):
+                cases = cases[0]
             needs_heavy = False
             if group == "ds" and mode in {"front", "partial"}:
                 changed_paths = {p for p in paths.split(",") if p}
@@ -2716,7 +3000,8 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         gc.collect()
                         gc.freeze()
                 args = ([json.dumps(probe.cases)] if (
-                    probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim"}
+                    probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim", "tpcds_opt"}
+                    or (probe.mode == "annotate_funcs" and probe.cases is not None)
                     or (probe.mode == "scaled" and probe.cases)
                 ) else [])
                 if probe.mode == "rules":
@@ -2789,7 +3074,9 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     patch.full = False
                     queue[:] = [p for p in queue if p.patch is not patch]
                     enqueue(patch)
-                elif probe.group in {"tpch_opt", "tpch_exec", "generator"} and not any(
+                elif probe.group in {
+                    "tpch_opt", "tpch_exec", "tpcds_opt", "scope", "annotate_funcs", "agg_order", "generator"
+                } and not any(
                     p.patch is patch for p in queue
                 ):
                     enqueue(patch)
