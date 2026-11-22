@@ -276,7 +276,8 @@ def all_tail_paths():
 
 @functools.cache
 def ds_setup_paths():
-    return frozenset(json.loads((APP_DIR / "pin-cache/ds-setup.json").read_text()))
+    # TestExecutor.setUpClass() only invokes sqlglot.executor.table.Table().
+    return frozenset({"sqlglot/executor/table.py"})
 
 
 @functools.cache
@@ -301,8 +302,8 @@ def worker_path_queries():
 
 def _inert_new_class_attrs(path, source, fd=None):
     """Return True if ``source`` differs from the pinned ``path`` ONLY by adding
-    new class-level literal constant attribute(s) whose names never appear in
-    any pinned source file (e.g. a new feature flag on Dialect)."""
+    new class-level literal constant attribute(s) (with optional docstrings)
+    whose names never appear in any pinned source file."""
     if not source or not path.startswith("sqlglot/") or not path.endswith(".py"):
         return False
     if fd is not None:
@@ -310,8 +311,11 @@ def _inert_new_class_attrs(path, source, fd=None):
         if any(h.removed_old_lines for h in fd.hunks):
             return False
         added_lines = [line[1:].strip() for h in fd.hunks for line in h.lines if line[:1] == "+"]
-        if not added_lines or any(
-            ln and not ln.startswith("#") and "=" not in ln for ln in added_lines
+        if not added_lines or not any("=" in ln for ln in added_lines):
+            return False
+        if any(
+            ln and not ln.startswith(("#", '"""', "'''", '"', "'")) and "=" not in ln
+            for ln in added_lines
         ):
             return False
     before = impact._sources()["src"].get(path)
@@ -336,6 +340,13 @@ def _inert_new_class_attrs(path, source, fd=None):
             d = ast.dump(s)
             if d in old_dumps:
                 kept.append(s)
+                continue
+            # Allow attribute docstrings right after an added class constant.
+            if (
+                isinstance(s, ast.Expr)
+                and isinstance(s.value, ast.Constant)
+                and isinstance(s.value.value, str)
+            ):
                 continue
             # Must be a simple literal constant assignment of a brand-new name.
             if isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
@@ -366,6 +377,107 @@ def _no_cross_module_hazards(fd):
     return True
 
 
+def _method_tail_queries(path, source, fd, rows):
+    """If every hunk in ``fd`` is strictly confined inside the body of existing
+    non-dunder function/method(s) in ``path`` (with unchanged signatures and
+    identical code outside those bodies), return the exact union of tail query
+    indices whose execution trace entered any of those functions."""
+    if source is None or fd.is_new or fd.is_deleted or fd.is_rename or not fd.hunks:
+        return None
+    before = impact._sources()["src"].get(path)
+    if before is None:
+        return None
+    scopes = impact._index().get("scopes", {}).get(path)
+    if not scopes:
+        return None
+    defs = [
+        (start, end, name, body_start)
+        for kind, start, end, name, body_start in scopes[1]
+        if kind == "def"
+    ]
+    if not defs:
+        return None
+
+    # Map each individual modified line (removed or inserted) to its innermost
+    # enclosing non-dunder function so multi-method hunks and pure insertions
+    # near function boundaries work cleanly without spilling into context lines.
+    def _enclosing(ln):
+        cands = [d for d in defs if d[3] <= ln <= d[1]]
+        return max(cands, key=lambda x: x[0]) if cands else None
+
+    touched_fns = {}  # (start, end, qual, body_start) -> net line delta
+    for h in fd.hunks:
+        old_ln = h.old_start
+        for raw in h.lines:
+            tag = raw[:1]
+            if tag == " ":
+                old_ln += 1
+            elif tag == "-":
+                inner = _enclosing(old_ln)
+                if inner is None:
+                    return None
+                touched_fns[inner] = touched_fns.get(inner, 0) - 1
+                old_ln += 1
+            elif tag == "+":
+                inner = _enclosing(old_ln - 1) if old_ln > 1 else None
+                if inner is None:
+                    inner = _enclosing(old_ln)
+                if inner is None:
+                    return None
+                touched_fns[inner] = touched_fns.get(inner, 0) + 1
+    if not touched_fns:
+        return None
+    for inner in touched_fns:
+        simple_name = inner[2].rsplit(".", 1)[-1]
+        if simple_name.startswith("__"):
+            return None
+        if path.startswith("sqlglot/executor/") and not simple_name.startswith(
+            ("scan", "join", "aggregate", "sort", "execute", "generate")
+        ):
+            return None
+
+    # Sort non-overlapping enclosing functions; reject nested overlap for simplicity.
+    ordered = sorted(touched_fns.items(), key=lambda x: x[0][0])
+    for idx in range(1, len(ordered)):
+        if ordered[idx][0][0] <= ordered[idx - 1][0][1]:
+            return None
+
+    left, right = before.splitlines(), source.splitlines()
+    # Verify every byte outside the touched function bodies is identical and
+    # every touched function's signature/decorators are AST-identical.
+    prev_old = 0
+    cum_delta = 0
+    for (start, end, _qual, body_start), delta in ordered:
+        if left[prev_old : body_start - 1] != right[prev_old + cum_delta : body_start - 1 + cum_delta]:
+            return None
+        new_start = start - 1 + cum_delta
+        new_end = end + cum_delta + delta
+        try:
+            old_mod = ast.parse(textwrap.dedent("\n".join(left[start - 1 : end])))
+            new_mod = ast.parse(textwrap.dedent("\n".join(right[new_start:new_end])))
+        except SyntaxError:
+            return None
+        if len(old_mod.body) != 1 or len(new_mod.body) != 1:
+            return None
+        old_fn, new_fn = old_mod.body[0], new_mod.body[0]
+        if not (isinstance(old_fn, ast.FunctionDef) and isinstance(new_fn, ast.FunctionDef)):
+            return None
+        new_fn.body = old_fn.body
+        if ast.dump(old_fn) != ast.dump(new_fn):
+            return None
+        prev_old = end
+        cum_delta += delta
+    if left[prev_old:] != right[prev_old + cum_delta :]:
+        return None
+
+    ranges = [(start, end) for (start, end, _, _), _ in ordered]
+    return [
+        i
+        for i, row in enumerate(rows)
+        if any(p == path and any(s <= n <= e for s, e in ranges) for p, n in row["calls"])
+    ]
+
+
 def tail_cases(path, source, fd, *, strict=True):
     rows = downstream()
     all_cases = list(range(len(rows)))
@@ -374,13 +486,23 @@ def tail_cases(path, source, fd, *, strict=True):
     if _inert_new_class_attrs(path, source, fd):
         return []
     tpaths = all_tail_paths()
+    if fd.is_new and path not in tpaths:
+        return []
     if path not in tpaths and (strict or _no_cross_module_hazards(fd)):
         return []
+    if fd.is_new or fd.is_deleted or fd.is_rename:
+        return all_cases
+    # Fast method-body confinement works for ALL sqlglot/*.py files (including
+    # schema.py, trie.py, expressions/*.py, dialects/dialect.py, generator.py).
+    if strict or _no_cross_module_hazards(fd):
+        mq = _method_tail_queries(path, source, fd, rows)
+        if mq is not None:
+            return mq
     if not re.fullmatch(
         r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py",
         path,
     ):
-        if strict and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
+        if (strict or _no_cross_module_hazards(fd)) and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
             return list(tail_path_queries()[path])
         return all_cases
     if path.startswith("sqlglot/optimizer/") and source is not None:
@@ -407,46 +529,6 @@ def tail_cases(path, source, fd, *, strict=True):
     if lines and not any(not h.old_len or not h.new_len for h in fd.hunks):
         before = (Path(verify.PRISTINE) / path).read_text()
         old = ast.parse(before)
-        for fn in ast.walk(old):
-            if (
-                not isinstance(fn, ast.FunctionDef)
-                or not fn.body
-                or fn.name.startswith("__")
-            ):
-                continue
-            if fn.body[0].lineno > min(lines) or max(lines) > fn.end_lineno:
-                continue
-            start, end = fn.body[0].lineno - 1, fn.end_lineno
-            left, right = before.splitlines(), source.splitlines()
-            new_end = end + len(right) - len(left)
-            if left[:start] != right[:start] or left[end:] != right[new_end:]:
-                break
-            new = ast.parse(source)
-            updated = next(
-                (
-                    f
-                    for f in ast.walk(new)
-                    if isinstance(f, ast.FunctionDef)
-                    and f.name == fn.name
-                    and f.lineno == fn.lineno
-                ),
-                None,
-            )
-            if updated is None:
-                break
-            updated.body = fn.body
-            if ast.dump(old) != ast.dump(new):
-                break
-            first = min([fn.lineno, *(x.lineno for x in fn.decorator_list)])
-            if path.startswith("sqlglot/executor/") and not fn.name.startswith(
-                ("scan", "join", "aggregate", "sort", "execute", "generate")
-            ):
-                return all_cases
-            return [
-                i
-                for i, row in enumerate(rows)
-                if any(p == path and first <= n <= end for p, n in row["calls"])
-            ]
         if path == "sqlglot/parser.py" or path.startswith("sqlglot/parsers/"):
             for cls in old.body:
                 if not isinstance(cls, ast.ClassDef):
@@ -484,7 +566,7 @@ def tail_cases(path, source, fd, *, strict=True):
                         for i, row in enumerate(rows)
                         if path in row["paths"] or ids.intersection(row["names"])
                     ]
-    if strict and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
+    if (strict or _no_cross_module_hazards(fd)) and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
         return list(tail_path_queries()[path])
     return all_cases
 
@@ -619,12 +701,58 @@ def optimizer_tuple_reads(path, source):
     return None
 
 
+@functools.cache
+def _target_bit(group):
+    idx = impact._index()
+    tests = idx["tests"]
+    for tid, grp in TARGETS.items():
+        if grp == group and tid in tests:
+            return 1 << tests.index(tid)
+    return 0
+
+
+def _target_unreachable(fd, group):
+    """True when a non-sqlglot file under tests/ is provably never imported,
+    executed, or opened by the heavy target test for ``group``."""
+    p = fd.path
+    if not p or not p.startswith("tests/") or fd.is_binary or fd.mode_change:
+        return False
+    if p in {"tests/__init__.py", "tests/helpers.py", "tests/conftest.py"}:
+        return False
+    if p.rsplit("/", 1)[-1] in _PYTEST_LEVEL_NAMES:
+        return False
+    bit = _target_bit(group)
+    if not bit:
+        return False
+    idx = impact._index()
+    sets = idx["sets"]
+    for path in fd.paths:
+        if not path or not path.startswith("tests/"):
+            return False
+        cov = idx["cov"].get(path)
+        if cov and any(sets[sid] & bit for sid in set(cov.values())):
+            return False
+        osid = idx["opens"].get(path)
+        if osid is not None and (sets[osid] & bit):
+            return False
+        if fd.is_new or fd.is_deleted or fd.is_rename:
+            d = path
+            while "/" in d:
+                d = d.rsplit("/", 1)[0]
+                dsid = idx["listdirs"].get(d)
+                if dsid is not None and (sets[dsid] & bit):
+                    return False
+    return True
+
+
 @functools.lru_cache(maxsize=4)
-def changed_regions(text):
+def changed_regions(text, *, sqlglot_only=False):
     changes = verify.apply_patch(text)
     result = {}
     files = {f.path: f for f in parse(text)}
     for path, source in changes.items():
+        if sqlglot_only and not path.startswith("sqlglot/"):
+            continue
         if source is None or not re.fullmatch(r"sqlglot/(?:\w+/)*\w+\.py", path):
             return None
         original = (Path(verify.PRISTINE) / path).read_text()
@@ -643,7 +771,7 @@ def changed_regions(text):
         if ranges is None:
             return None
         result[path] = ranges
-    return result
+    return result or None
 
 
 @functools.cache
@@ -739,21 +867,27 @@ def stage_edit(text, group):
         return "fixture-query", "", verify.apply_patch(text), []
 
     sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
-    strict_all = bool(files) and all(eligible_file(f, "ds") for f in files)
+    non_sql_files = [f for f in files if f not in sql_files]
+    non_sql_inert = all(_target_unreachable(f, group) for f in non_sql_files)
+    strict_all = bool(sql_files) and non_sql_inert and all(eligible_file(f, "ds") for f in sql_files)
 
     if group == "generator":
-        if not patch_verifiable_files(files, forbid_prefixes=("tests/test_generator.py", "tests/helpers.py")):
+        if not patch_verifiable_files(
+            files,
+            forbid_prefixes=("tests/test_generator.py", "tests/helpers.py"),
+            allow_structural=True,
+        ):
             return None
         changes = verify.apply_patch(text)
-        paths = ",".join(p for p in changes if p.startswith("sqlglot/") and p.endswith(".py"))
+        paths = ",".join(p for p, src in changes.items() if src is not None and p.startswith("sqlglot/") and p.endswith(".py"))
         if strict_all:
-            regions = changed_regions(text)
+            regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
             if regions:
                 rows = probe_profiles("generator")
                 if not query_slice.reached(rows["generator-setup"], regions):
                     dialects = [k[4:] for k, v in rows.items() if k.startswith("gen:") and query_slice.reached(v, regions)]
                     return "dialects", paths, changes, dialects
-        if sql_files:
+        if sql_files and non_sql_inert and not any(f.is_new or f.is_deleted or f.is_rename for f in sql_files):
             aff = _affected_generator_dialects(sql_files)
             if aff is not None:
                 return "dialects", paths, changes, aff
@@ -762,11 +896,11 @@ def stage_edit(text, group):
     if group == "parser":
         if not patch_verifiable_files(files, forbid_prefixes=("tests/test_parser.py", "tests/helpers.py")):
             return None
-        if not sql_files or not all(eligible_file(f, "ds") for f in sql_files):
+        if not sql_files or not non_sql_inert or not all(eligible_file(f, "ds") for f in sql_files):
             return None
         changes = verify.apply_patch(text)
         paths = ",".join(f.path for f in sql_files)
-        regions = changed_regions(text) if strict_all else None
+        regions = changed_regions(text, sqlglot_only=bool(non_sql_files)) if strict_all else None
         if regions and not any(query_slice.reached(profile("parser")[k]["lines"], regions) for k in ("parser:setup", "parser:2")):
             return "small", paths, changes, []
         if not all(eligible_file(f, "parser") for f in sql_files):
@@ -776,27 +910,34 @@ def stage_edit(text, group):
     # group == "ds"
     if not patch_verifiable_files(
         files,
-        forbid_prefixes=("tests/test_executor.py", "tests/helpers.py", "tests/fixtures/optimizer/tpc-ds/"),
+        forbid_prefixes=(
+            "tests/test_executor.py",
+            "tests/helpers.py",
+            "tests/fixtures/optimizer/tpc-ds/",
+            "tests/fixtures/optimizer/tpc-h/",
+        ),
+        allow_structural=True,
     ):
         return None
     if not sql_files:
         return None
     changes = verify.apply_patch(text)
-    # Filter out files proven inert (new unread class constants only) from setup/worker tracking.
     active_sql_files = [f for f in sql_files if not _inert_new_class_attrs(f.path, changes.get(f.path), f)]
     if not active_sql_files:
-        return "unreached", "", changes, []
-    paths = ",".join(f.path for f in active_sql_files)
+        if non_sql_inert:
+            return "unreached", "", changes, []
+        return None
+    paths = ",".join(f.path for f in active_sql_files if changes.get(f.path) is not None)
 
     if strict_all:
-        regions = changed_regions(text)
+        regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
         if len(files) == 1 and regions is None and token_options.corpus_edit(paths, (Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
             return "tokens", paths, changes, []
-        if paths == "sqlglot/tokens.py" and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
+        if paths == "sqlglot/tokens.py" and len(sql_files) == 1 and query_slice.keyword_edit((Path(verify.PRISTINE) / paths).read_text(), changes[paths]):
             return "tokens", paths, changes, []
         selection = query_slice.query_cases(regions) if regions else None
         if selection is not None and not selection["active"]:
-            if local_edit(text):
+            if not non_sql_files and local_edit(text):
                 return "unreached", paths, changes, []
             selection["execute"] = []
             return "slice", paths, changes, selection
@@ -859,6 +1000,25 @@ def stage_edit(text, group):
             for f in active_sql_files
         ))
     )
+    setup = ds_setup_paths()
+    if (
+        non_sql_inert
+        and all(
+            not (f.is_new or f.is_deleted or f.is_rename)
+            and f.path not in setup
+            and _no_cross_module_hazards(f)
+            for f in active_sql_files
+        )
+    ):
+        wmap = worker_path_queries()
+        wqs = sorted(set().union(*(wmap.get(f.path, ()) for f in active_sql_files)))
+        if len(wqs) < 57:
+            sel = {
+                "active": list(range(99)),
+                "worker": wqs,
+                "execute": sorted(set(cases).intersection(wqs)),
+            }
+            return "slice", paths, changes, sel
     return ("partial" if cases else "front"), paths, changes, cases
 
 
@@ -1045,7 +1205,7 @@ def options(patch, catalog, targets, dur, attempted=()):
             yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
                         gain, probability, estimate, heavy_mod=needs_heavy)
 
-    # Warm-fork fast verification for 0-failure pure-code patches & multi-worker trimming.
+    # Warm-fork fast verification for cheap, high-ROI 0-failure pure-code patches.
     if patch.missing or heavy_in_req or not patch.workers:
         return
     files = parse(patch.text)
@@ -1053,61 +1213,32 @@ def options(patch, catalog, targets, dur, attempted=()):
         return
     sql_paths = ",".join(f.path for f in files)
     selected = set().union(*patch.workers)
-    pl_packed = {n for n in (patch.pl & selected) if dur[n] <= 150}
+    pl_packed = {n for n in (patch.pl & selected) if dur[n] <= 120}
     target_set = patch.req | pl_packed
     sim_cost = plan_cost(patch.workers, dur) / 1000
-    bundle_queued = False
 
-    if (patch, "bundle") not in attempted and len(target_set) <= 250 and sim_cost >= 2.0:
+    if (patch, "bundle") not in attempted and len(target_set) <= 120 and sim_cost >= 2.0:
         cases = _order_bundle_cases(target_set, catalog, dur, files)
         if all(len(node.split("::")) == 3 for node in cases):
             tfiles = {node.split("::", 1)[0] for node in cases}
-            setup_cost, uses_heavy = _bundle_setup_cost(tfiles, cases)
-            run_est = sum(_test_docker_cpu(catalog[n], dur[n]) for n in target_set)
-            est = setup_cost + (0.20 if uses_heavy else 0.0) + 0.14 + run_est
-            if run_est <= 4.8 and est < 0.80 * sim_cost:
-                bundle_queued = True
-                yield Probe(patch, "bundle", None, "bundle", sql_paths,
-                            cases, (set(), set(), []), sim_cost,
-                            0.45, est, heavy_mod=uses_heavy)
-
-    # Non-failfast multi-worker trim: verify high-ROI medium tests in one fork to
-    # drop workers / shrink makespan even on patches that have failing unit tests.
-    if (not bundle_queued and (patch, "trim") not in attempted
-            and len(patch.workers) >= 2 and sim_cost >= 6.0):
-        cands = [n for n in patch.req if catalog[n] in _TRIM_CANDIDATES]
-        if cands:
-            # Sort candidates by catalog/docker_cpu ratio descending.
-            cands.sort(key=lambda n: -(dur[n] / 1000.0) / max(0.05, _test_docker_cpu(catalog[n], dur[n])))
-            chosen = []
-            chosen_cpu = 0.0
-            for n in cands:
-                c = _test_docker_cpu(catalog[n], dur[n])
-                if chosen_cpu + c > 3.6:
-                    continue
-                chosen.append(n)
-                chosen_cpu += c
-            if chosen:
-                chosen_set = set(chosen)
-                req_after = patch.req - chosen_set
-                pl_after = patch.pl - chosen_set
-                workers_after = schedule(req_after, pl_after, dur) if req_after else []
-                gain = (plan_cost(patch.workers, dur) - plan_cost(workers_after, dur)) / 1000
-                trim_cases = [catalog[n] for n in sorted(chosen, key=lambda n: (catalog[n].split("::", 1)[0], dur[n], n))]
-                tfiles = {node.split("::", 1)[0] for node in trim_cases}
-                setup_cost, uses_heavy = _bundle_setup_cost(tfiles, trim_cases)
-                est = setup_cost + (0.20 if uses_heavy else 0.0) + 0.14 + chosen_cpu
-                if gain >= 1.55 * est and (gain - est) >= 1.5 and est <= 4.5:
-                    yield Probe(patch, "trim", None, "trim", sql_paths,
-                                trim_cases, (req_after, pl_after, workers_after),
-                                gain, 0.70, est, heavy_mod=uses_heavy)
+            if "tests/test_executor.py" not in tfiles:
+                setup_cost, uses_heavy = _bundle_setup_cost(tfiles, cases)
+                run_est = sum(_test_docker_cpu(catalog[n], dur[n]) for n in target_set)
+                est = setup_cost + (0.20 if uses_heavy else 0.0) + 0.14 + run_est
+                is_tiny = (not uses_heavy) and est <= 0.55
+                min_roi = 1.6 if is_tiny else (2.2 if uses_heavy else 1.9)
+                max_run = 1.6 if uses_heavy else 2.2
+                if run_est <= max_run and sim_cost >= min_roi * est:
+                    yield Probe(patch, "bundle", None, "bundle", sql_paths,
+                                cases, (set(), set(), []), sim_cost,
+                                0.45 if is_tiny else 0.40, est, heavy_mod=uses_heavy)
 
 
 def run(patches, catalog, dur, t0, *, deadline=None):
     from .probe_session import PatchSession
     started = cpu()
-    allowance = min(110.0, max(20.0, 2.0 * len(patches)))
-    cpu_ceiling = max(24.0, min(90.0, 1.5 * len(patches)))
+    allowance = min(80.0, max(16.0, 1.35 * len(patches)))
+    cpu_ceiling = max(14.0, min(50.0, 0.80 * len(patches)))
     if deadline is None:
         deadline = t0 + min(180, 3 * max(40, len(patches)))
     targets = [(t["number"], TARGETS[t["id"]]) for t in catalog if t["id"] in TARGETS]
@@ -1129,15 +1260,15 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         continue
                     if probe.mode == "slice":
                         cases = probe.cases
-                        cost = 0.30 + 0.005 * len(cases["active"]) + 0.04 * len(cases["worker"])
+                        cost = 0.25 + 0.004 * len(cases["active"]) + 0.03 * len(cases["worker"])
                         executed = cases["execute"]
                     else:
-                        cost, executed = 3.0, probe.cases
+                        cost, executed = 2.0, probe.cases
                     cost += sum(query_costs()[i].get("execute", 0) for i in executed)
                     if cost >= probe.gain:
                         continue
                 # Never admit a full 33-dialect generator probe unless gain > estimate.
-                if probe.mode == "generator" and probe.gain <= probe.estimate + 0.20:
+                if probe.mode == "generator" and probe.gain <= probe.estimate + 0.30:
                     continue
                 queue.append(probe)
         except Exception:
@@ -1148,9 +1279,9 @@ def run(patches, catalog, dur, t0, *, deadline=None):
     print("probe-queue", len(queue), f"{cpu()-started:.4f}", file=sys.stderr)
     if any(p.mode != "unreached" for p in queue):
         warm_replay.prepare_base()
-    # Pre-import numpy/pandas/duckdb ONCE in parent ONLY when >= 2 queued
-    # probes need them, and pytest ONLY when collection probes exist.
-    if sum(1 for p in queue if p.heavy_mod) >= 2:
+    # Pre-import numpy/pandas/duckdb ONCE in parent ONLY when >= 3 queued probes
+    # truly need them, and pytest ONLY when >= 2 collection probes exist.
+    if sum(1 for p in queue if p.heavy_mod) >= 3:
         warm_replay.prepare_data_libs()
     if sum(1 for p in queue if p.mode == "catalog") >= 2:
         warm_replay.prepare_pytest()
@@ -1160,28 +1291,33 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             queue.sort(key=lambda p: (p.priority, p.patch is active, p.patch.commit))
             probe = queue.pop()
             if probe.group == "bundle":
-                is_small = (not probe.heavy_mod) and probe.estimate <= 0.70
+                is_small = (not probe.heavy_mod) and probe.estimate <= 0.55
                 if is_small:
-                    p_clean = (1.2 + small_wins) / (3.0 + small_tries)
-                    fail_cost = min(probe.estimate, 0.22)
+                    p_clean = (1.0 + small_wins) / (3.0 + small_tries)
+                    fail_cost = min(probe.estimate, 0.20)
+                    min_net = 0.08
                 else:
-                    p_clean = (1.0 + med_wins) / (3.0 + med_tries)
+                    p_clean = (0.9 + med_wins) / (3.0 + med_tries)
                     fail_cost = min(probe.estimate, 0.25 if warm_replay.heavy_ready else 0.45)
+                    min_net = 0.25
                 expected_net = p_clean * (probe.gain - probe.estimate) - (1.0 - p_clean) * fail_cost
-                if expected_net <= 0.15:
+                if expected_net <= min_net:
                     continue
             if probe.group == "collection":
-                cpu_limit = min(10.0, max(4.0, 2.5 * probe.estimate + 1.5))
+                cpu_limit = min(8.0, max(3.5, 2.2 * probe.estimate + 1.0))
             elif probe.group == "ds":
-                ds_cap = 13.5 if probe.gain >= 14.0 else 9.0
-                cpu_limit = min(ds_cap, max(3.0, 2.2 * probe.estimate + 1.0))
+                if probe.mode == "rules":
+                    cpu_limit = min(2.8, max(1.5, 2.2 * probe.estimate + 0.8))
+                else:
+                    ds_cap = 10.0 if probe.gain >= 14.0 else 5.5
+                    cpu_limit = min(ds_cap, max(2.5, 2.0 * probe.estimate + 1.0))
             else:
-                cpu_limit = min(7.5, max(2.0, 2.5 * probe.estimate + 1.0))
+                cpu_limit = min(4.5, max(1.5, 2.2 * probe.estimate + 0.8))
             # Skip ds probes that require heavy forced execution exceeding cpu_limit.
             if probe.mode in {"partial", "slice"}:
                 forced = probe.cases["execute"] if probe.mode == "slice" else probe.cases
                 min_exec = sum(query_costs()[i].get("execute", 0) for i in forced)
-                if min_exec > 0.92 * cpu_limit:
+                if min_exec > 0.90 * cpu_limit:
                     continue
             patch = probe.patch
             if probe.group != "collection" and probe.mode != "unreached":
@@ -1220,7 +1356,6 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         {"partial", "slice", "rules", "dialects", "bundle", "trim"} else [])
                 if probe.mode == "rules":
                     args.append("verify-results")
-                    cpu_limit = min(8.5, max(cpu_limit, 2.5))
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1 and probe.mode != "unreached":
                     break
@@ -1234,18 +1369,17 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     result = replay(probe.mode, args, work, deadline, probe.paths, cpu_limit)
                     phase = replay.phase
                 if result == "failed" and probe.mode in {"corpus", "tokens"}:
-                    regions = changed_regions(patch.text)
+                    files = parse(patch.text)
+                    sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
+                    regions = changed_regions(patch.text, sqlglot_only=len(sql_files) < len(files))
                     selection = query_slice.query_cases(regions) if regions else None
                     if selection is None:
-                        files = parse(patch.text)
-                        sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
                         forced = sorted(set().union(*(tail_cases(f.path, changes.get(f.path), f, strict=bool(eligible_file(f, "ds"))) for f in sql_files)))
                         mode = "partial" if forced else "front"
                         args = [json.dumps(forced)] if forced else []
                         price = query_price(range(99), range(99), forced)
                     else:
-                        files = parse(patch.text)
-                        forced = set().union(*(tail_cases(f.path, changes[f.path], f, strict=True) for f in files))
+                        forced = set().union(*(tail_cases(f.path, changes[f.path], f, strict=True) for f in sql_files))
                         selection["execute"] = sorted(forced.intersection(selection["worker"]))
                         mode, args = "slice", [json.dumps(selection)]
                         price = economics(mode, selection)[1]
@@ -1287,7 +1421,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
             if result == "timeout" and probe.group != "collection":
                 allowance -= max(0.0, cpu_limit - probe.estimate)
             if probe.group == "bundle":
-                is_small = (not probe.heavy_mod) and probe.estimate <= 0.70
+                is_small = (not probe.heavy_mod) and probe.estimate <= 0.55
                 if is_small:
                     small_tries += 1
                     small_wins += result == "pass"

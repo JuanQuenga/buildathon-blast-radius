@@ -57,6 +57,55 @@ class TestCandidate19(unittest.TestCase):
         self.assertTrue(issubclass(result_replay._JoinBudgetExceeded, BaseException))
         self.assertFalse(issubclass(result_replay._JoinBudgetExceeded, Exception))
 
+    def test_needs_parse_check(self):
+        self.assertFalse(result_replay._needs_parse_check(["sqlglot.optimizer.simplify"]))
+        self.assertFalse(result_replay._needs_parse_check(["sqlglot.generators.duckdb", "sqlglot.typing.duckdb"]))
+        self.assertFalse(result_replay._needs_parse_check(["sqlglot.executor.python", "sqlglot.planner"]))
+        self.assertTrue(result_replay._needs_parse_check(["sqlglot.optimizer.scope"]))
+        self.assertTrue(result_replay._needs_parse_check(["sqlglot.expressions.datatypes"]))
+        self.assertTrue(result_replay._needs_parse_check(["sqlglot.serde"]))
+        self.assertTrue(result_replay._needs_parse_check(["sqlglot.parser"]))
+        self.assertTrue(result_replay._needs_parse_check([]))
+
+    def test_method_tail_queries_rejects_early_close_injection(self):
+        from selector.patch import parse
+
+        path = "sqlglot/schema.py"
+        before = impact._sources()["src"][path]
+        scopes = impact._index()["scopes"][path][1]
+        fn = next(s for s in scopes if s[0] == "def" and not s[3].rsplit(".", 1)[-1].startswith("__"))
+        start, end, _name, body_start = fn[1], fn[2], fn[3], fn[4]
+        lines = before.splitlines()
+        # Craft a fake patch that injects an unindented class-level statement at end of method.
+        indent = lines[start - 1][: len(lines[start - 1]) - len(lines[start - 1].lstrip())]
+        injected = lines[:end] + [indent + "_INJECTED = 1"] + lines[end:]
+        after = "\n".join(injected) + "\n"
+        diff = (
+            f"diff --git a/{path} b/{path}\n"
+            f"--- a/{path}\n"
+            f"+++ b/{path}\n"
+            f"@@ -{end},1 +{end},2 @@\n"
+            f" {lines[end - 1]}\n"
+            f"+{indent}_INJECTED = 1\n"
+        )
+        fd = parse(diff)[0]
+        rows = [{"calls": [(path, start)]}]
+        self.assertIsNone(heavy._method_tail_queries(path, after, fd, rows))
+        # A genuine body-only insertion inside the same method returns [0].
+        body_indent = lines[body_start - 1][: len(lines[body_start - 1]) - len(lines[body_start - 1].lstrip())]
+        ok_lines = lines[:body_start] + [body_indent + "pass"] + lines[body_start:]
+        ok_after = "\n".join(ok_lines) + "\n"
+        ok_diff = (
+            f"diff --git a/{path} b/{path}\n"
+            f"--- a/{path}\n"
+            f"+++ b/{path}\n"
+            f"@@ -{body_start},1 +{body_start},2 @@\n"
+            f" {lines[body_start - 1]}\n"
+            f"+{body_indent}pass\n"
+        )
+        ok_fd = parse(ok_diff)[0]
+        self.assertEqual(heavy._method_tail_queries(path, ok_after, ok_fd, rows), [0])
+
     def test_needs_transpile_check(self):
         self.assertFalse(result_replay._needs_transpile_check(["sqlglot.optimizer.simplify"]))
         self.assertFalse(result_replay._needs_transpile_check(["sqlglot.executor.python", "sqlglot.planner"]))
@@ -105,7 +154,12 @@ class TestCandidate19(unittest.TestCase):
         src = impact._sources()["src"]["sqlglot/dialects/dialect.py"]
         idx = src.index("class Dialect(")
         line_end = src.index("\n", idx) + 1
-        added = src[:line_end] + "    _BRAND_NEW_UNREAD_FLAG_999 = False\n" + src[line_end:]
+        added = (
+            src[:line_end]
+            + "    _BRAND_NEW_UNREAD_FLAG_999 = False\n"
+            + '    """Docstring for brand-new flag."""\n'
+            + src[line_end:]
+        )
         self.assertTrue(heavy._inert_new_class_attrs("sqlglot/dialects/dialect.py", added))
         # Existing attribute name must NOT be considered inert.
         existing = src[:line_end] + "    NORMALIZE_FUNCTIONS = False\n" + src[line_end:]

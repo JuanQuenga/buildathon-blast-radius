@@ -3,7 +3,17 @@ import contextlib
 import hashlib
 import os
 import pickle
+import time
 
+
+# Modules provably disjoint from default-dialect parse_one(sql) + pickle round-trip.
+_PARSE_DISJOINT_EXACT = frozenset({
+    "sqlglot.planner",
+    "sqlglot.generator",
+    "sqlglot.schema",
+    "sqlglot.lineage",
+    "sqlglot.diff",
+})
 
 # Exact modules executed by transpile(sql, write="duckdb") on the 57 executed TPC-DS queries.
 _TRANSPILE_MODULES = frozenset({
@@ -32,8 +42,10 @@ _TRANSPILE_MODULES = frozenset({
 })
 
 # Pinned max nested-loop join pair count across all 57 TPC-DS queries is 10,000.
-# 100x that limit prevents quadratic join blowups from burning 10-35s CPU.
-_NLJ_PAIR_LIMIT = 1_000_000
+# 50x that limit prevents quadratic join blowups from burning 10-35s CPU.
+_NLJ_PAIR_LIMIT = 500_000
+# Slowest pinned TPC-DS query takes ~0.62s total CPU; 2.2s catches broken/slow plans early.
+_PER_QUERY_CPU_LIMIT = 2.2
 
 
 class _JoinBudgetExceeded(BaseException):
@@ -45,6 +57,23 @@ def table_digest(table):
     for values in (table.columns, *table.rows):
         result.update(pickle.dumps(tuple(values), protocol=4))
     return result.hexdigest()
+
+
+def _needs_parse_check(changed_modules):
+    if not changed_modules:
+        return True
+    for mod in changed_modules:
+        if mod in _PARSE_DISJOINT_EXACT:
+            continue
+        if (
+            (mod.startswith("sqlglot.optimizer.") and mod != "sqlglot.optimizer.scope")
+            or mod.startswith("sqlglot.executor.")
+            or mod.startswith("sqlglot.generators.")
+            or mod.startswith("sqlglot.typing.")
+        ):
+            continue
+        return True
+    return False
 
 
 def _needs_transpile_check(changed_modules):
@@ -96,6 +125,7 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     reference_setup = contextlib.ExitStack()
     changed_reference = set()
     changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
+    check_parse = _needs_parse_check(changed_modules)
     check_transpile = _needs_transpile_check(changed_modules)
 
     ex.PythonExecutor.execute = check_plan
@@ -110,15 +140,24 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
         mark("parse")
         for i in sorted(active):
             meta, sql, _ = test.tpcds_sqls[i]
+            is_exec = bool(meta.get("execute"))
+            if not check_parse and not is_exec:
+                continue
+            if not check_parse and not check_transpile and selection is not None and i not in selection["worker"]:
+                continue
             expr = pickle.loads(pickle.dumps(tests.parse_one(sql)))
-            matches = digest(expr.dump()) == expected[i][2]
-            if meta.get("execute"):
+            matches = (digest(expr.dump()) == expected[i][2]) if check_parse else True
+            if is_exec:
                 inputs.append((i, meta, sql, expr, matches))
         if check_transpile:
             mark("generate")
             for i, meta, sql, expr, parsed_matches in inputs:
                 if digest(tests.transpile(sql, write="duckdb")) != expected[i][4]:
                     changed_reference.add(i)
+                    # Mass DuckDB reference SQL divergence (e.g. pretty=True) would
+                    # require full live DuckDB execution across all queries -> retain.
+                    if len(changed_reference) > 10:
+                        raise ValueError("broad reference SQL change")
         for i, meta, sql, expr, parsed_matches in inputs:
             reference = expected[i]
             mark("optimize")
@@ -126,10 +165,13 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             required |= i in changed_reference
             if not required and selection is not None and i not in selection["worker"] and parsed_matches:
                 continue
+            q_start = time.process_time()
             ran = skipped = False
             table = tests.mp_execute(expr, meta)
             if join_overrun:
                 raise _JoinBudgetExceeded("nested loop join budget exceeded")
+            if time.process_time() - q_start > _PER_QUERY_CPU_LIMIT:
+                raise _JoinBudgetExceeded("per-query CPU budget exceeded")
             if skipped and table is None:
                 continue
             if not ran or table is None:
@@ -137,7 +179,6 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             table = pickle.loads(pickle.dumps(table))
             if i in changed_reference:
                 if live_reference is None:
-                    # Run the original assertion when its DuckDB SQL changes.
                     from tests.test_executor import TestExecutor
                     if hasattr(test, "tpcds_conn"):
                         live_reference = test

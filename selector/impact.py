@@ -700,7 +700,7 @@ class Analysis:
     def __init__(self):
         self.check_imports = False
         self.single_file = False
-        self.fixture_only = self.precise_fixture = False
+        self.fixture_only = self.precise_fixture = self.safe_fixture_proj = False
         self.idx = _index()
         self.req = 0
         self.plaus = 0
@@ -908,10 +908,11 @@ class Analysis:
                     sid = dirs.get(d)
                     if sid is not None:
                         b |= self.sets(sid)
-        if b and self.fixture_only:
+        if b and (self.fixture_only or self.safe_fixture_proj):
             from .fixture_fields import project
             observed = project(fp, b, self.idx["tests"], apply_hunks)
-            self.precise_fixture |= observed != b
+            if self.fixture_only:
+                self.precise_fixture |= observed != b
             b = observed
         self.add(b, f"data {fp.path} ({fp.status}) readers")
         p = fp.path or ""
@@ -2326,6 +2327,10 @@ def select(patch_text: str, catalog: list[dict]) -> dict:
             raise Unsupported("no file diffs found")
         an.single_file = len(files) == 1
         an.fixture_only = all(f.path and f.path.startswith("tests/fixtures/") for f in files)
+        an.safe_fixture_proj = not any(
+            p in {"tests/helpers.py", "tests/test_executor.py", "tests/test_optimizer.py"}
+            for f in files for p in (f.old_path, f.new_path) if p
+        )
         # Existing fixture edits contribute their own observed readers. They
         # cannot introduce new Python code before those reads.
         an.one_code_edit = an.single_file or sum(not _inert_companion(f) for f in files) == 1

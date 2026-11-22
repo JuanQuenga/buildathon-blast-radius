@@ -83,6 +83,11 @@ def _build_lightweight_tpcds():
     without importing duckdb/pandas/numpy or unpickling the 15 MB table blob."""
     import sqlglot
     import sqlglot.executor as ex
+    from sqlglot.errors import ExecuteError  # noqa: F401
+    from sqlglot.executor.python import Python, PythonExecutor  # noqa: F401
+    from sqlglot.executor.table import Table, ensure_tables  # noqa: F401
+    from sqlglot.optimizer import optimize  # noqa: F401
+    from sqlglot.planner import Plan  # noqa: F401
     from tests.helpers import TPCDS_SCHEMA
 
     cache = BASE.with_name("pin-cache")
@@ -141,25 +146,16 @@ def executor(record, expected, full, selection=None):
     if selection is not None and not selection["active"]:
         return [], []
     if not record:
+        # TestExecutor.setUpClass() only calls sqlglot.executor.table.Table()
+        # and tests.helpers.load_sql_fixture_pairs(). For all other sqlglot/*.py
+        # edits, the pinned tables & SQL fixtures are bit-for-bit identical,
+        # avoiding ~2.0s of CSV decompression and duckdb/pandas imports.
         changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
-        setup_files = set(json.loads((APP_DIR / "pin-cache/ds-setup.json").read_text()))
-        pristine_setup = bool(expected) and (
-            selection is not None
-            or (
-                bool(changed_modules)
-                and all(m.replace(".", "/") + ".py" not in setup_files for m in changed_modules)
-            )
-            or (
-                len(changed_modules) == 1
-                and (
-                    changed_modules[0] == "sqlglot.parser"
-                    or changed_modules[0].startswith(("sqlglot.parsers.", "sqlglot.optimizer."))
-                )
-                and changed_modules[0].replace(".", "/") + ".py" not in setup_files
-            )
+        touches_table_setup = any(
+            m in {"sqlglot.executor.table", "tests.helpers", "tests.test_executor"}
+            for m in changed_modules
         )
-        # Allow lazy lightweight setup whenever setup files are untouched or
-        # query_slice proved setup/teardown do not touch any changed region.
+        pristine_setup = bool(expected) and not touches_table_setup
         if pristine_setup:
             test, tests, ex = _build_lightweight_tpcds()
             sys.path.append(str(Path(__file__).parent))
