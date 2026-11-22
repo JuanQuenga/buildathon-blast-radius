@@ -3444,6 +3444,19 @@ def bounded_run(patches, catalog, dur, t0, *, deadline=None):
             set_memory_limit(1800)
             # Leave a 4s flush window so completed proofs are never lost at the deadline.
             run(patches, catalog, dur, t0, deadline=deadline - 4.0)
+            # PRACTICE-ONLY DIAGNOSTIC (diag-c38-tpcds; NEVER select as finalPick):
+            # Ablate tests/test_executor.py::TestExecutor::test_execute_tpcds (#1106, 21.454s)
+            # from live post-heavy (p.req, p.pl) to measure exact true vs false-positive TPC-DS cost.
+            tpcds_id = next(
+                (int(t["number"]) for t in catalog if t["id"] == "tests/test_executor.py::TestExecutor::test_execute_tpcds"),
+                None,
+            )
+            if tpcds_id is not None:
+                for p in patches:
+                    if not p.full and tpcds_id in p.req:
+                        rem_req = p.req - {tpcds_id}
+                        rem_pl = p.pl - {tpcds_id}
+                        p.workers = [sorted(w) for w in schedule(rem_req, rem_pl, dur) if w] if rem_req else []
             json.dump([p.workers for p in patches], result)
             result.flush()
 
