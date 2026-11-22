@@ -2214,6 +2214,18 @@ def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude, dep
     memo[key] = 0  # cycle guard
     srcs = _sources()["src"]
     mro = an.idx.get("mro", {})
+    test_allowed = None
+    if def_path.startswith("tests/"):
+        imp_fn = _importers_of(def_path)
+        sub_mods = {
+            c.rsplit(".", 1)[0]
+            for c, bases in mro.items()
+            if cls_full in bases
+        }
+        test_allowed = {
+            p for p, src in srcs.items()
+            if p == def_path or imp_fn(p, src) or _module_name(p) in sub_mods
+        }
     r1 = direct = derived = 0
     for name in names:
         qual = re.compile(r"\b" + re.escape(cls_q).replace(r"\.", r"\s*\.\s*")
@@ -2224,7 +2236,8 @@ def _attr_refs(an: Analysis, names, def_path, cls_full, cls_q, fam, exclude, dep
             if sc is not None and sc[0] == "def" and ln >= sc[4]:
                 bits = an.lines_bits(path, lo, hi)
                 if path.startswith("tests/"):
-                    direct |= bits
+                    if test_allowed is None or path in test_allowed:
+                        direct |= bits
                 else:
                     r1 |= bits
                 continue

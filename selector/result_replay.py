@@ -1,7 +1,10 @@
 """Compare the reference SQL and the observable result of each executed query."""
 import contextlib
+import gzip
 import hashlib
+import json
 import os
+from pathlib import Path
 import pickle
 import time
 
@@ -13,6 +16,14 @@ _PARSE_DISJOINT_EXACT = frozenset({
     "sqlglot.schema",
     "sqlglot.lineage",
     "sqlglot.diff",
+})
+
+# Modules whose ONLY execution-tail effect in PythonExecutor.execute() is
+# compiling plan expressions via PythonGenerator / query.sql() / Generator.TIME_PART_SINGULARS.
+_PYGEN_MODULES = frozenset({
+    "sqlglot.generator",
+    "sqlglot.generators.python",
+    "sqlglot.dialects.dialect",
 })
 
 # Exact modules executed by transpile(sql, write="duckdb") on the 57 executed TPC-DS queries.
@@ -150,8 +161,126 @@ def _needs_transpile_check(changed_modules):
     return False
 
 
+def _needs_pygen_check(changed_modules):
+    if not changed_modules:
+        return True
+    return any(mod in _PYGEN_MODULES for mod in changed_modules)
+
+
+def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
+    """Deterministic, side-effect-free digest of every Python code string
+    PythonExecutor compiles from ``plan`` (including nested subqueries) plus
+    Generator.TIME_PART_SINGULARS."""
+    probe_eng = type(engine)(tables={})
+    orig_reg = probe_eng._register_subquery
+
+    def det_register(query):
+        if probe_eng._ctes is not None and not query.args.get("with_"):
+            query.set("with_", probe_eng._ctes)
+        sql = query.sql()
+        name = probe_eng._plan_names_by_sql.get(sql)
+        if name is None:
+            name = probe_eng._plan_names_by_sql[sql] = "_sq_" + digest_fn(sql)[:12]
+            probe_eng._subquery_plans[name] = (planner_mod.Plan(query), {})
+        return planner_mod.exp.Literal.string(name)
+
+    probe_eng._register_subquery = det_register
+    memo_plans = {}
+
+    def walk_plan(p):
+        pid = id(p)
+        if pid in memo_plans:
+            return memo_plans[pid]
+        ctes = probe_eng._ctes
+        probe_eng._ctes = p.ctes
+        try:
+            step_memo = {}
+
+            def visit(step):
+                sid = id(step)
+                if sid in step_memo:
+                    return step_memo[sid]
+                dep_digests = sorted(visit(dep) for dep in step.dependencies)
+
+                def gen_one(e):
+                    if not e:
+                        return ""
+                    rep = probe_eng._replace_subqueries(e)
+                    return probe_eng.generator.generate(rep)
+
+                if isinstance(step, planner_mod.Scan):
+                    payload = ("S", step.name, gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests)
+                elif isinstance(step, planner_mod.Aggregate):
+                    payload = (
+                        "A",
+                        step.name,
+                        [gen_one(x) for x in step.group.values()],
+                        [gen_one(x) for x in step.aggregations],
+                        [gen_one(x) for x in step.operands],
+                        gen_one(step.condition),
+                        [gen_one(x) for x in step.projections],
+                        dep_digests,
+                    )
+                elif isinstance(step, planner_mod.Join):
+                    jitems = sorted(
+                        (
+                            nm,
+                            [gen_one(x) for x in j["source_key"]],
+                            [gen_one(x) for x in j["join_key"]],
+                            gen_one(j["condition"]),
+                        )
+                        for nm, j in step.joins.items()
+                    )
+                    payload = ("J", step.name, jitems, gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests)
+                elif isinstance(step, planner_mod.Sort):
+                    payload = ("O", step.name, [gen_one(x) for x in step.key], gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests)
+                elif isinstance(step, planner_mod.SetOperation):
+                    payload = ("U", step.name, dep_digests)
+                else:
+                    raise ValueError(f"unknown plan step {type(step).__name__}")
+                h = digest_fn(payload)
+                step_memo[sid] = h
+                return h
+
+            root_h = visit(p.root)
+            sq_items = []
+            for sq_sql, sq_name in sorted(probe_eng._plan_names_by_sql.items()):
+                sq_plan, _ = probe_eng._subquery_plans[sq_name]
+                if id(sq_plan) != pid:
+                    sq_items.append((sq_sql, walk_plan(sq_plan)))
+            res = digest_fn((root_h, sq_items))
+            memo_plans[pid] = res
+            return res
+        finally:
+            probe_eng._ctes = ctes
+
+    return digest_fn((sorted(generator_cls.TIME_PART_SINGULARS.items()), walk_plan(plan)))
+
+
+def _load_pygen_digests():
+    p = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "pygen-digests.json"
+    if p.is_file():
+        return json.loads(p.read_text())
+    return None
+
+
+def _load_query_exec_costs():
+    p = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "ds-costs.json.gz"
+    if not p.is_file():
+        return {}
+    with gzip.open(p) as stream:
+        rows = json.load(stream)
+    return {
+        int(k[3:]): float(v.get("phases", {}).get("execute", 0.0))
+        for k, v in rows.items()
+        if k.startswith("ds:") and k[3:].isdigit()
+    }
+
+
 def run(test, tests, ex, expected, full, selection, digest, plan_digest):
     from phase import mark
+    from sqlglot import planner as planner_mod
+    from sqlglot.generator import Generator as generator_cls
 
     execute = ex.PythonExecutor.execute
     orig_nlj = getattr(ex.PythonExecutor, "nested_loop_join", None)
@@ -164,10 +293,25 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
             raise _JoinBudgetExceeded("nested loop join budget exceeded")
         return orig_nlj(engine, join, source_context, join_context, condition, condition_context)
 
+    reference_setup = contextlib.ExitStack()
+    changed_reference = set()
+    changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
+    check_parse = _needs_parse_check(changed_modules)
+    check_transpile = _needs_transpile_check(changed_modules)
+    check_pygen = _needs_pygen_check(changed_modules)
+    pygen_digests = _load_pygen_digests() if check_pygen else None
+
+    started_env = os.environ.get("BLAST_PROBE_START_CPU")
+    started = float(started_env) if started_env else time.process_time()
+    cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
+    plan_first = not bool(full) and cpu_cap > 0
+    qcosts = _load_query_exec_costs() if plan_first else {}
+    deferred_plan = None
+
     def check_plan(engine, plan):
-        nonlocal ran, skipped
+        nonlocal ran, skipped, deferred_plan
         mark("plan")
-        if ran or skipped:
+        if ran or skipped or deferred_plan is not None:
             raise ValueError("multiple executions")
         if not required:
             if (
@@ -175,17 +319,19 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 and digest(plan.expression.dump()) == reference[6]
                 and plan_digest(plan) == reference[7]
             ):
-                skipped = True
-                return None
+                if not check_pygen:
+                    skipped = True
+                    return None
+                if pygen_digests is not None and str(cur_i) in pygen_digests:
+                    if pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest) == pygen_digests[str(cur_i)]:
+                        skipped = True
+                        return None
+        if plan_first:
+            deferred_plan = (engine, plan)
+            return None
         mark("execute")
         ran = True
         return execute(engine, plan)
-
-    reference_setup = contextlib.ExitStack()
-    changed_reference = set()
-    changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
-    check_parse = _needs_parse_check(changed_modules)
-    check_transpile = _needs_transpile_check(changed_modules)
 
     ex.PythonExecutor.execute = check_plan
     if orig_nlj is not None:
@@ -232,8 +378,20 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                     # DuckDB + Python execution across all queries -> retain.
                     if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
-        # Always execute in original fixture order (0..98) to preserve cross-query state invariants.
-        for i, meta, sql, expr, parsed_matches in inputs:
+        # Phase 1: when plan_first is active, plan heaviest-execute queries first
+        # so broken optimizer/generator patches abort early (~0.3s) without executing;
+        # Phase 2 ALWAYS executes pending_exec in strict original fixture order (0..98).
+        plan_order = (
+            sorted(inputs, key=lambda row: (-qcosts.get(row[0], 0.0), row[0]))
+            if plan_first
+            else inputs
+        )
+        pending_exec = []
+        acc_exec_cost = 0.0
+        total_plan_cost = sum(qcosts.get(row[0], 0.0) for row in plan_order) if plan_first else 0.0
+        n_planned = 0
+        for i, meta, sql, expr, parsed_matches in plan_order:
+            cur_i = i
             reference = expected[i]
             mark("optimize")
             required = i in full if isinstance(full, list) else bool(full)
@@ -244,12 +402,26 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 expr = tests.parse_one(sql)
             q_start = time.process_time()
             ran = skipped = False
+            deferred_plan = None
             table = tests.mp_execute(expr, meta)
             if join_overrun:
                 raise _JoinBudgetExceeded("nested loop join budget exceeded")
             if time.process_time() - q_start > _PER_QUERY_CPU_LIMIT:
                 raise _JoinBudgetExceeded("per-query CPU budget exceeded")
+            n_planned += 1
             if skipped and table is None:
+                continue
+            if plan_first and deferred_plan is not None:
+                acc_exec_cost += qcosts.get(i, 0.0)
+                remaining = cpu_cap - (time.process_time() - started)
+                budget = 0.88 * remaining
+                if acc_exec_cost > budget:
+                    raise ValueError("changed plans exceed probe budget")
+                # If every single one of the first 6 heaviest queries changed plan
+                # and the full divergent set exceeds 1.25x budget, abort early (~0.4s).
+                if n_planned >= 6 and len(pending_exec) + 1 == n_planned and total_plan_cost > 1.25 * budget:
+                    raise ValueError("broad plan divergence exceeds probe budget")
+                pending_exec.append((i, expr, deferred_plan[0], deferred_plan[1], reference))
                 continue
             if not ran or table is None:
                 raise ValueError("missing result")
@@ -264,6 +436,33 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest):
                 if ensure_duckdb_tables is not None:
                     ensure_duckdb_tables(expr)
                 live_reference.subtestHelper(i, table, tpch=False)
+        # Phase 2: execute only queries whose plan/pygen actually changed, in strict fixture order (0..98).
+        if pending_exec:
+            pending_exec.sort(key=lambda row: row[0])
+            remaining = cpu_cap - (time.process_time() - started)
+            if acc_exec_cost > 0.88 * remaining:
+                raise ValueError("changed plans exceed probe budget")
+            for i, expr, engine, plan, reference in pending_exec:
+                mark("execute")
+                q_start = time.process_time()
+                table = execute(engine, plan)
+                if join_overrun:
+                    raise _JoinBudgetExceeded("nested loop join budget exceeded")
+                if time.process_time() - q_start > _PER_QUERY_CPU_LIMIT:
+                    raise _JoinBudgetExceeded("per-query CPU budget exceeded")
+                if table is None:
+                    raise ValueError("missing result")
+                table = pickle.loads(pickle.dumps(table))
+                if i in changed_reference or table_digest(table) != reference[-1]:
+                    if i not in changed_reference:
+                        digest_fallbacks += 1
+                        if digest_fallbacks > 16:
+                            raise ValueError("broad result change")
+                    if live_reference is None:
+                        live_reference, ensure_duckdb_tables = _make_lazy_duckdb_reference(test, reference_setup)
+                    if ensure_duckdb_tables is not None:
+                        ensure_duckdb_tables(expr)
+                    live_reference.subtestHelper(i, table, tpch=False)
     finally:
         ex.PythonExecutor.execute = execute
         if orig_nlj is not None:

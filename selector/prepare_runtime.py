@@ -102,6 +102,25 @@ if Path("/app/ds.json.gz").exists():
         (table_dir / name).write_bytes(pickle.dumps(table))
     (out / "ds-inputs.json").write_text(json.dumps([sql for _, sql, _ in queries]))
 
+    # Precompute pinned PythonGenerator codegen digests for all 57 executed TPC-DS queries.
+    import sqlglot
+    import sqlglot.executor as _ex
+    from sqlglot import planner as _planner
+    from sqlglot.generator import Generator as _Gen
+    from tests.helpers import TPCDS_SCHEMA as _TPCDS_SCHEMA
+    from selector.result_replay import pygen_plan_digest as _pygen_digest
+    from selector.staged import digest as _staged_digest
+
+    _pygen_map = {}
+    for _i, (_meta, _sql, _) in enumerate(queries):
+        if not _meta.get("execute"):
+            continue
+        _opt = _ex.optimize(sqlglot.parse_one(_sql), schema=_TPCDS_SCHEMA, leave_tables_isolated=True)
+        _plan = _ex.Plan(_opt)
+        _eng = _ex.PythonExecutor(tables={})
+        _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
+    (out / "pygen-digests.json").write_text(json.dumps(_pygen_map, separators=(",", ":")))
+
     from selector import query_slice, rule_corpus
     for name, rows, outside in (
         ("query", query_slice.trace()["all"], [query_slice.trace()["setup"], query_slice.trace()["teardown"]]),

@@ -63,8 +63,16 @@ _SQLGLOT_SAFE_IMPORT_RE = re.compile(
     r"|import\s+sqlglot(?:\.(?!dialects\b|executor\b)\w+)*\b)"
 )
 _DOC_EXTS = (".md", ".rst", ".txt")
-_DOC_PREFIXES = ("docs/", ".github/")
-_DOC_NAMES = frozenset({"LICENSE", "Makefile", ".gitignore", ".editorconfig"})
+_DOC_PREFIXES = ("docs/", ".github/", "benchmarks/", "pdoc/", "posts/", "sqlglot-integration-tests/")
+_DOC_NAMES = frozenset({
+    "LICENSE", "Makefile", ".gitignore", ".editorconfig",
+    "MANIFEST.in", ".pre-commit-config.yaml", ".gitpod.yml", ".gitmodules", "sqlglot.png",
+})
+_PYGEN_TAIL_PATHS = frozenset({
+    "sqlglot/generator.py",
+    "sqlglot/generators/python.py",
+    "sqlglot/dialects/dialect.py",
+})
 
 
 def _is_doc_path(path):
@@ -475,7 +483,10 @@ def _method_tail_queries(path, source, fd, rows):
         simple_name = inner[2].rsplit(".", 1)[-1]
         if simple_name.startswith("__"):
             return None
-        if path.startswith("sqlglot/executor/") and not simple_name.startswith(
+        if path == "sqlglot/executor/env.py":
+            if simple_name in {"null_if_any", "filter_nulls"}:
+                return None
+        elif path.startswith("sqlglot/executor/") and not simple_name.startswith(
             ("scan", "join", "aggregate", "sort", "execute", "generate")
         ):
             return None
@@ -539,7 +550,7 @@ def _is_simple_static_expr(node) -> bool:
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id in {"frozenset", "set", "tuple"}
+        and node.func.id in {"frozenset", "set", "tuple", "auto"}
         and len(node.args) <= 1
         and not node.keywords
     ):
@@ -783,6 +794,28 @@ def tail_cases(path, source, fd, *, strict=True):
         return []
     if _inert_new_class_attrs(path, source, fd):
         return []
+    # Pure insertion of brand-new AutoName enum member(s) (e.g. TokenType / DataType.Type).
+    if (
+        path in {"sqlglot/tokenizer_core.py", "sqlglot/expressions/datatypes.py"}
+        and not (fd.is_new or fd.is_deleted or fd.is_rename)
+        and fd.hunks
+        and not any(h.removed_old_lines for h in fd.hunks)
+    ):
+        added = [line[1:] for h in fd.hunks for line in h.lines if line[:1] == "+"]
+        names = []
+        ok = bool(added)
+        for ln in added:
+            if not ln.strip() or ln.lstrip().startswith("#"):
+                continue
+            m = re.fullmatch(r"\s+([A-Z][A-Z0-9_]*)\s*=\s*auto\(\)\s*(?:#.*)?", ln)
+            if not m:
+                ok = False
+                break
+            names.append(m.group(1))
+        if ok and names:
+            an = impact.Analysis()
+            if all(not impact._name_sites(an, nm) for nm in names):
+                return []
     tpaths = all_tail_paths()
     if fd.is_new and path not in tpaths:
         return []
@@ -790,6 +823,15 @@ def tail_cases(path, source, fd, *, strict=True):
         return []
     if fd.is_new or fd.is_deleted or fd.is_rename:
         return all_cases
+    # For PythonGenerator/Generator/Dialect, result_replay.py verifies exact
+    # pygen_plan_digest across all 57 queries (~0.07s) and executes any query
+    # whose compiled Python code actually changed.
+    if (
+        path in _PYGEN_TAIL_PATHS
+        and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file()
+        and (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True))
+    ):
+        return []
     # Fast method-body confinement works for ALL sqlglot/*.py files (including
     # schema.py, trie.py, expressions/*.py, dialects/dialect.py, generator.py).
     if strict or _no_cross_module_hazards(fd):
@@ -870,7 +912,7 @@ def tail_cases(path, source, fd, *, strict=True):
                         for i, row in enumerate(rows)
                         if path in row["paths"] or ids.intersection(row["names"])
                     ]
-    if (strict or _no_cross_module_hazards(fd)) and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
+    if (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True)) and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
         return list(tail_path_queries()[path])
     return all_cases
 
@@ -1035,7 +1077,7 @@ def eligible_file(f, group):
     return True
 
 
-def _parser_scaled_eligible(f):
+def _parser_scaled_eligible(f, *, allow_monitored_loops=False):
     """Sound eligibility gate for ``scaled()`` verification of ``test_max_nodes``.
     Allows edits across any existing ``sqlglot/*.py`` (including dialect.py,
     parser.py, tokens.py, tokenizer_core.py, expressions/*.py) provided no
@@ -1070,18 +1112,76 @@ def _parser_scaled_eligible(f):
                     return False
             except ValueError:
                 return False
-        # Reject loop edits overlapping parser:2 lines (guards against O(N^2) blowups).
-        reached = p2_lines[path]
-        for h in f.hunks:
-            if any(h.old_start <= n < h.old_start + max(h.old_len, 1) for n in reached):
-                h_code = "\n".join(
-                    _strip_comment(line[1:])
-                    for line in h.lines
-                    if line[:1] in {"+", "-"} and not line[1:].lstrip().startswith("#")
-                )
-                if re.search(r"\b(for|while)\b", h_code):
-                    return False
+        if not allow_monitored_loops:
+            # Reject any loop edit in a file executed by parser:2 unless monitored.
+            if re.search(r"\b(for|while)\b", delta_code):
+                return False
     return True
+
+
+def _parser_new_loop_lines(f, after_src):
+    """For a ``p2_lines`` file with ``for``/``while`` in its diff, return the
+    set of new-file line numbers inside every newly added ``For``/``While`` loop
+    body (or ``None`` on parse failure). Monitored in ``staged.py scaled``."""
+    p2_lines = profile("parser")["parser:2"]["lines"]
+    if f.path not in p2_lines:
+        return set()
+    needs_monitor = False
+    added_new_lines = set()
+    replaced_for_lines = set()
+    for h in f.hunks:
+        new_ln = h.new_start
+        removed_for_indents = set()
+        hunk_has_loop = False
+        hunk_added = []
+        for raw in h.lines:
+            tag = raw[:1]
+            body = raw[1:]
+            code = _strip_comment(body)
+            if tag == "-":
+                if re.match(r"^\s*for\b", code):
+                    removed_for_indents.add(len(body) - len(body.lstrip(" ")))
+                if re.search(r"\b(for|while)\b", code):
+                    hunk_has_loop = True
+            elif tag == "+":
+                added_new_lines.add(new_ln)
+                if re.search(r"\b(for|while)\b", code):
+                    hunk_has_loop = True
+                    hunk_added.append((new_ln, body, code))
+                new_ln += 1
+            else:
+                new_ln += 1
+        if hunk_has_loop:
+            needs_monitor = True
+            for ln_no, body, code in hunk_added:
+                indent = len(body) - len(body.lstrip(" "))
+                if re.match(r"^\s*for\b", code) and indent in removed_for_indents:
+                    replaced_for_lines.add(ln_no)
+    if not needs_monitor:
+        return set()
+    if not after_src:
+        return None
+    try:
+        tree = ast.parse(after_src)
+    except SyntaxError:
+        return None
+    watch = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)):
+            if node.lineno in added_new_lines and node.lineno not in replaced_for_lines:
+                for st in (*node.body, *node.orelse):
+                    end = st.end_lineno or st.lineno
+                    watch.update(range(st.lineno, end + 1))
+    # If a loop was edited inside an existing loop without adding a brand-new loop
+    # header, watch every added line inside any loop overlapping p2_lines.
+    if not watch:
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.For, ast.While)):
+                end = node.end_lineno or node.lineno
+                for ln_no in added_new_lines:
+                    if node.lineno < ln_no <= end:
+                        watch.add(ln_no)
+    return watch
 
 
 def method_spans(path, fd, original, source):
@@ -1258,6 +1358,30 @@ def _target_unreachable(fd, group):
             return False
         osid = idx["opens"].get(path)
         if osid is not None and (sets[osid] & bit):
+            # For TPC SQL fixtures on ds, field-level projection proves whether
+            # test_execute_tpcds reads any modified field (e.g. tpc-ds.sql expected-only
+            # or valid tpc-h.sql changes never affect test_execute_tpcds).
+            if (
+                group == "ds"
+                and path in {
+                    "tests/fixtures/optimizer/tpc-ds/tpc-ds.sql",
+                    "tests/fixtures/optimizer/tpc-h/tpc-h.sql",
+                }
+                and not (fd.is_new or fd.is_deleted or fd.is_rename)
+            ):
+                from . import fixture_fields
+                fp = impact.FilePatch()
+                fp.old_path = fd.old_path
+                fp.new_path = fd.new_path
+                fp.status = "M"
+                fp.binary = False
+                for h in fd.hunks:
+                    ih = impact.Hunk(h.old_start, h.old_len, h.new_start, h.new_len)
+                    ih.lines = [(ln[:1], ln[1:]) for ln in h.lines]
+                    fp.hunks.append(ih)
+                proj = fixture_fields.project(fp, sets[osid], idx["tests"], impact.apply_hunks)
+                if not (proj & bit):
+                    continue
             return False
         if fd.is_new or fd.is_deleted or fd.is_rename:
             d = path
@@ -1396,7 +1520,7 @@ def _affected_generator_dialects(sqlglot_files):
         # Dialect.get_or_raise check in generator_cases.py still verifies every
         # dialect imports and resets cleanly.
         if re.fullmatch(
-            r"sqlglot/(parser|tokens|tokenizer_core|errors|schema|planner|lineage|diff|serde|transforms|trie|anonymize|(?:parsers|typing|optimizer|expressions|executor)/\w+)\.py",
+            r"sqlglot/(parser|tokens|tokenizer_core|errors|schema|planner|lineage|diff|serde|transforms|trie|anonymize|jsonpath|(?:parsers|typing|optimizer|expressions|executor)/\w+)\.py",
             p,
         ):
             continue
@@ -1478,11 +1602,21 @@ def stage_edit(text, group):
             return "scaled", paths, changes, []
         if all(_parser_scaled_eligible(f) for f in sql_files):
             return "scaled", paths, changes, []
+        if all(_parser_scaled_eligible(f, allow_monitored_loops=True) for f in sql_files):
+            forbidden = {}
+            for f in sql_files:
+                w = _parser_new_loop_lines(f, changes.get(f.path))
+                if w is None:
+                    return None
+                if w:
+                    forbidden[f.path] = sorted(w)
+            if forbidden:
+                return "scaled", paths, changes, forbidden
         return None
 
     # group == "ds"
     forbid_ds = (
-        ("tests/helpers.py", "tests/fixtures/optimizer/tpc-ds/", "tests/fixtures/optimizer/tpc-h/")
+        ("tests/helpers.py",)
         if non_sql_inert
         else (
             "tests/test_executor.py",
@@ -1833,12 +1967,15 @@ def options(patch, catalog, targets, dur, attempted=()):
         gain = (plan_cost(patch.workers, dur) - plan_cost(workers, dur)) / 1000
         if gain <= 0 or number in set().union(*workers):
             continue
-        edit = stage_edit(patch.text, group)
-        from .cheap_proofs import proven
-        if proven(patch.text, group, edit):
-            heavy_yielded = True
-            yield Probe(patch, group, number, "unreached", "", [], (req, pl, workers),
-                        gain, 1.0, 0.005)
+        try:
+            edit = stage_edit(patch.text, group)
+            from .cheap_proofs import proven
+            if proven(patch.text, group, edit):
+                heavy_yielded = True
+                yield Probe(patch, group, number, "unreached", "", [], (req, pl, workers),
+                            gain, 1.0, 0.005)
+                continue
+        except Exception:
             continue
         if edit:
             mode, paths, changes, cases = edit
@@ -2058,8 +2195,10 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     warm_replay.prepare_pytest()
                 if probe.heavy_mod and not warm_replay.heavy_ready and sum(1 for p in queue if p.heavy_mod) >= 2:
                     warm_replay.prepare_data_libs()
-                args = ([json.dumps(probe.cases)] if probe.mode in
-                        {"partial", "slice", "rules", "dialects", "bundle", "trim"} else [])
+                args = ([json.dumps(probe.cases)] if (
+                    probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim"}
+                    or (probe.mode == "scaled" and probe.cases)
+                ) else [])
                 if probe.mode == "rules":
                     args.append("verify-results")
                 elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):

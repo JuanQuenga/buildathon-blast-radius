@@ -22,29 +22,63 @@ def digest(value):
     ).hexdigest()
 
 
-def parser():
+def parser(forbidden=None):
+    import time
     from sqlglot import parse_one
     from sqlglot.errors import ParseError
 
     sys.path.append(str(Path(__file__).parent))
     from heavy_cases import Recorder, parser as pinned_assertions
 
-    pinned_assertions(Recorder(False), {"parser:0", "parser:1"})
-    sql = "SELECT " + ",".join(["x" + "=x" * 100] * 100)
-    results = []
-    for limit in (10000, 500, -1):
-        try:
-            expr = parse_one(sql, max_nodes=limit)
-        except ParseError as exc:
-            results.append([type(exc).__qualname__, str(exc)])
-        else:
-            results.append([sum(1 for _ in expr.walk()), digest(expr.dump())])
-    # Catch accidental recursion in comma-separated column parsing (width > 1000).
-    wide = parse_one("SELECT " + ",".join(["x=x"] * 1100), max_nodes=10000)
-    if len(wide.expressions) != 1100:
-        raise ValueError("wide select parse mismatch")
-    pinned_assertions(Recorder(False), {"parser:3"})
-    return results
+    watch = {}
+    if forbidden:
+        cwd = Path.cwd().resolve()
+        for rel, lines in forbidden.items():
+            lset = set(lines)
+            if lset:
+                watch[str((cwd / rel).resolve())] = lset
+                watch[rel] = lset
+
+    loop_hit = []
+    tool_id = 4
+    if watch:
+        def on_line(code, lineno):
+            lset = watch.get(code.co_filename)
+            if lset is None:
+                return sys.monitoring.DISABLE
+            if lineno in lset:
+                loop_hit.append((code.co_filename, lineno))
+            # Returning DISABLE disables LINE events only at this (code, lineno) offset.
+            return sys.monitoring.DISABLE
+
+        sys.monitoring.use_tool_id(tool_id, "scaled-loop-guard")
+        sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, on_line)
+        sys.monitoring.set_events(tool_id, sys.monitoring.events.LINE)
+
+    try:
+        pinned_assertions(Recorder(False), {"parser:0", "parser:1"})
+        sql = "SELECT " + ",".join(["x" + "=x" * 100] * 100)
+        results = []
+        for limit in (10000, 500, -1):
+            try:
+                expr = parse_one(sql, max_nodes=limit)
+            except ParseError as exc:
+                results.append([type(exc).__qualname__, str(exc)])
+            else:
+                results.append([sum(1 for _ in expr.walk()), digest(expr.dump())])
+        # Catch accidental recursion in comma-separated column parsing (width > 1000).
+        wide = parse_one("SELECT " + ",".join(["x=x"] * 1100), max_nodes=10000)
+        if len(wide.expressions) != 1100:
+            raise ValueError("wide select parse mismatch")
+        if watch and loop_hit:
+            raise ValueError(f"new loop executed in scaled parser check: {loop_hit[0]}")
+        pinned_assertions(Recorder(False), {"parser:3"})
+        return results
+    finally:
+        if watch:
+            sys.monitoring.set_events(tool_id, 0)
+            sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, None)
+            sys.monitoring.free_tool_id(tool_id)
 
 
 def plan_digest(plan):
@@ -297,7 +331,8 @@ def main():
         selection = json.loads(sys.argv[2])
         executor(False, data["ds"], selection["execute"], selection)
     elif group == "scaled":
-        if parser() != data["parser"]:
+        forbidden = json.loads(sys.argv[2]) if len(sys.argv) > 2 else None
+        if parser(forbidden=forbidden) != data["parser"]:
             raise ValueError("scaled parser outcomes changed")
     else:
         executor(

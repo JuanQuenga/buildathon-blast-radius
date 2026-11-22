@@ -509,6 +509,122 @@ class TestCandidate19(unittest.TestCase):
         )
         self.assertFalse(heavy._test_file_disjoint_from_target(parse(d_bad)[0], "ds"))
 
+    def test_attr_refs_scopes_test_class_to_importers(self):
+        """Editing a class attribute on a leaf test class (e.g. TestDrill.dialect)
+        must only select tests in files that can import/subclass it, not global readers."""
+        from selector import impact
+
+        src = impact._sources()["src"]["tests/dialects/test_drill.py"].splitlines()
+        idx = next(i for i, l in enumerate(src) if 'dialect = "drill"' in l)
+        diff = (
+            "diff --git a/tests/dialects/test_drill.py b/tests/dialects/test_drill.py\n"
+            "--- a/tests/dialects/test_drill.py\n"
+            "+++ b/tests/dialects/test_drill.py\n"
+            f"@@ -{idx+1},1 +{idx+1},1 @@\n"
+            f"-{src[idx]}\n"
+            '+    dialect = "dRill"\n'
+        )
+        cat = [{"number": i, "id": tid, "seconds": 0.01} for i, tid in enumerate(impact._index()["tests"])]
+        res = impact.select(diff, cat)
+        self.assertFalse(res["full"])
+        selected_ids = {cat[n]["id"] for n in res["required"]}
+        self.assertTrue(any("test_drill.py" in tid for tid in selected_ids))
+        self.assertNotIn("tests/test_generator.py::TestGenerator::test_generator_memory", selected_ids)
+        self.assertLess(len(selected_ids), 20)
+
+    def test_env_py_function_tail_slicing(self):
+        """Top-level pure functions in sqlglot/executor/env.py (like intdiv) slice
+        to only the TPC-DS queries that call them; decorators stay conservative."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        src = impact._sources()["src"]["sqlglot/executor/env.py"].splitlines()
+        # Edit inside def cast (uncalled by TPC-DS)
+        idx = next(i for i, l in enumerate(src) if "def cast(" in l)
+        diff_ok = (
+            "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\n"
+            "--- a/sqlglot/executor/env.py\n"
+            "+++ b/sqlglot/executor/env.py\n"
+            f"@@ -{idx+2},1 +{idx+2},2 @@\n"
+            "+    _unused = 1\n"
+            f" {src[idx+1]}\n"
+        )
+        fd_ok = parse(diff_ok)[0]
+        after_ok = "\n".join(src[: idx + 1] + ["    _unused = 1"] + src[idx + 1 :]) + "\n"
+        self.assertEqual(heavy.tail_cases("sqlglot/executor/env.py", after_ok, fd_ok), [])
+        # Edit inside decorator null_if_any -> must remain conservative (all_cases)
+        idx_dec = next(i for i, l in enumerate(src) if "def null_if_any(" in l)
+        diff_dec = (
+            "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\n"
+            "--- a/sqlglot/executor/env.py\n"
+            "+++ b/sqlglot/executor/env.py\n"
+            f"@@ -{idx_dec+2},1 +{idx_dec+2},2 @@\n"
+            "+    _unused = 1\n"
+            f" {src[idx_dec+1]}\n"
+        )
+        fd_dec = parse(diff_dec)[0]
+        after_dec = "\n".join(src[: idx_dec + 1] + ["    _unused = 1"] + src[idx_dec + 1 :]) + "\n"
+        self.assertEqual(len(heavy.tail_cases("sqlglot/executor/env.py", after_dec, fd_dec)), 99)
+
+    def test_mixed_code_and_tpcds_expected_only_inert_for_ds(self):
+        """An expected-only edit to tpc-ds.sql is unreachable by test_execute_tpcds,
+        whereas a source-SQL edit MUST remain protected."""
+        from selector import heavy, verify
+        from selector.patch import parse
+
+        src = (Path(verify.PRISTINE) / "tests/fixtures/optimizer/tpc-ds/tpc-ds.sql").read_text().splitlines()
+        # Find first query ending with ';' (line 26) and edit the expected SQL line after it
+        sep = next(i for i, l in enumerate(src) if l.rstrip().endswith(";"))
+        diff_exp = (
+            "diff --git a/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql b/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql\n"
+            "--- a/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql\n"
+            "+++ b/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql\n"
+            f"@@ -{sep+2},1 +{sep+2},1 @@\n"
+            f"-{src[sep+1]}\n"
+            f"+{src[sep+1]} /* changed expected */\n"
+        )
+        self.assertTrue(heavy._target_unreachable(parse(diff_exp)[0], "ds"))
+        # Source line edit (line right before first ';') MUST NOT be unreachable
+        diff_src = (
+            "diff --git a/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql b/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql\n"
+            "--- a/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql\n"
+            "+++ b/tests/fixtures/optimizer/tpc-ds/tpc-ds.sql\n"
+            f"@@ -{sep},1 +{sep},1 @@\n"
+            f"-{src[sep-1]}\n"
+            f"+{src[sep-1]} /* changed source */\n"
+        )
+        self.assertFalse(heavy._target_unreachable(parse(diff_src)[0], "ds"))
+
+    def test_parser_monitored_loop_guard_blocks_executed_loop(self):
+        """staged.parser(forbidden=...) must raise if any monitored loop line executes."""
+        import json
+        import os
+        import subprocess
+        import sys
+        import tempfile
+        from selector import verify
+        from selector.runtime_paths import APP_DIR
+
+        pin_parser = Path(verify.PRISTINE) / "sqlglot/parser.py"
+        lines = pin_parser.read_text().splitlines()
+        idx = next(i for i, l in enumerate(lines) if "def _parse_conjunction(" in l)
+        # Inject a tiny loop that WILL execute on SELECT x=x=x...
+        injected = lines[: idx + 1] + ["        for _ in range(1):", "            _ = 1"] + lines[idx + 1 :]
+        with tempfile.TemporaryDirectory() as work:
+            verify.build_overlay(work, {"sqlglot/parser.py": "\n".join(injected) + "\n"})
+            forbidden = {"sqlglot/parser.py": [idx + 3]}
+            env = dict(os.environ, BLAST_APP_DIR=str(APP_DIR))
+            proc = subprocess.run(
+                [sys.executable, "-sB", str(Path("selector/staged.py").resolve()), "scaled", json.dumps(forbidden)],
+                cwd=work,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("new loop executed", proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
