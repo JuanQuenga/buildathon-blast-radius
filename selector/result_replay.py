@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import pickle
+import sys
 import time
 
 
@@ -72,6 +73,18 @@ _NLJ_PAIR_LIMIT = 800_000
 _PER_QUERY_CPU_LIMIT = 3.5
 
 
+_TPCDS_DB = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "tpcds.duckdb"
+_TPCDS_DUCKDB_DIGESTS = _TPCDS_DB.with_name("tpcds-duckdb-digests.json")
+
+
+def frame_digest(frame):
+    """Canonical digest of a DataFrame: columns, dtypes, NA mask and exact cell reprs."""
+    rows = frame.astype(object).itertuples(index=False, name=None)
+    payload = (list(map(str, frame.columns)), [str(t) for t in frame.dtypes], frame.isna().to_numpy().tolist(),
+               [[repr(v) for v in row] for row in rows], len(frame.index))
+    return hashlib.sha256(pickle.dumps(payload, protocol=4)).hexdigest()
+
+
 class _JoinBudgetExceeded(BaseException):
     """BaseException so patched ``except Exception`` cannot swallow an overrun."""
 
@@ -119,6 +132,14 @@ def _make_lazy_duckdb_reference(test, reference_setup):
     from tests.test_executor import DIR_TPCDS, TPCDS_SCHEMA, TestExecutor
 
     ref = TestExecutor("test_execute_tpcds")
+    if _TPCDS_DB.is_file():
+        # The same READ_CSV relations, materialized once at image build time.
+        conn = duckdb.connect(str(_TPCDS_DB), read_only=True)
+        ref.tpcds_conn = conn
+        ref.tpcds_sqls = test.tpcds_sqls
+        ref.cache = {}
+        reference_setup.callback(conn.close)
+        return ref, None
     conn = duckdb.connect()
     ref.tpcds_conn = conn
     ref.tpcds_sqls = test.tpcds_sqls
@@ -588,14 +609,36 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
             if not need_exec_set:
                 return
             inputs = [row for row in inputs if row[0] in need_exec_set]
+        # A changed DuckDB reference with an untouched executor: when the Python
+        # plan (and generated code) match the pinned baseline, Python's result is
+        # the pinned result, which passed against the pinned DuckDB reference. The
+        # query then passes iff DuckDB returns the identical frame for the new and
+        # pinned reference SQL; anything else is a failure (the test is kept).
+        pinned_frames = json.loads(_TPCDS_DUCKDB_DIGESTS.read_text()) if _TPCDS_DUCKDB_DIGESTS.is_file() else {}
+        reference_only = changed_reference if not touches_executor and pinned_frames else set()
+
+        def verify_reference_only(i, sql, expr):
+            nonlocal live_reference, ensure_duckdb_tables
+            mark("reference")
+            new_list = tests.transpile(sql, write="duckdb")
+            if str(i) not in pinned_frames or len(new_list) != 1:
+                raise ValueError("reference SQL not comparable")
+            if live_reference is None:
+                live_reference, ensure_duckdb_tables = _make_lazy_duckdb_reference(test, reference_setup)
+            if ensure_duckdb_tables is not None:
+                ensure_duckdb_tables(expr)
+            if frame_digest(live_reference.tpcds_conn.execute(new_list[0]).fetchdf()) != pinned_frames[str(i)]:
+                raise ValueError("reference result changed")
+
         # Always execute in original fixture order (0..98) to preserve cross-query state invariants.
         for i, meta, sql, expr, parsed_matches in inputs:
             cur_i = i
             reference = expected[i]
             mark("optimize")
             required = i in full if isinstance(full, list) else bool(full)
-            required |= i in changed_reference
-            if not required and selection is not None and i not in selection["worker"] and parsed_matches:
+            required |= i in changed_reference and i not in reference_only
+            if (not required and selection is not None and i not in selection["worker"] and parsed_matches
+                    and i not in changed_reference):
                 continue
             if expr is None:
                 expr = tests.parse_one(sql)
@@ -607,6 +650,8 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
             if time.process_time() - q_start > _PER_QUERY_CPU_LIMIT:
                 raise _JoinBudgetExceeded("per-query CPU budget exceeded")
             if skipped and table is None:
+                if i in changed_reference:
+                    verify_reference_only(i, sql, expr)
                 continue
             if not ran or table is None:
                 raise ValueError("missing result")

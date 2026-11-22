@@ -455,3 +455,39 @@ if Path("/app/ds.json.gz").exists():
                 for line in lines:
                     file_hits[line] = -1
         (out / f"{name}-hits.marshal").write_bytes(marshal.dumps(hits))
+
+
+def _tpcds_duckdb_reference():
+    """Materialize the TPC-DS reference relations once (the build is not charged) and
+    record the canonical digest of DuckDB's result for every executed pinned query."""
+    import json
+    import pickle
+    import duckdb
+    sys.path.insert(0, "/app/sqlglot")
+    import sqlglot
+    from tests.helpers import TPCDS_SCHEMA
+    from tests.test_executor import DIR_TPCDS
+    from selector.result_replay import _TPCDS_DB, _TPCDS_DUCKDB_DIGESTS, frame_digest
+
+    conn = duckdb.connect(str(_TPCDS_DB))
+    for table, columns in TPCDS_SCHEMA.items():
+        conn.execute(f"CREATE TABLE {table} AS SELECT * FROM READ_CSV('{DIR_TPCDS}{table}.csv.gz', "
+                     f"delim='|', header=True, columns={columns})")
+    digests = {}
+    queries = pickle.loads((out / "query-fixtures.pkl").read_bytes())
+    for i, (meta, sql, _) in enumerate(queries):
+        if not meta.get("execute"):
+            continue
+        sqls = sqlglot.transpile(sql, write="duckdb")
+        if len(sqls) != 1:
+            continue
+        runs = {frame_digest(conn.execute(sqls[0]).fetchdf()) for _ in range(2)}
+        if len(runs) == 1:
+            digests[str(i)] = runs.pop()
+    conn.execute("CHECKPOINT")
+    conn.close()
+    _TPCDS_DUCKDB_DIGESTS.write_text(json.dumps(digests, separators=(",", ":")))
+    print(f"tpcds duckdb reference: {len(digests)} query digests", file=sys.stderr)
+
+
+_tpcds_duckdb_reference()
