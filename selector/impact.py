@@ -74,6 +74,33 @@ FULL_PATHS = {"pytest.ini", "tox.ini", "conftest.py", "tests/conftest.py", ".pyt
 CONFIG_PATHS = {"pyproject.toml", "setup.cfg"}
 
 
+def _class_binds_directly(path, qual, name):
+    """Whether the pinned class ``qual`` (dotted, possibly nested) in ``path`` binds
+    ``name`` directly in its own body; ``None`` when the class cannot be located."""
+    try:
+        tree = _parse_pinned(path)
+    except SyntaxError:
+        return None
+    if tree is None:
+        return None
+    body = tree.body
+    node = None
+    for part in qual.split("."):
+        node = next((n for n in body if isinstance(n, ast.ClassDef) and n.name == part), None)
+        if node is None:
+            return None
+        body = node.body
+    for stmt in body:
+        for sub in ast.walk(stmt) if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else (stmt,):
+            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and sub.name == name:
+                return True
+            if isinstance(sub, ast.Name) and sub.id == name and not isinstance(sub.ctx, ast.Load):
+                return True
+            if isinstance(sub, ast.alias) and (sub.asname or sub.name.split(".")[0]) == name:
+                return True
+    return False
+
+
 @functools.lru_cache(maxsize=64)
 def _parse_pinned(path: str):
     """Parse a pinned source file once per process (read-only AST)."""
@@ -1643,7 +1670,10 @@ class PyDiff:
             target = f"{bq}.{name}"
             hits = [it for it in sc[1] if it[0] == "def" and it[3] == target]
             if not hits:
-                # Ancestor may inherit ``name`` from an even higher ancestor in MRO.
+                # Ancestor may inherit ``name`` from an even higher ancestor in MRO,
+                # unless it binds ``name`` itself without a def (``name = _helper``).
+                if _class_binds_directly(bpath, bq, name) is not False:
+                    return None
                 continue
             for it in hits:
                 bits |= self.an.lines_bits(bpath, it[4], it[2])
@@ -1661,12 +1691,24 @@ class PyDiff:
         mro = self.an.idx.get("mro", {})
         if cls_full not in mro:
             return False
+        srcs = _sources()["src"]
+
+        def class_module(full):
+            # Nested classes (e.g. sqlglot.dialects.postgres.Postgres.Tokenizer): the module is
+            # the longest dotted prefix that is a pinned source file.
+            parts = full.split(".")
+            for i in range(len(parts) - 1, 0, -1):
+                stem = "/".join(parts[:i])
+                if stem + ".py" in srcs or stem + "/__init__.py" in srcs:
+                    return ".".join(parts[:i])
+            return None
+
         related_mods = {self.module}
-        for b in mro.get(cls_full, ()):
-            related_mods.add(b.rsplit(".", 1)[0])
-        for c, bases in mro.items():
-            if cls_full in bases:
-                related_mods.add(c.rsplit(".", 1)[0])
+        for full in [*mro.get(cls_full, ()), *(c for c, bases in mro.items() if cls_full in bases)]:
+            mod = class_module(full)
+            if mod is None:
+                return False
+            related_mods.add(mod)
         for p, _ln, _lo, _hi, _sc in sites:
             if not re.fullmatch(r"sqlglot/(?:dialects|parsers|generators|typing)/\w+\.py", p):
                 return False
