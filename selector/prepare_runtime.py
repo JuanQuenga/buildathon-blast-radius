@@ -106,24 +106,104 @@ if Path("/app/ds.json.gz").exists():
         (table_dir / name).write_bytes(pickle.dumps(table))
     (out / "ds-inputs.json").write_text(json.dumps([sql for _, sql, _ in queries]))
 
-    # Precompute pinned PythonGenerator codegen digests for all 57 executed TPC-DS queries.
+    # Precompute pinned PythonGenerator codegen digests + fast-replay cache for
+    # all 57 executed TPC-DS queries (gen_in_opt, pinned plans, internal parse checks).
     import sqlglot
     import sqlglot.executor as _ex
     from sqlglot import planner as _planner
     from sqlglot.generator import Generator as _Gen
+    from sqlglot.parser import Parser as _Parser
     from tests.helpers import TPCDS_SCHEMA as _TPCDS_SCHEMA
     from selector.result_replay import pygen_plan_digest as _pygen_digest
     from selector.staged import digest as _staged_digest
 
     _pygen_map = {}
-    for _i, (_meta, _sql, _) in enumerate(queries):
-        if not _meta.get("execute"):
-            continue
-        _opt = _ex.optimize(sqlglot.parse_one(_sql), schema=_TPCDS_SCHEMA, leave_tables_isolated=True)
-        _plan = _ex.Plan(_opt)
-        _eng = _ex.PythonExecutor(tables={})
-        _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
+    _ds_plans = {}
+    _ds_gen_in_opt = []
+    _ds_parse_seen = {}
+    _orig_p_parse = _Parser.parse
+    _orig_p_parse_into = _Parser.parse_into
+    _orig_g_gen = _Gen.generate
+    _ds_in_opt = [False]
+    _ds_hit_gen = [False]
+
+    def _rec_parse(self, raw_tokens, sql=None):
+        res = _orig_p_parse(self, raw_tokens, sql=sql)
+        if _ds_in_opt[0] and sql is not None and type(self).__name__ in {"Parser", "BaseParser"}:
+            key = ("parse", "", sql)
+            if key not in _ds_parse_seen:
+                _ds_parse_seen[key] = _staged_digest([e.dump() if e is not None else None for e in res])
+        return res
+
+    def _rec_parse_into(self, expression_types, raw_tokens, sql=None):
+        res = _orig_p_parse_into(self, expression_types, raw_tokens, sql=sql)
+        if _ds_in_opt[0] and sql is not None and type(self).__name__ in {"Parser", "BaseParser"}:
+            et = expression_types if isinstance(expression_types, tuple) else (expression_types,)
+            if len(et) == 1 and isinstance(et[0], type):
+                key = ("parse_into", et[0].__name__, sql)
+                if key not in _ds_parse_seen:
+                    _ds_parse_seen[key] = _staged_digest([e.dump() if e is not None else None for e in res])
+        return res
+
+    def _rec_gen(self, expr, *a, **kw):
+        if _ds_in_opt[0]:
+            _ds_hit_gen[0] = True
+        return _orig_g_gen(self, expr, *a, **kw)
+
+    _Parser.parse = _rec_parse
+    _Parser.parse_into = _rec_parse_into
+    _Gen.generate = _rec_gen
+    try:
+        for _i, (_meta, _sql, _) in enumerate(queries):
+            if not _meta.get("execute"):
+                continue
+            _parsed_ds = pickle.loads(pickle.dumps(sqlglot.parse_one(_sql)))
+            _ds_hit_gen[0] = False
+            _ds_in_opt[0] = True
+            try:
+                _opt = _ex.optimize(_parsed_ds, schema=_TPCDS_SCHEMA, leave_tables_isolated=True)
+                _plan = _ex.Plan(_opt)
+            finally:
+                _ds_in_opt[0] = False
+            _eng = _ex.PythonExecutor(tables={})
+            _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
+            if _ds_hit_gen[0]:
+                _ds_gen_in_opt.append(_i)
+            else:
+                _ds_plans[_i] = _plan
+    finally:
+        _Parser.parse = _orig_p_parse
+        _Parser.parse_into = _orig_p_parse_into
+        _Gen.generate = _orig_g_gen
     (out / "pygen-digests.json").write_text(json.dumps(_pygen_map, separators=(",", ":")))
+    _ds_plans_dir = out / "ds-plans"
+    _ds_plans_dir.mkdir(exist_ok=True)
+    for _qi, _pl in _ds_plans.items():
+        (_ds_plans_dir / f"{_qi}.pkl").write_bytes(pickle.dumps(_pl, protocol=pickle.HIGHEST_PROTOCOL))
+    from selector.heavy import _leaf_dialect_targets as _leaf_dt, worker_path_queries as _wpq
+    _wfiles = set(_wpq())
+    _def_disjoint = sorted(
+        p[:-3].replace("/", ".")
+        for p in _sources()["src"]
+        if p.startswith(("sqlglot/dialects/", "sqlglot/parsers/", "sqlglot/generators/", "sqlglot/typing/"))
+        and p.endswith(".py")
+        and p not in _wfiles
+        and (_ls := _leaf_dt(p)) is not None
+        and "" not in _ls
+    )
+    (out / "ds-fast-meta.json").write_text(
+        json.dumps(
+            {
+                "gen_in_opt": _ds_gen_in_opt,
+                "plan_ids": sorted(_ds_plans),
+                "opt_parse_checks": [
+                    [k[0], k[1], k[2], v] for k, v in sorted(_ds_parse_seen.items())
+                ],
+                "default_disjoint_mods": _def_disjoint,
+            },
+            separators=(",", ":"),
+        )
+    )
 
     # Precompute pinned TPC-H transpile + PythonGenerator codegen digests for
     # test_optimized_tpch (3.537s) and test_execute_tpch (3.863s).
@@ -181,28 +261,36 @@ if Path("/app/ds.json.gz").exists():
     sys.monitoring.use_tool_id(_tid, "c34 pin profiles")
     sys.monitoring.register_callback(_tid, sys.monitoring.events.LINE, _trace_line)
     try:
-        # 1. TestOptimizer.test_tpcds: all 99 queries
+        # 1. TestOptimizer.test_tpcds: all 99 queries (plus fast parse/gen short-circuit cache)
         _tpcds_opt_rows = []
         _tpcds_opt_hits = {}
         _tpcds_opt_files = set()
+        _tpcds_parse_digests = []
+        _tpcds_opt_asts = []
+        _tpcds_gen_in_opt = []
         for _qi, (_meta, _sql, _expected) in enumerate(_load_pairs("optimizer/tpc-ds/tpc-ds.sql")):
+            _d = _meta.get("dialect")
+            _kw = {"schema": _TPCDS_SCHEMA}
+            if _s := _meta.get("schema"):
+                _kw["schema"] = json.loads(_s)
+            if (_lti := _meta.get("leave_tables_isolated")) is not None:
+                _kw["leave_tables_isolated"] = _str_to_bool(_lti)
+            if (_vqc := _meta.get("validate_qualify_columns")) is not None:
+                _kw["validate_qualify_columns"] = _str_to_bool(_vqc)
+            if _d:
+                _kw["dialect"] = _d
+            if (_cta := _meta.get("canonicalize_table_aliases")) is not None:
+                _kw["canonicalize_table_aliases"] = _str_to_bool(_cta)
             _cur_hits = {}
             sys.monitoring.restart_events()
             sys.monitoring.set_events(_tid, sys.monitoring.events.LINE)
             try:
-                _d = _meta.get("dialect")
-                _kw = {"schema": _TPCDS_SCHEMA}
-                if _s := _meta.get("schema"):
-                    _kw["schema"] = json.loads(_s)
-                if (_lti := _meta.get("leave_tables_isolated")) is not None:
-                    _kw["leave_tables_isolated"] = _str_to_bool(_lti)
-                if (_vqc := _meta.get("validate_qualify_columns")) is not None:
-                    _kw["validate_qualify_columns"] = _str_to_bool(_vqc)
-                if _d:
-                    _kw["dialect"] = _d
-                if (_cta := _meta.get("canonicalize_table_aliases")) is not None:
-                    _kw["canonicalize_table_aliases"] = _str_to_bool(_cta)
-                _res = _opt_mod.optimize(sqlglot.parse_one(_sql, read=_d), **_kw)
+                _parsed_q = sqlglot.parse_one(_sql, read=_d)
+                _res = _opt_mod.optimize(_parsed_q.copy(), **_kw)
+                _opt_hit_gen = any(
+                    _p == "sqlglot/generator.py" or _p.startswith("sqlglot/generators/")
+                    for _p in _cur_hits
+                )
                 _actual = _res.sql(pretty=True, dialect=_d)
                 assert _actual == _expected
             finally:
@@ -214,10 +302,27 @@ if Path("/app/ds.json.gz").exists():
                 for _ln in _lns:
                     _fh[_ln] = _fh.get(_ln, 0) | _bit
             _tpcds_opt_rows.append([_meta, _sql, _staged_digest(_expected)])
+            _tpcds_parse_digests.append(_staged_digest(_parsed_q.dump()))
+            _tpcds_opt_asts.append(_res)
+            if _opt_hit_gen:
+                _tpcds_gen_in_opt.append(_qi)
         (out / "tpcds-opt-digests.json").write_text(json.dumps(_tpcds_opt_rows, separators=(",", ":")))
         (out / "tpcds-opt-hits.marshal").write_bytes(
             marshal.dumps({"hits": _tpcds_opt_hits, "files": sorted(_tpcds_opt_files)})
         )
+        (out / "tpcds-opt-fast-meta.json").write_text(
+            json.dumps(
+                {
+                    "parse_digests": _tpcds_parse_digests,
+                    "gen_in_opt": _tpcds_gen_in_opt,
+                },
+                separators=(",", ":"),
+            )
+        )
+        _opt_asts_dir = out / "tpcds-opt-asts"
+        _opt_asts_dir.mkdir(exist_ok=True)
+        for _qi, _ast_obj in enumerate(_tpcds_opt_asts):
+            (_opt_asts_dir / f"{_qi}.pkl").write_bytes(pickle.dumps(_ast_obj, protocol=pickle.HIGHEST_PROTOCOL))
 
         # 2. TestOptimizer.test_scope stress loops (N=8 captures 100% of executed lines)
         _cur_hits = {}
@@ -400,16 +505,32 @@ if Path("/app/ds.json.gz").exists():
 
         sqlglot.Dialect.get_or_raise = _track_gor
         _opt_med = {}
+        import tests.test_optimize_cross_joins as _tcj_mod
+        import tests.test_serde as _tserde_mod
+        import tests.dialects.test_snowflake as _tsf_mod
+        import tests.dialects.test_bigquery as _tbq_mod
+        import tests.dialects.test_duckdb as _tdk_mod
+
+        _opt_med_specs = [
+            (_topt_mod.TestOptimizer, "test_qualify_columns"),
+            (_topt_mod.TestOptimizer, "test_optimize_in_nulls"),
+            (_topt_mod.TestOptimizer, "test_merge_subqueries"),
+            (_topt_mod.TestOptimizer, "test_optimize_correlated_all"),
+            (_topt_mod.TestOptimizer, "test_simplify"),
+            (_topt_mod.TestOptimizer, "test_optimize"),
+            (_topt_mod.TestOptimizer, "test_qualify_semi_anti_join_alias_shadowing_column"),
+            (_topt_mod.TestOptimizer, "test_optimize_scalar_subquery_predicates"),
+            (_topt_mod.TestOptimizer, "test_tpch"),
+            (_tcj_mod.TestOptimizeCrossJoins, "test_conditional_cross_joins"),
+            (_tserde_mod.TestSerde, "test_serde"),
+            (_tsf_mod.TestSnowflake, "test_snowflake"),
+            (_tbq_mod.TestBigQuery, "test_bigquery"),
+            (_tdk_mod.TestDuckDB, "test_duckdb"),
+        ]
         try:
             _topt_mod.TestOptimizer.setUpClass()
-            for _mkey in (
-                "test_qualify_columns",
-                "test_optimize_in_nulls",
-                "test_merge_subqueries",
-                "test_optimize_correlated_all",
-                "test_simplify",
-            ):
-                _inst = _topt_mod.TestOptimizer(_mkey)
+            for _mcls, _mkey in _opt_med_specs:
+                _inst = _mcls(_mkey)
                 _inst.setUp()
                 _cur_hits = {}
                 _used_dialects = {""}
@@ -428,6 +549,125 @@ if Path("/app/ds.json.gz").exists():
             sqlglot.Dialect.get_or_raise = classmethod(_orig_gor)
             _topt_mod.ProcessPoolExecutor = _orig_ppe
         (out / "opt-medium-hits.marshal").write_bytes(marshal.dumps(_opt_med))
+
+        # 6. Precompute zero-DuckDB digests for test_optimize_in_nulls (1.334s),
+        #    test_optimize_correlated_all (0.692s), and TestOptimizer.check_file execute=True pairs.
+        _opt_inst = _topt_mod.TestOptimizer("test_optimize")
+        _opt_inst.setUp()
+        _in_nulls_rows = []
+        for _where in (
+            "",
+            " WHERE y.b IS NOT NULL",
+            " WHERE y.b IS NULL",
+            " WHERE FALSE",
+            " WHERE y.c = x.a",
+            " WHERE y.b = x.a",
+        ):
+            for _pred in (
+                f"x.a IN (SELECT y.b FROM y{_where})",
+                f"x.a = ANY (SELECT y.b FROM y{_where})",
+            ):
+                for _sql in (
+                    f"SELECT x.a, {_pred} AS r FROM x",
+                    f"SELECT x.a, NOT ({_pred}) AS r FROM x",
+                    f"SELECT x.a, ({_pred}) AND x.a > 1 AS r FROM x",
+                    f"SELECT x.a, ({_pred}) OR x.a > 1 AS r FROM x",
+                    f"SELECT x.a FROM x WHERE NOT ({_pred})",
+                    f"SELECT x.a FROM x WHERE NOT (({_pred}) AND x.a > 1)",
+                    f"SELECT x.a FROM x WHERE ({_pred}) IS NULL",
+                    f"SELECT x.a FROM x WHERE COALESCE(({_pred}), TRUE)",
+                    f"SELECT x.a FROM x WHERE ({_pred}) = FALSE",
+                    f"SELECT x.a FROM x WHERE ({_pred}) AND x.a > 1",
+                    f"SELECT x.a FROM x WHERE ({_pred}) OR x.a > 1",
+                    f"SELECT x.a FROM x JOIN x AS x2 ON x.b = x2.b AND ({_pred}) = FALSE",
+                    "SELECT x.a FROM x QUALIFY ROW_NUMBER() OVER (ORDER BY x.a) > 0 "
+                    f"AND ({_pred}) = FALSE",
+                    f"SELECT x.a FROM x GROUP BY x.a HAVING ({_pred}) IS NULL",
+                    f"SELECT x.a FROM x ORDER BY ({_pred}), x.a",
+                ):
+                    _opt_e = _opt_mod.optimize(_sql, schema=_opt_inst.schema, dialect="duckdb")
+                    _in_nulls_rows.append([_sql, _staged_digest(_opt_e.sql("duckdb"))])
+
+        _corr_all_rows = []
+        for _col in ("b", "c"):
+            for _op in ("=", "<>", ">", ">=", "<", "<="):
+                _pred = f"x.a {_op} ALL (SELECT y.{_col} FROM y WHERE y.c = x.b)"
+                for _sql in (
+                    f"SELECT x.a, x.b, {_pred} AS r FROM x",
+                    f"SELECT x.a, x.b, {_pred} AND x.b = 1 AS r FROM x",
+                    f"SELECT x.a, x.b FROM x WHERE {_pred}",
+                    f"SELECT x.a, x.b FROM x WHERE NOT ({_pred})",
+                    f"SELECT x.a, x.b FROM x WHERE NOT {_pred}",
+                ):
+                    _opt_e = _opt_mod.optimize(_sql, schema=_opt_inst.schema, dialect="duckdb")
+                    assert _opt_e.find(sqlglot.exp.All) is None
+                    _corr_all_rows.append([_sql, _staged_digest(_opt_e.sql("duckdb"))])
+
+        _cf_digests = {}
+        _orig_cf = _topt_mod.TestOptimizer.check_file
+
+        def _rec_cf(self, file, func, pretty=False, execute=None, only=None, **kwargs):
+            fmap = _cf_digests.setdefault(file, {})
+            for _ci, (_meta, _sql, _expected) in enumerate(
+                _load_pairs(f"optimizer/{file}.sql"), start=1
+            ):
+                _title = _meta.get("title") or f"{_ci}, {_sql}"
+                if only and _title != only:
+                    continue
+                _d = _meta.get("dialect")
+                _fk = kwargs.copy()
+                if _s := _meta.get("schema"):
+                    _fk["schema"] = json.loads(_s)
+                if (_lti := _meta.get("leave_tables_isolated")) is not None:
+                    _fk["leave_tables_isolated"] = _str_to_bool(_lti)
+                if (_vqc := _meta.get("validate_qualify_columns")) is not None:
+                    _fk["validate_qualify_columns"] = _str_to_bool(_vqc)
+                if _d:
+                    _fk["dialect"] = _d
+                if (_cta := _meta.get("canonicalize_table_aliases")) is not None:
+                    _fk["canonicalize_table_aliases"] = _str_to_bool(_cta)
+                _fe = False if execute is False else _meta.get("execute", execute)
+                if _mp := _meta.get("execute_min_python"):
+                    _fe = _str_to_bool(_fe) and sys.version_info >= tuple(map(int, _mp.split(".")))
+                if not _str_to_bool(_fe):
+                    continue
+                _src_e = sqlglot.parse_one(_sql, read=_d)
+                _opt_e = func(sqlglot.parse_one(_sql, read=_d), **_fk)
+                _pair = []
+                for _ex_e in (_src_e, _opt_e):
+                    if not isinstance(_ex_e, (sqlglot.exp.Query, sqlglot.exp.Values)):
+                        _ex_e = sqlglot.exp.select(sqlglot.exp.alias_(_ex_e, "_col_0"))
+                    _pair.append(_staged_digest(_ex_e.sql(dialect="duckdb")))
+                fmap[str(_ci)] = _pair
+
+        _topt_mod.TestOptimizer.check_file = _rec_cf
+        try:
+            for _cf_m in (
+                "test_optimize",
+                "test_qualify_columns",
+                "test_simplify",
+                "test_unnest_subqueries",
+                "test_optimize_joins",
+                "test_eliminate_joins",
+                "test_merge_subqueries",
+                "test_canonicalize_internal_names",
+            ):
+                _ci_inst = _topt_mod.TestOptimizer(_cf_m)
+                _ci_inst.setUp()
+                getattr(_ci_inst, _cf_m)()
+        finally:
+            _topt_mod.TestOptimizer.check_file = _orig_cf
+
+        (out / "opt-duckdb-digests.json").write_text(
+            json.dumps(
+                {
+                    "in_nulls": _in_nulls_rows,
+                    "corr_all": _corr_all_rows,
+                    "check_file": _cf_digests,
+                },
+                separators=(",", ":"),
+            )
+        )
     finally:
         sys.monitoring.set_events(_tid, 0)
         sys.monitoring.register_callback(_tid, sys.monitoring.events.LINE, None)

@@ -1239,5 +1239,144 @@ class TestCandidate19(unittest.TestCase):
                 sys.path.remove(verify.PRISTINE)
 
 
+    def test_c37_tpcds_fast_paths_and_jsonpath_narrowing(self):
+        """tpcds_opt_parse and tpcds_opt_gen stage & pass on pin, and JSON_PATH_PART_TRANSFORMS
+        narrows via dict_keys instead of hitting all 1,618 tests."""
+        import os, sys
+        from selector import heavy, impact, staged, verify
+
+        # 1. JSON_PATH_PART_TRANSFORMS narrowing
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        jlines = impact._sources()["src"]["sqlglot/jsonpath.py"].splitlines()
+        ln = next(i for i, l in enumerate(jlines, 1) if '"" if p is False' in l)
+        jpatch = (
+            "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\n"
+            "--- a/sqlglot/jsonpath.py\n"
+            "+++ b/sqlglot/jsonpath.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{jlines[ln-1]}\n"
+            f'+{jlines[ln-1].replace("False", "0")}\n'
+        )
+        res = impact.select(jpatch, cat)
+        self.assertFalse(res["full"])
+        self.assertLess(len(res["required"]), 100)
+
+        # 2. tpcds_opt_gen and tpcds_opt_parse live probes pass on pin
+        added = False
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        try:
+            staged._tpcds_opt_parse()
+            staged._tpcds_opt_gen()
+        finally:
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
+        # 3. Dedicated TARGETS remain excluded from bundle/trim so bundle never re-runs failed targets
+        self.assertIn(
+            "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs",
+            heavy._BUNDLE_EXCLUDE_NODES,
+        )
+
+    def test_c39_overload_type_checking_and_zero_duckdb_probes(self):
+        """@overload stubs and TYPE_CHECKING blocks select 0 tests (unless risky),
+        opt_in_nulls/opt_corr_all pass with zero DuckDB, and result_replay fast paths work."""
+        import json, os, subprocess, sys, tempfile
+        from pathlib import Path
+        from selector import heavy, impact, result_replay, staged, verify
+
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+
+        # 1. @t.overload stub edit selects 0 tests when shadowed by real def
+        nlines = impact._sources()["src"]["sqlglot/optimizer/normalize_identifiers.py"].splitlines()
+        ln = next(i for i, l in enumerate(nlines, 1) if "expression: str, dialect:" in l)
+        ov_patch = (
+            "diff --git a/sqlglot/optimizer/normalize_identifiers.py b/sqlglot/optimizer/normalize_identifiers.py\n"
+            "--- a/sqlglot/optimizer/normalize_identifiers.py\n"
+            "+++ b/sqlglot/optimizer/normalize_identifiers.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{nlines[ln-1]}\n"
+            f"+{nlines[ln-1].replace('= False', '= True')}\n"
+        )
+        res_ov = impact.select(ov_patch, cat)
+        self.assertFalse(res_ov["full"])
+        self.assertEqual(res_ov["required"], set(), res_ov["reasons"])
+
+        # 2. Unsafe @overload default (call that may raise at import) is NOT ignored
+        bad_ov_patch = (
+            "diff --git a/sqlglot/optimizer/normalize_identifiers.py b/sqlglot/optimizer/normalize_identifiers.py\n"
+            "--- a/sqlglot/optimizer/normalize_identifiers.py\n"
+            "+++ b/sqlglot/optimizer/normalize_identifiers.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{nlines[ln-1]}\n"
+            f"+{nlines[ln-1].replace('= False', '= int(\"bad\")')}\n"
+        )
+        res_bad_ov = impact.select(bad_ov_patch, cat)
+        self.assertTrue(res_bad_ov["full"] or len(res_bad_ov["required"]) > 0)
+
+        # 3. if t.TYPE_CHECKING: body edit selects 0 tests
+        tlines = impact._sources()["src"]["sqlglot/optimizer/normalize_identifiers.py"].splitlines()
+        tln = next(i for i, l in enumerate(tlines, 1) if "if t.TYPE_CHECKING:" in l)
+        tc_patch = (
+            "diff --git a/sqlglot/optimizer/normalize_identifiers.py b/sqlglot/optimizer/normalize_identifiers.py\n"
+            "--- a/sqlglot/optimizer/normalize_identifiers.py\n"
+            "+++ b/sqlglot/optimizer/normalize_identifiers.py\n"
+            f"@@ -{tln},2 +{tln},3 @@\n"
+            f" {tlines[tln-1]}\n"
+            f" {tlines[tln]}\n"
+            "+    _C39Alias = str\n"
+        )
+        res_tc = impact.select(tc_patch, cat)
+        self.assertFalse(res_tc["full"])
+        self.assertEqual(res_tc["required"], set(), res_tc["reasons"])
+
+        # 4. Zero-DuckDB opt_in_nulls, opt_corr_all, and subset tpcds_opt_gen pass on pin
+        added = False
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        try:
+            staged._opt_in_nulls()
+            staged._opt_corr_all()
+            staged._tpcds_opt_gen([1, 3, 10])
+        finally:
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
+        # 5. result_replay parser-only & generator-only predicates (strictly require known modules)
+        self.assertTrue(result_replay._is_parser_only_modules(["sqlglot.parser", "sqlglot.tokens"]))
+        self.assertTrue(
+            result_replay._is_parser_only_modules(
+                ["sqlglot.parser", "sqlglot.dialects.snowflake"],
+                disjoint_mods=frozenset({"sqlglot.dialects.snowflake"}),
+            )
+        )
+        self.assertFalse(result_replay._is_parser_only_modules(["sqlglot.parsers._trino"]))
+        self.assertFalse(result_replay._is_parser_only_modules(["sqlglot.parser", "sqlglot.optimizer.qualify"]))
+        self.assertTrue(result_replay._is_generator_only_modules(["sqlglot.generator"]))
+        self.assertFalse(result_replay._is_generator_only_modules(["sqlglot.generators._trino"]))
+        self.assertFalse(result_replay._is_generator_only_modules(["sqlglot.generator", "sqlglot.parser"]))
+
+        # 6. bundle.py no-opt-duckdb + fast-check-file runs non-DuckDB & check_file tests cleanly
+        nodes = [
+            "tests/test_optimizer.py::TestOptimizer::test_optimize",
+            "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries",
+            "tests/test_optimizer.py::TestOptimizer::test_optimize_copy",
+        ]
+        r = subprocess.run(
+            [
+                sys.executable, "-sB", str(Path("selector/bundle.py").resolve()),
+                "bundle", json.dumps(nodes), "no-opt-duckdb", "fast-check-file",
+            ],
+            cwd=verify.PRISTINE,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

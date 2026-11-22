@@ -75,9 +75,31 @@ def main():
         "no-exec-setup" in sys.argv[3:]
         and not (tpc_exec_nodes & set(ids))
     )
+    skip_opt_duckdb = "no-opt-duckdb" in sys.argv[3:]
+    fast_check_file = "fast-check-file" in sys.argv[3:]
+    if skip_opt_duckdb:
+        class _FailClosedStub(types.ModuleType):
+            def __getattr__(self, name):
+                def _boom(*_a, **_kw):
+                    raise RuntimeError(f"stubbed {self.__name__}.{name}")
+                return _boom
+
+        if "duckdb" not in sys.modules:
+            sys.modules["duckdb"] = _FailClosedStub("duckdb")
+        if "pandas" not in sys.modules:
+            _pt = _FailClosedStub("pandas.testing")
+            _pt.assert_frame_equal = lambda *_a, **_kw: (_ for _ in ()).throw(
+                RuntimeError("stubbed pandas.testing.assert_frame_equal")
+            )
+            _pm = _FailClosedStub("pandas")
+            _pm.testing = _pt
+            sys.modules["pandas"] = _pm
+            sys.modules["pandas.testing"] = _pt
+
     suite = unittest.TestSuite()
     nodes = {}
     exec_stubbed = False
+    opt_patched = False
     for node in ids:
         path, cls, method = node.split("::")
         module = importlib.import_module(path[:-3].replace("/", "."))
@@ -87,6 +109,95 @@ def main():
                 tcls.setUpClass = classmethod(lambda c: None)
                 tcls.tearDownClass = classmethod(lambda c: None)
                 exec_stubbed = True
+        if (skip_opt_duckdb or fast_check_file) and not opt_patched and path == "tests/test_optimizer.py":
+            ocls = getattr(module, "TestOptimizer", None)
+            if ocls is not None:
+                if skip_opt_duckdb:
+                    import concurrent.futures as _cf
+                    import sqlglot as _sg
+                    from sqlglot.schema import MappingSchema as _MS
+
+                    class _NoConn:
+                        def __getattr__(self, name):
+                            raise RuntimeError(f"stubbed TestOptimizer.conn.{name}")
+
+                    @classmethod
+                    def _light_setup(c):
+                        c.pool = _cf.ProcessPoolExecutor()
+                        c.addClassCleanup(c.pool.shutdown)
+                        _sg.schema = _MS()
+                        c.conn = _NoConn()
+
+                    ocls.setUpClass = _light_setup
+                    ocls.tearDownClass = classmethod(lambda c: None)
+                if fast_check_file:
+                    _cf_path = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "opt-duckdb-digests.json"
+                    if _cf_path.is_file():
+                        import hashlib as _hl
+                        _topt_mod = module
+                        _cf_map = json.loads(_cf_path.read_text()).get("check_file", {})
+
+                        def _dg(v):
+                            return _hl.sha256(
+                                json.dumps(v, separators=(",", ":"), ensure_ascii=True).encode()
+                            ).hexdigest()
+
+                        _orig_cf = ocls.check_file
+
+                        def _fast_cf(self, file, func, pretty=False, execute=None, only=None, **kwargs):
+                            fmap = _cf_map.get(file)
+                            if not fmap:
+                                return _orig_cf(self, file, func, pretty=pretty, execute=execute, only=only, **kwargs)
+                            from concurrent.futures import as_completed, wait
+                            from sqlglot import exp, parse_one
+                            from tests.helpers import load_sql_fixture_pairs, string_to_bool
+
+                            results = {}
+                            for i, (meta, sql, expected) in enumerate(
+                                load_sql_fixture_pairs(f"optimizer/{file}.sql"), start=1
+                            ):
+                                title = meta.get("title") or f"{i}, {sql}"
+                                if only and title != only:
+                                    continue
+                                dialect = meta.get("dialect")
+                                fk = kwargs.copy()
+                                if s := meta.get("schema"):
+                                    fk["schema"] = json.loads(s)
+                                if (lti := meta.get("leave_tables_isolated")) is not None:
+                                    fk["leave_tables_isolated"] = string_to_bool(lti)
+                                if (vqc := meta.get("validate_qualify_columns")) is not None:
+                                    fk["validate_qualify_columns"] = string_to_bool(vqc)
+                                if dialect:
+                                    fk["dialect"] = dialect
+                                if (cta := meta.get("canonicalize_table_aliases")) is not None:
+                                    fk["canonicalize_table_aliases"] = string_to_bool(cta)
+                                fe = False if execute is False else meta.get("execute", execute)
+                                if mp := meta.get("execute_min_python"):
+                                    fe = string_to_bool(fe) and sys.version_info >= tuple(map(int, mp.split(".")))
+                                fut = self.pool.submit(_topt_mod.parse_and_optimize, func, sql, dialect, **fk)
+                                results[fut] = (i, sql, title, expected, dialect, fe)
+                            wait(results)
+                            for fut in as_completed(results):
+                                idx_i, sql, title, expected, dialect, fe = results[fut]
+                                with self.subTest(title):
+                                    optimized = fut.result()
+                                    actual = optimized.sql(pretty=pretty, dialect=dialect)
+                                    self.assertEqual(expected, actual)
+                                    if string_to_bool(fe):
+                                        with self.subTest(f"(execute) {title}"):
+                                            pair_sqls = []
+                                            for ex_e in (parse_one(sql, read=dialect), optimized):
+                                                if not isinstance(ex_e, (exp.Query, exp.Values)):
+                                                    ex_e = exp.select(exp.alias_(ex_e, "_col_0"))
+                                                pair_sqls.append(ex_e.sql(dialect="duckdb"))
+                                            pinned = fmap.get(str(idx_i))
+                                            if pinned and [_dg(pair_sqls[0]), _dg(pair_sqls[1])] == pinned:
+                                                continue
+                                            dfs = [self.conn.execute(q).df() for q in pair_sqls]
+                                            _topt_mod.assert_frame_equal(*dfs)
+
+                        ocls.check_file = _fast_cf
+                opt_patched = True
         case = getattr(module, cls)(method)
         if not isinstance(case, unittest.TestCase):
             raise TypeError(node)

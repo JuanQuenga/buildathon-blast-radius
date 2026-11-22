@@ -339,6 +339,118 @@ def _is_docstring(s) -> bool:
             and isinstance(s.value.value, str))
 
 
+def _is_overload_stub(s) -> bool:
+    """True for a typing ``@overload`` / ``@t.overload`` stub whose body is only
+    ``...`` / ``pass`` / docstrings."""
+    if not isinstance(s, _DEFS) or len(s.decorator_list) != 1:
+        return False
+    dec = s.decorator_list[0]
+    is_ov = (
+        (isinstance(dec, ast.Name) and dec.id == "overload")
+        or (isinstance(dec, ast.Attribute) and dec.attr == "overload")
+    )
+    if not is_ov or not s.body:
+        return False
+    for st in s.body:
+        if _is_docstring(st) or isinstance(st, ast.Pass):
+            continue
+        if isinstance(st, ast.Expr) and isinstance(st.value, ast.Constant) and st.value.value is Ellipsis:
+            continue
+        return False
+    return True
+
+
+def _has_future_annotations(tree) -> bool:
+    if tree is None:
+        return False
+    for st in tree.body:
+        if (
+            isinstance(st, ast.ImportFrom)
+            and st.module == "__future__"
+            and any(a.name == "annotations" for a in st.names)
+        ):
+            return True
+    return False
+
+
+def _is_simple_default_expr(node) -> bool:
+    if node is None:
+        return True
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Attribute):
+        return _is_simple_default_expr(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub, ast.Not)):
+        return _is_simple_default_expr(node.operand)
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return all(_is_simple_default_expr(e) for e in node.elts)
+    return False
+
+
+def _has_impl_after(stmts, name: str) -> bool:
+    """True when ``stmts`` contains a non-overload ``def <name>`` AFTER every
+    ``@overload`` stub of ``<name>``."""
+    last_ov = -1
+    last_impl = -1
+    for i, st in enumerate(stmts):
+        if isinstance(st, _DEFS) and st.name == name:
+            if _is_overload_stub(st):
+                last_ov = i
+            else:
+                last_impl = i
+    return last_impl >= 0 and last_impl > last_ov
+
+
+def _is_type_checking_if(s) -> bool:
+    """True for ``if TYPE_CHECKING:`` or ``if t.TYPE_CHECKING:`` with no ``else``."""
+    if not isinstance(s, ast.If) or s.orelse or not s.body:
+        return False
+    test = s.test
+    if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
+        return True
+    if (
+        isinstance(test, ast.Attribute)
+        and test.attr == "TYPE_CHECKING"
+        and isinstance(test.value, ast.Name)
+    ):
+        return True
+    return False
+
+
+def _typing_tc_safe(tree, stmt: ast.If) -> bool:
+    """Verify ``TYPE_CHECKING`` / ``<alias>.TYPE_CHECKING`` comes strictly from
+    ``typing`` and is never rebound in ``tree``."""
+    if tree is None:
+        return False
+    test = stmt.test
+    if isinstance(test, ast.Name):
+        imported = False
+        for st in tree.body:
+            if isinstance(st, ast.ImportFrom) and st.module == "typing":
+                if any((a.asname or a.name) == "TYPE_CHECKING" and a.name == "TYPE_CHECKING" for a in st.names):
+                    imported = True
+            elif "TYPE_CHECKING" in _bound_names(st):
+                return False
+        return imported
+    if isinstance(test, ast.Attribute) and isinstance(test.value, ast.Name):
+        alias = test.value.id
+        imported = False
+        for st in tree.body:
+            if isinstance(st, ast.Import):
+                for a in st.names:
+                    if (a.asname or a.name) == alias:
+                        if a.name == "typing":
+                            imported = True
+                        else:
+                            return False
+            elif alias in _bound_names(st):
+                return False
+        return imported
+    return False
+
+
 _COMPOUND = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try,
              ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Match)
 if hasattr(ast, "TryStar"):
@@ -1478,6 +1590,60 @@ class PyDiff:
         self.add(hb, f"statement L{o.lineno}")
 
     # ------------------------------------------------------- class / module bodies
+    def _overload_is_inert(self, o, n, scope, owner) -> bool:
+        """True when an added/removed/edited ``@overload`` stub is unconditionally
+        shadowed by a real ``def <name>`` later in the same scope and has no
+        import-time side effects."""
+        if self.is_test or _name_sites(self.an, "get_overloads"):
+            return False
+        if o is not None and not _is_overload_stub(o):
+            return False
+        if n is not None and not _is_overload_stub(n):
+            return False
+        name = (n or o).name
+        o_body = owner[1].body if scope == "class" and owner else (self.old_tree.body if self.old_tree else None)
+        n_body = owner[2].body if scope == "class" and owner else (self.new_tree.body if self.new_tree else None)
+        if not o_body or not n_body:
+            return False
+        if not (_has_impl_after(o_body, name) and _has_impl_after(n_body, name)):
+            return False
+        if n is not None:
+            cls_scope = owner[2] if scope == "class" and owner else None
+            if self.risky_bits([n], None, class_scope=cls_scope):
+                return False
+            defaults = [*n.args.defaults, *n.args.kw_defaults]
+            if not all(_is_simple_default_expr(d) for d in defaults):
+                return False
+            if not _has_future_annotations(self.new_tree):
+                anns = [
+                    n.returns,
+                    *(a.annotation for a in ast.walk(n.args) if isinstance(a, ast.arg)),
+                ]
+                if not all(_is_simple_default_expr(a) for a in anns):
+                    return False
+        return True
+
+    def _filter_inert_type_checking(self, o_other, n_other):
+        """Strip runtime-inert ``if TYPE_CHECKING:`` / ``if t.TYPE_CHECKING:``
+        blocks whose bodies never executed on the pin."""
+        if self.is_test or self.old_tree is None or self.new_tree is None:
+            return o_other, n_other
+        kept_o = []
+        for s in o_other:
+            if (
+                _is_type_checking_if(s)
+                and _typing_tc_safe(self.old_tree, s)
+                and self.lb(s.body[0].lineno, s.end_lineno or s.lineno) == 0
+            ):
+                continue
+            kept_o.append(s)
+        kept_n = []
+        for s in n_other:
+            if _is_type_checking_if(s) and _typing_tc_safe(self.new_tree, s):
+                continue
+            kept_n.append(s)
+        return kept_o, kept_n
+
     def named_range(self, olds, news, i1, i2, j1, j2, entry, scope, owner):
         """Align defs/classes by name inside a changed range of a class or
         module body; everything else is an attribute/binding change."""
@@ -1495,6 +1661,16 @@ class PyDiff:
                 n_other.append(s)
         for name in list(o_named) + [k for k in n_named if k not in o_named]:
             ol, nl = o_named.get(name, []), n_named.get(name, [])
+            if any(_is_overload_stub(s) for s in ol + nl):
+                ol_ov = [s for s in ol if _is_overload_stub(s)]
+                nl_ov = [s for s in nl if _is_overload_stub(s)]
+                ol_real = [s for s in ol if not _is_overload_stub(s)]
+                nl_real = [s for s in nl if not _is_overload_stub(s)]
+                if all(self._overload_is_inert(s, None, scope, owner) for s in ol_ov) and all(
+                    self._overload_is_inert(None, s, scope, owner) for s in nl_ov
+                ):
+                    self.an.reasons.append(f"{self.path}: runtime-inert @overload stub(s) for {name}")
+                    ol, nl = ol_real, nl_real
             for k in range(max(len(ol), len(nl))):
                 o = ol[k] if k < len(ol) else None
                 n = nl[k] if k < len(nl) else None
@@ -1509,6 +1685,10 @@ class PyDiff:
             od = [_dump(s) for s in o_other]
             nd = [_dump(s) for s in n_other]
             if od != nd:
+                o_other, n_other = self._filter_inert_type_checking(o_other, n_other)
+                if not o_other and not n_other:
+                    self.an.reasons.append(f"{self.path}: runtime-inert TYPE_CHECKING block")
+                    return
                 if scope == "class":
                     self.class_attr_change(o_other, n_other, owner, olds, i1)
                 else:
@@ -1531,6 +1711,9 @@ class PyDiff:
             self.block(o.body, n.body, self.stmt_bits(o), "class", own)
             return
         if isinstance(o, _DEFS) and isinstance(n, _DEFS):
+            if self._overload_is_inert(o, n, scope, owner):
+                self.an.reasons.append(f"{self.path}: runtime-inert @overload stub {o.name} L{o.lineno}")
+                return
             body_bits = self.lb(o.body[0].lineno, o.end_lineno) if o.body else 0
             q = f"{owner[0]}.{o.name}" if owner else o.name
             if _def_header(o) != _def_header(n):

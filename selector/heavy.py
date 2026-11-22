@@ -31,6 +31,8 @@ TARGETS = {
     "tests/test_optimizer.py::TestOptimizer::test_scope": "scope",
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": "annotate_funcs",
     "tests/test_executor.py::TestExecutor::test_agg_order": "agg_order",
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": "opt_in_nulls",
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": "opt_corr_all",
     "tests/test_optimizer.py::TestOptimizer::test_canonicalize": "canonicalize",
     "tests/test_schema.py::TestSchema::test_cache_does_not_retain_queries": "cache_schema",
     "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": "long_cte",
@@ -39,32 +41,68 @@ TARGETS = {
 }
 
 # Opt-medium tests eligible for zero-CPU unreached/imported proofs ONLY (stay in bundle/trim when reached).
+# Tuple: (profile_key, own_test_file, own_fixtures)
 _OPT_MEDIUM_TESTS = {
     "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": (
         "test_qualify_columns",
+        "tests/test_optimizer.py",
         ("tests/fixtures/optimizer/qualify_columns.sql", "tests/fixtures/optimizer/qualify_columns_ddl.sql"),
     ),
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": ("test_optimize_in_nulls", ()),
     "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": (
         "test_merge_subqueries",
+        "tests/test_optimizer.py",
         ("tests/fixtures/optimizer/merge_subqueries.sql",),
     ),
-    "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": ("test_optimize_correlated_all", ()),
     "tests/test_optimizer.py::TestOptimizer::test_simplify": (
         "test_simplify",
+        "tests/test_optimizer.py",
         ("tests/fixtures/optimizer/simplify.sql",),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize": (
+        "test_optimize",
+        "tests/test_optimizer.py",
+        ("tests/fixtures/optimizer/optimizer.sql",),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_semi_anti_join_alias_shadowing_column": (
+        "test_qualify_semi_anti_join_alias_shadowing_column", "tests/test_optimizer.py", (),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_optimize_scalar_subquery_predicates": (
+        "test_optimize_scalar_subquery_predicates", "tests/test_optimizer.py", (),
+    ),
+    "tests/test_optimizer.py::TestOptimizer::test_tpch": (
+        "test_tpch",
+        "tests/test_optimizer.py",
+        ("tests/fixtures/optimizer/tpc-h/tpc-h.sql",),
+    ),
+    "tests/test_optimize_cross_joins.py::TestOptimizeCrossJoins::test_conditional_cross_joins": (
+        "test_conditional_cross_joins", "tests/test_optimize_cross_joins.py", (),
+    ),
+    "tests/test_serde.py::TestSerde::test_serde": (
+        "test_serde", "tests/test_serde.py", ("tests/fixtures/identity.sql",),
+    ),
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": (
+        "test_snowflake", "tests/dialects/test_snowflake.py", (),
+    ),
+    "tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery": (
+        "test_bigquery", "tests/dialects/test_bigquery.py", (),
+    ),
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb": (
+        "test_duckdb", "tests/dialects/test_duckdb.py", (),
     ),
 }
 
 _MULTI_MODES = frozenset({
     "imported", "tpch_opt", "tpch_exec", "agg_order", "scope_scaled",
-    "tpcds_opt", "annotate_funcs", "canonicalize", "cache_schema",
+    "tpcds_opt", "tpcds_opt_parse", "tpcds_opt_gen",
+    "opt_in_nulls", "opt_corr_all",
+    "annotate_funcs", "canonicalize", "cache_schema",
     "long_cte", "serde_rec", "deep_ann",
 })
 
 _FAST_COALESCE_GROUPS = frozenset({
-    "tpch_opt", "tpch_exec", "agg_order", "scope", "canonicalize",
-    "cache_schema", "long_cte", "serde_rec", "deep_ann",
+    "tpch_opt", "tpch_exec", "tpcds_opt",
+    "agg_order", "scope", "canonicalize", "cache_schema", "long_cte",
+    "serde_rec", "deep_ann",
 })
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
 
@@ -286,7 +324,9 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
         script = SCRIPT.with_name("generator_cases.py")
     elif group in {
         "imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial",
-        "tpch_opt", "tpch_exec", "tpcds_opt", "scope_scaled", "scope_full", "annotate_funcs", "agg_order",
+        "tpch_opt", "tpch_exec", "tpcds_opt", "tpcds_opt_parse", "tpcds_opt_gen",
+        "opt_in_nulls", "opt_corr_all",
+        "scope_scaled", "scope_full", "annotate_funcs", "agg_order",
         "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann", "multi",
     }:
         script = SCRIPT.with_name("stage_check.py")
@@ -2327,6 +2367,39 @@ def stage_edit(text, group):
             return group, paths, changes, []
         return None
 
+    if group in {"opt_in_nulls", "opt_corr_all"}:
+        if not (APP_DIR / "pin-cache" / "opt-duckdb-digests.json").is_file():
+            return None
+        forbid_on = () if non_sql_inert else ("tests/test_optimizer.py", "tests/helpers.py")
+        if not patch_verifiable_files(files, forbid_prefixes=forbid_on, allow_structural=True):
+            return None
+        if not sql_files or not non_sql_inert or not _compile_ok(text):
+            return None
+        changes = _apply_verifiable(text)
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        safe_files = all(
+            not (f.is_new or f.is_deleted or f.is_rename) and _no_cross_module_hazards(f)
+            for f in sql_files
+        )
+        mkey = "test_optimize_in_nulls" if group == "opt_in_nulls" else "test_optimize_correlated_all"
+        opt_med = _opt_medium_profiles()
+        prof = opt_med.get(mkey) if opt_med else None
+        if prof:
+            if strict_all:
+                regions = changed_regions(text, sqlglot_only=bool(non_sql_files))
+                if regions and all(
+                    not any(lo <= ln <= hi for lo, hi in spans for ln in prof["hits"].get(p, ()))
+                    for p, spans in regions.items()
+                ):
+                    return "unreached", paths, changes, []
+            if safe_files:
+                leaf_sets = [_leaf_dialect_targets(f.path) for f in sql_files]
+                if all(ls is not None and not (ls & prof["dialects"]) for ls in leaf_sets) and all(
+                    f.path not in prof["files"] for f in sql_files
+                ):
+                    return ("unreached" if strict_all else "imported"), paths, changes, []
+        return group, paths, changes, []
+
     if group == "tpcds_opt":
         prof = _tpcds_opt_profile()
         if prof is None or not (APP_DIR / "pin-cache" / "tpcds-opt-digests.json").is_file():
@@ -2351,6 +2424,22 @@ def stage_edit(text, group):
             for f in sql_files
         )
         tfiles = set(prof["files"])
+        has_fast_pkl = (APP_DIR / "pin-cache" / "tpcds-opt-fast-meta.json").is_file()
+
+        def _disjoint_default_leaf(f):
+            ls = _leaf_dialect_targets(f.path)
+            return ls is not None and "" not in ls and f.path not in tfiles
+
+        is_gen_only = safe_files and has_fast_pkl and all(
+            re.fullmatch(r"sqlglot/(?:generator|generators/\w+)\.py", f.path) or _disjoint_default_leaf(f)
+            for f in sql_files
+        )
+        is_parse_only = safe_files and has_fast_pkl and all(
+            re.fullmatch(r"sqlglot/(?:parser|tokens|tokenizer_core|trie|errors|parsers/\w+)\.py", f.path)
+            or _disjoint_default_leaf(f)
+            for f in sql_files
+        )
+
         if strict_all:
             if all(f.path not in tfiles for f in sql_files):
                 return "unreached", paths, changes, []
@@ -2359,13 +2448,20 @@ def stage_edit(text, group):
                 mask = _hits_mask(prof["hits"], regions)
                 if not mask:
                     return "unreached", paths, changes, []
-                return "tpcds_opt", paths, changes, _mask_indices(mask)
+                idxs = _mask_indices(mask)
+                if is_gen_only:
+                    return "tpcds_opt_gen", paths, changes, idxs
+                return "tpcds_opt", paths, changes, idxs
         if safe_files:
             leaf_sets = [_leaf_dialect_targets(f.path) for f in sql_files]
             if all(ls is not None and "" not in ls for ls in leaf_sets) and all(
                 f.path not in tfiles for f in sql_files
             ):
                 return ("unreached" if strict_all else "imported"), paths, changes, []
+            if is_parse_only:
+                return "tpcds_opt_parse", paths, changes, []
+            if is_gen_only:
+                return "tpcds_opt_gen", paths, changes, None
         return "tpcds_opt", paths, changes, list(range(99))
 
     if group == "scope":
@@ -2554,6 +2650,8 @@ def stage_edit(text, group):
         return None
     if not sql_files:
         return None
+    if any(f.is_deleted or f.is_rename for f in sql_files):
+        return None
     changes = _apply_verifiable(text)
     active_sql_files = [f for f in sql_files if not _inert_new_class_attrs(f.path, changes.get(f.path), f)]
     if not active_sql_files:
@@ -2706,6 +2804,10 @@ def economics(mode, cases):
         return 0.85, 0.16 + 0.025 * len(cases)
     if mode == "tpcds_opt":
         return 0.85, 0.05 + 0.032 * len(cases)
+    if mode == "tpcds_opt_gen":
+        if isinstance(cases, list):
+            return 0.90, 0.04 + 0.0025 * len(cases)
+        return 0.90, 0.25
     if mode == "annotate_funcs":
         n_pairs = cases[1] if isinstance(cases, tuple) else 1973
         return 0.85, 0.05 + 0.00050 * n_pairs
@@ -2720,6 +2822,9 @@ def economics(mode, cases):
         "generator": (0.35, 1.85),
         "tpch_opt": (0.90, 0.06),
         "tpch_exec": (0.92, 0.04),
+        "tpcds_opt_parse": (0.88, 0.35),
+        "opt_in_nulls": (0.90, 0.62),
+        "opt_corr_all": (0.90, 0.28),
         "agg_order": (0.92, 0.03),
         "scope_scaled": (0.90, 0.06),
         "scope_full": (0.75, 1.60),
@@ -2764,29 +2869,93 @@ _MEDIUM_DOCKER_CPU = {
     "tests/test_serde.py::TestSerde::test_serde": 0.22,
     "tests/test_optimize_cross_joins.py::TestOptimizeCrossJoins::test_conditional_cross_joins": 0.22,
     "tests/dialects/test_redshift.py::TestRedshift::test_values": 0.25,
-    "tests/test_optimizer.py::TestOptimizer::test_unnest_subqueries": 0.26,
+    "tests/test_optimizer.py::TestOptimizer::test_unnest_subqueries": 0.09,
     "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake": 0.32,
     "tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery": 0.16,
     "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb": 0.14,
     "tests/test_optimizer.py::TestOptimizer::test_deep_ast_type_annotation": 0.28,
     "tests/test_optimizer.py::TestOptimizer::test_tpch": 0.30,
     "tests/test_optimizer.py::TestOptimizer::test_optimize_correlated_all": 0.42,
-    "tests/test_optimizer.py::TestOptimizer::test_optimize": 0.44,
+    "tests/test_optimizer.py::TestOptimizer::test_optimize": 0.14,
     "tests/test_serde.py::TestSerde::test_recursion": 0.47,
     "tests/test_optimizer.py::TestOptimizer::test_qualify_struct_star_long_cte_chain": 0.85,
-    "tests/test_optimizer.py::TestOptimizer::test_simplify": 0.46,
-    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.58,
+    "tests/test_optimizer.py::TestOptimizer::test_simplify": 0.32,
+    "tests/test_optimizer.py::TestOptimizer::test_merge_subqueries": 0.12,
     "tests/test_optimizer.py::TestOptimizer::test_optimize_in_nulls": 0.80,
     "tests/test_optimizer.py::TestOptimizer::test_annotate_funcs": 0.90,
     "tests/test_executor.py::TestExecutor::test_agg_order": 0.02,
-    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 0.88,
+    "tests/test_optimizer.py::TestOptimizer::test_qualify_columns": 0.36,
     "tests/test_executor.py::TestExecutor::test_execute_tpch": 1.30,
     "tests/test_optimizer.py::TestOptimizer::test_scope": 1.55,
     "tests/test_executor.py::TestExecutor::test_optimized_tpch": 4.20,
     "tests/test_optimizer.py::TestOptimizer::test_tpcds": 3.40,
 }
 
-# Negative-ROI or TPC-setup tests excluded from warm-fork bundle/trim.
+# Exact TestOptimizer test methods that directly touch self.conn / duckdb / assert_frame_equal
+# outside check_file (all other 112 TestOptimizer methods can run with zero DuckDB/pandas!).
+_OPT_DIRECT_DUCKDB_NODES = frozenset(
+    f"tests/test_optimizer.py::TestOptimizer::{m}"
+    for m in (
+        "test_annotate_dot_parts_of_non_column_roots",
+        "test_annotate_json_dot_parts_preserve_meta",
+        "test_annotate_row_types",
+        "test_annotate_semi_structured_dot_parts",
+        "test_annotate_struct_subquery_values",
+        "test_canonicalize_internal_names",
+        "test_case_sensitive_json_dot_access",
+        "test_eliminate_joins",
+        "test_eliminate_positional_joins",
+        "test_journal",
+        "test_map_annotation",
+        "test_merge_asof_join_inputs",
+        "test_merge_positional_join_inputs",
+        "test_nearest_joins",
+        "test_optimize_correlated_all",
+        "test_optimize_distinct_on_predicates",
+        "test_optimize_in_nulls",
+        "test_optimize_match_selecting_joins",
+        "test_optimize_positional_joins",
+        "test_optimize_scalar_subquery_key_predicates",
+        "test_optimize_scalar_subquery_predicate_multiple_rows",
+        "test_optimize_scalar_subquery_predicates",
+        "test_optimize_snowflake_asof_without_on",
+        "test_optimize_special_joins",
+        "test_optimize_subqueries_in_aggregates",
+        "test_optimize_subqueries_in_join_on",
+        "test_optimize_uncorrelated_exists",
+        "test_qualify_columns",
+        "test_qualify_columns_using_after_outer_join",
+        "test_qualify_correlated_shadowed_struct_path",
+        "test_qualify_duckdb_collated_alias",
+        "test_qualify_group_by_conflict_bigquery",
+        "test_qualify_json_path_argument_order",
+        "test_qualify_order_by_alias_fallback",
+        "test_qualify_order_by_alias_in_subquery",
+        "test_qualify_order_by_alias_nodes",
+        "test_qualify_order_by_ambiguous_alias",
+        "test_qualify_order_by_source_columns",
+        "test_qualify_order_by_using_column",
+        "test_qualify_order_by_using_column_collision",
+        "test_qualify_parquet_alias_collision",
+        "test_qualify_semi_anti_join_alias_shadowing_column",
+        "test_qualify_semi_anti_join_column_aliases",
+        "test_qualify_struct_star_json_ordering",
+        "test_qualify_struct_star_source_types",
+        "test_qualify_unknown_tvf_table_reference",
+        "test_resolver_column_context",
+        "test_scope",
+        "test_simplify",
+        "test_simplify_string_comparisons",
+        "test_union_annotation",
+        "test_unnest_offset_annotation",
+        "test_unnest_positional_join_predicates",
+        "test_unpivot_cte_annotate_types",
+        "test_values_annotation",
+    )
+)
+
+# Negative-ROI or dedicated-target tests excluded from warm-fork bundle/trim
+# so bundle never re-runs already-failed targets or heavy TPC/stress suites.
 _BUNDLE_EXCLUDE_NODES = frozenset({
     "tests/test_optimizer.py::TestOptimizer::test_tpcds",
     "tests/test_executor.py::TestExecutor::test_execute_tpch",
@@ -2801,12 +2970,21 @@ def _test_docker_cpu(node: str, dur_ms: int) -> float:
     return 0.66 * (dur_ms / 1000.0)
 
 
-def _bundle_setup_cost(tfiles: set[str], cases: list[str], *, no_exec_setup: bool = False) -> tuple[float, bool]:
+def _bundle_setup_cost(
+    tfiles: set[str],
+    cases: list[str],
+    *,
+    no_exec_setup: bool = False,
+    can_skip_opt_duckdb: bool = False,
+) -> tuple[float, bool]:
     uses_exec = "tests/test_executor.py" in tfiles
     uses_opt = "tests/test_optimizer.py" in tfiles
     needs_tpc_setup = any(
         n.endswith(("::test_execute_tpch", "::test_optimized_tpch", "::test_execute_tpcds"))
         for n in cases
+    )
+    uses_opt_duck = uses_opt and (
+        (not can_skip_opt_duckdb) or any(n in _OPT_DIRECT_DUCKDB_NODES for n in cases)
     )
     if needs_tpc_setup:
         setup_cost = 0.65
@@ -2821,30 +2999,38 @@ def _bundle_setup_cost(tfiles: set[str], cases: list[str], *, no_exec_setup: boo
                 tpath, cls, _ = parts
                 if no_exec_setup and tpath == "tests/test_executor.py":
                     continue
+                if can_skip_opt_duckdb and not uses_opt_duck and tpath == "tests/test_optimizer.py":
+                    continue
                 scopes = impact._index()["scopes"].get(tpath)
                 if scopes and any(name == cls + ".setUpClass" for _, _, _, name, _ in scopes[1]):
                     setup_cost = 0.10
                     break
-    return setup_cost, (uses_exec or uses_opt)
+    return setup_cost, (uses_exec or uses_opt_duck)
 
 
-def _estimate_bundle_set(nums, catalog, dur, *, no_exec_setup: bool = False):
+def _estimate_bundle_set(
+    nums, catalog, dur, *, no_exec_setup: bool = False, can_skip_opt_duckdb: bool = False
+):
     cases = [catalog[n] for n in nums]
     tfiles = {node.split("::", 1)[0] for node in cases}
-    setup_cost, uses_heavy = _bundle_setup_cost(tfiles, cases, no_exec_setup=no_exec_setup)
+    setup_cost, uses_heavy = _bundle_setup_cost(
+        tfiles, cases, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
+    )
     run_est = sum(_test_docker_cpu(catalog[n], dur[n]) for n in nums)
     est = setup_cost + (0.14 if uses_heavy else 0.0) + 0.12 + run_est
     return run_est, est, uses_heavy
 
 
-def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup: bool = False):
+def _best_trim_subset(
+    patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup: bool = False, can_skip_opt_duckdb: bool = False
+):
     """Pick a high-ROI non-fail-fast subset S <= cand_nums for ``trim``."""
     best = None  # (score, subset_set, gain, est, uses_heavy)
 
     # Option 1: trim ALL eligible non-TPC required tests when compact.
     if cand_nums < patch.req and len(cand_nums) <= 350:
         run_est, est, uses_heavy = _estimate_bundle_set(
-            cand_nums, catalog, dur, no_exec_setup=no_exec_setup
+            cand_nums, catalog, dur, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
         )
         if run_est <= 2.8:
             rem = patch.req - cand_nums
@@ -2873,7 +3059,7 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
         run_acc += c_est
         if d_ms >= 350 or len(prefix) % 8 == 0 or idx == len(ranked) - 1:
             _, est, uses_heavy = _estimate_bundle_set(
-                prefix, catalog, dur, no_exec_setup=no_exec_setup
+                prefix, catalog, dur, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
             )
             rem = patch.req - prefix
             after = plan_cost(schedule(rem, patch.pl - prefix, dur), dur) / 1000 if rem else 0.0
@@ -2931,7 +3117,10 @@ def options(patch, catalog, targets, dur, attempted=()):
                 cases, needs_pygen = cases
             probability, estimate = economics(mode, cases)
             if group == "tpcds_opt" and mode not in {"unreached", "imported"}:
-                if len(cases) > 45 or gain < max(0.30, 1.55 * estimate):
+                if mode in {"tpcds_opt_parse", "tpcds_opt_gen"}:
+                    if gain < max(0.45, 1.55 * estimate):
+                        continue
+                elif len(cases) > 45 or gain < max(0.30, 1.55 * estimate):
                     continue
             elif group == "scope":
                 if mode == "scope_scaled" and gain < 0.20:
@@ -2950,6 +3139,10 @@ def options(patch, catalog, targets, dur, attempted=()):
                 elif gain < 1.55:
                     continue
             elif group in {"agg_order", "canonicalize", "long_cte", "serde_rec", "deep_ann"} and gain < 0.15:
+                continue
+            elif group == "opt_in_nulls" and mode not in {"unreached", "imported"} and gain < 1.15:
+                continue
+            elif group == "opt_corr_all" and mode not in {"unreached", "imported"} and gain < 0.50:
                 continue
             elif group == "cache_schema" and mode not in {"unreached", "imported"} and gain < 0.25:
                 continue
@@ -2986,13 +3179,17 @@ def options(patch, catalog, targets, dur, attempted=()):
                 )
                 mleaf = [_leaf_dialect_targets(f.path) for f in msql] if msafe else []
                 mpaths = ",".join(f.path for f in msql)
-                for n, (mkey, mfix) in med_nums:
+                for n, (mkey, mfile, mfix) in med_nums:
                     prof = opt_med.get(mkey)
                     if not prof:
                         continue
-                    # Guard: no tests/test_optimizer.py (unless disjoint), helpers.py, or own fixture edited
+                    # Guard: forbid own test file, tests/dialects/validator.py,
+                    # helpers.py, or own fixtures.
                     if any(
-                        f.path in mfix or (f.path and not _target_unreachable(f, "scope"))
+                        f.path in mfix
+                        or f.path == mfile
+                        or f.path == "tests/dialects/validator.py"
+                        or (f.path and not _target_unreachable(f, "scope"))
                         for f in mnon
                     ):
                         continue
@@ -3057,6 +3254,10 @@ def options(patch, catalog, targets, dur, attempted=()):
     has_fixture_edit = any(f.path and f.path.startswith("tests/fixtures/") for f in files)
     if has_fixture_edit:
         return
+    can_skip_opt_duckdb = (
+        not any(f.path == "tests/test_optimizer.py" for f in files)
+        and (APP_DIR / "pin-cache" / "opt-duckdb-digests.json").is_file()
+    )
 
     # Path A: complete patch.req clearance (zero remaining tests on all-pass).
     if (
@@ -3066,7 +3267,7 @@ def options(patch, catalog, targets, dur, attempted=()):
         and (patch, "trim") not in attempted
     ):
         run_est, est, uses_heavy = _estimate_bundle_set(
-            cand_nums, catalog, dur, no_exec_setup=no_exec_setup
+            cand_nums, catalog, dur, no_exec_setup=no_exec_setup, can_skip_opt_duckdb=can_skip_opt_duckdb
         )
         # Non-fail-fast trim when even a 1-failure patch yields >= 1.90x Docker ROI.
         if sim_cost >= 6.5 and run_est <= 2.8 and (sim_cost - 2.15) >= 1.90 * est:
@@ -3090,7 +3291,8 @@ def options(patch, catalog, targets, dur, attempted=()):
     # (and ultra-fast non-heavy trim for 3.2..5.5s commits without duckdb/pandas).
     if (patch, "trim") not in attempted and sim_cost >= 3.2:
         pick = _best_trim_subset(
-            patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
+            patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup,
+            can_skip_opt_duckdb=can_skip_opt_duckdb,
         )
         if pick is not None:
             _score, sub, gain, est, uses_heavy = pick
@@ -3306,7 +3508,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         [
                             mp.group,
                             mp.mode,
-                            mp.cases if mp.mode in {"tpcds_opt", "annotate_funcs"} else None,
+                            mp.cases if mp.mode in {"tpcds_opt", "tpcds_opt_gen", "annotate_funcs"} else None,
                         ]
                         for mp in multi_probes
                     ]
@@ -3316,15 +3518,25 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     run_mode = probe.mode
                     args = ([json.dumps(probe.cases)] if (
                         probe.mode in {"partial", "slice", "rules", "dialects", "bundle", "trim", "tpcds_opt"}
-                        or (probe.mode == "annotate_funcs" and probe.cases is not None)
+                        or (probe.mode in {"annotate_funcs", "tpcds_opt_gen"} and probe.cases is not None)
                         or (probe.mode == "scaled" and probe.cases)
                     ) else [])
                     if probe.mode == "rules":
                         args.append("verify-results")
                     elif probe.mode in {"front", "partial"}:
                         args.append("pygen" if probe.needs_pygen else "no-pygen")
-                    elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
-                        args.append("no-exec-setup")
+                    elif probe.mode in {"bundle", "trim"}:
+                        if "sqlglot/executor/table.py" not in probe.paths.split(","):
+                            args.append("no-exec-setup")
+                        pfiles = parse(patch.text)
+                        no_topt_edit = not any(
+                            f.path and (f.path == "tests/test_optimizer.py" or f.path.startswith("tests/fixtures/"))
+                            for f in pfiles
+                        )
+                        if no_topt_edit and (APP_DIR / "pin-cache" / "opt-duckdb-digests.json").is_file():
+                            args.append("fast-check-file")
+                            if not any(n in _OPT_DIRECT_DUCKDB_NODES for n in probe.cases):
+                                args.append("no-opt-duckdb")
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
                 if remaining_cpu < 0.1 and (multi_probes is not None or probe.mode != "unreached"):
                     break
@@ -3402,6 +3614,7 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     multi_probes is not None
                     or probe.group in {
                         "tpch_opt", "tpch_exec", "tpcds_opt", "scope", "annotate_funcs", "agg_order",
+                        "opt_in_nulls", "opt_corr_all",
                         "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann", "generator",
                     }
                     or probe.group.startswith("om:")

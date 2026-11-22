@@ -728,6 +728,118 @@ def _deep_ann_scaled():
         raise ValueError("deep_ann binary mismatch")
 
 
+def _tpcds_opt_parse():
+    """Fast 99-query verification of TestOptimizer.test_tpcds for parser/tokenizer-only
+    edits: verifies internal optimizer parses + parse_one(sql).dump() on all 99 queries
+    (~0.25s) and runs full optimize only on queries whose parse diverged (aborting if > 12)."""
+    import sqlglot
+
+    pin_cache = BASE.with_name("pin-cache")
+    rows = json.loads((pin_cache / "tpcds-opt-digests.json").read_text())
+    meta_fast = json.loads((pin_cache / "tpcds-opt-fast-meta.json").read_text())
+    pdigs = meta_fast["parse_digests"]
+    if len(rows) != 99 or len(pdigs) != 99:
+        raise ValueError("incomplete tpcds-opt fast cache")
+    ds_meta_path = pin_cache / "ds-fast-meta.json"
+    if ds_meta_path.is_file():
+        sys.path.append(str(Path(__file__).parent))
+        from result_replay import verify_internal_opt_parses
+
+        checks = json.loads(ds_meta_path.read_text()).get("opt_parse_checks", ())
+        if checks and not verify_internal_opt_parses(checks, digest):
+            raise ValueError("tpcds_opt_parse internal optimizer parse diverged")
+    diverged = []
+    for qi, (meta, sql, _exp_d) in enumerate(rows):
+        parsed = sqlglot.parse_one(sql, read=meta.get("dialect"))
+        if digest(parsed.dump()) != pdigs[qi]:
+            diverged.append(qi)
+            if len(diverged) > 12:
+                raise ValueError("too many tpcds_opt parse divergences")
+    if diverged:
+        _tpcds_opt(diverged)
+
+
+def _tpcds_opt_gen(indices=None):
+    """Fast verification of TestOptimizer.test_tpcds for generator-only edits:
+    runs full optimize only on affected queries that invoke generator during optimize,
+    and verifies .sql(pretty=True) on per-query pre-optimized ASTs (~0.04-0.18s total)."""
+    pin_cache = BASE.with_name("pin-cache")
+    rows = json.loads((pin_cache / "tpcds-opt-digests.json").read_text())
+    meta_fast = json.loads((pin_cache / "tpcds-opt-fast-meta.json").read_text())
+    gen_in_opt = set(meta_fast["gen_in_opt"])
+    asts_dir = pin_cache / "tpcds-opt-asts"
+    if len(rows) != 99 or not asts_dir.is_dir():
+        raise ValueError("incomplete tpcds-opt fast cache")
+    target_idxs = list(range(99)) if indices is None else list(indices)
+    opt_needed = [qi for qi in target_idxs if qi in gen_in_opt]
+    if opt_needed:
+        _tpcds_opt(opt_needed)
+    for qi in target_idxs:
+        if qi in gen_in_opt:
+            continue
+        meta, _sql, exp_d = rows[qi]
+        ast_obj = pickle.loads((asts_dir / f"{qi}.pkl").read_bytes())
+        if digest(ast_obj.sql(pretty=True, dialect=meta.get("dialect"))) != exp_d:
+            raise ValueError(f"tpcds_opt_gen diverged on query {qi}")
+
+
+def _opt_base_schema():
+    from sqlglot import exp
+
+    return {
+        "x": {"a": "INT", "b": "INT"},
+        "nn": {
+            "a": exp.DataType.build("INT", nullable=False),
+            "b": exp.DataType.build("INT", nullable=False),
+        },
+        "y": {"b": "INT", "c": "INT"},
+        "z": {"b": "INT", "c": "INT"},
+        "w": {"d": "TEXT", "e": "TEXT"},
+        "temporal": {"d": "DATE", "t": "DATETIME"},
+        "structs": {
+            "one": "STRUCT<a_1 INT, b_1 VARCHAR>",
+            "nested_0": "STRUCT<a_1 INT, nested_1 STRUCT<a_2 INT, nested_2 STRUCT<a_3 INT>>>",
+            "quoted": 'STRUCT<"foo bar" INT>',
+        },
+        "t_bool": {"a": "BOOLEAN", "b": "BOOLEAN", "c": "BOOLEAN"},
+        "comparisons": {"a": "INT", "b": "INT", "c": "BOOLEAN"},
+        "unpivotable": {"id": "INT", "jan": "INT", "feb": "INT", "north": "INT", "south": "INT"},
+        "pivotable": {"id": "INT", "cat": "TEXT", "val": "INT", "kind": "TEXT", "amt": "INT"},
+    }
+
+
+def _opt_in_nulls():
+    """Zero-DuckDB verification of TestOptimizer.test_optimize_in_nulls (1.334s)
+    by checking that all 180 optimized DuckDB SQL outputs match the pristine pin."""
+    from sqlglot import optimizer
+
+    data = json.loads((BASE.with_name("pin-cache") / "opt-duckdb-digests.json").read_text())
+    rows = data["in_nulls"]
+    if len(rows) != 180:
+        raise ValueError("incomplete opt_in_nulls digests")
+    schema = _opt_base_schema()
+    for sql, exp_d in rows:
+        optimized = optimizer.optimize(sql, schema=schema, dialect="duckdb")
+        if digest(optimized.sql("duckdb")) != exp_d:
+            raise ValueError("opt_in_nulls diverged")
+
+
+def _opt_corr_all():
+    """Zero-DuckDB verification of TestOptimizer.test_optimize_correlated_all (0.692s)
+    by checking exp.All elimination and exact pinned DuckDB SQL across all 60 queries."""
+    from sqlglot import exp, optimizer
+
+    data = json.loads((BASE.with_name("pin-cache") / "opt-duckdb-digests.json").read_text())
+    rows = data["corr_all"]
+    if len(rows) != 60:
+        raise ValueError("incomplete opt_corr_all digests")
+    schema = _opt_base_schema()
+    for sql, exp_d in rows:
+        optimized = optimizer.optimize(sql, schema=schema, dialect="duckdb")
+        if optimized.find(exp.All) is not None or digest(optimized.sql("duckdb")) != exp_d:
+            raise ValueError("opt_corr_all diverged")
+
+
 def _run_fast_one(mode, sub_args):
     if mode == "imported":
         return
@@ -737,6 +849,14 @@ def _run_fast_one(mode, sub_args):
         _tpch_exec()
     elif mode == "tpcds_opt":
         _tpcds_opt(sub_args)
+    elif mode == "tpcds_opt_parse":
+        _tpcds_opt_parse()
+    elif mode == "tpcds_opt_gen":
+        _tpcds_opt_gen(sub_args)
+    elif mode == "opt_in_nulls":
+        _opt_in_nulls()
+    elif mode == "opt_corr_all":
+        _opt_corr_all()
     elif mode == "agg_order":
         _agg_order()
     elif mode in {"scope_scaled", "scope_full"}:
@@ -782,10 +902,15 @@ def main():
         _multi(json.loads(sys.argv[2]))
         return
     if group in {
-        "tpch_opt", "tpch_exec", "agg_order", "scope_scaled", "scope_full",
+        "tpch_opt", "tpch_exec", "tpcds_opt_parse",
+        "opt_in_nulls", "opt_corr_all",
+        "agg_order", "scope_scaled", "scope_full",
         "canonicalize", "cache_schema", "long_cte", "serde_rec", "deep_ann",
     }:
         _run_fast_one(group, None)
+        return
+    if group == "tpcds_opt_gen":
+        _tpcds_opt_gen(json.loads(sys.argv[2]) if len(sys.argv) > 2 else None)
         return
     if group == "tpcds_opt":
         _tpcds_opt(json.loads(sys.argv[2]))
