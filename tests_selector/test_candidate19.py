@@ -1238,6 +1238,103 @@ class TestCandidate19(unittest.TestCase):
             if added:
                 sys.path.remove(verify.PRISTINE)
 
+    def test_c45_dict_keys_parser_tables_and_func_tokens_set(self):
+        """Expanded dict_keys tables narrow RANGE_PARSERS, PRIMARY/PLACEHOLDER/CONSTRAINT_PARSERS, and FUNC_TOKENS."""
+        import ast
+        from selector import dict_keys
+
+        loaded = dict_keys._load()
+        self.assertIsNotNone(loaded)
+        bulk, keys = loaded
+        for tbl in (
+            "RANGE_PARSERS",
+            "PRIMARY_PARSERS",
+            "PLACEHOLDER_PARSERS",
+            "CONSTRAINT_PARSERS",
+            "FUNC_TOKENS",
+        ):
+            self.assertIn(tbl, bulk)
+            self.assertIn(tbl, keys)
+            self.assertLessEqual(bin(bulk[tbl]).count("1"), 5)
+
+        o_rng = ast.parse("RANGE_PARSERS = {**Parser.RANGE_PARSERS, TokenType.SIMILAR_TO: f}").body
+        n_rng = ast.parse("RANGE_PARSERS = {**Parser.RANGE_PARSERS, TokenType.SIMILAR_TO: g}").body
+        self.assertEqual(dict_keys.changed_keys("RANGE_PARSERS", o_rng, n_rng), {"T:SIMILAR_TO"})
+
+        o_ft = ast.parse("FUNC_TOKENS = parser.Parser.FUNC_TOKENS | {TokenType.ROLLBACK}").body
+        n_ft = ast.parse("FUNC_TOKENS = parser.Parser.FUNC_TOKENS | {TokenType.ROLLBACK, TokenType.TOP}").body
+        self.assertEqual(dict_keys.changed_keys("FUNC_TOKENS", o_ft, n_ft), {"T:TOP"})
+
+        o_ft2 = ast.parse("FUNC_TOKENS = parser.Parser.FUNC_TOKENS - {TokenType.ROLLBACK}").body
+        n_ft2 = ast.parse("FUNC_TOKENS = parser.Parser.FUNC_TOKENS - {TokenType.ROLLBACK, TokenType.TOP}").body
+        self.assertEqual(dict_keys.changed_keys("FUNC_TOKENS", o_ft2, n_ft2), {"T:TOP"})
+
+    def test_c45_named_added_family_helper_and_mro_override(self):
+        """Adding an unrelated-family private _*_sql helper or MRO method override narrows soundly."""
+        from selector import impact
+
+        cat = [
+            {"number": i, "id": tid, "seconds": 0.05}
+            for i, tid in enumerate(impact._index()["tests"])
+        ]
+
+        # 1. Private _date_delta_sql helper on SQLiteGenerator (only exists on unrelated generators)
+        sq = impact._sources()["src"]["sqlglot/generators/sqlite.py"].splitlines()
+        ln = next(i for i, l in enumerate(sq, 1) if l.startswith("class SQLiteGenerator("))
+        p_helper = (
+            "diff --git a/sqlglot/generators/sqlite.py b/sqlglot/generators/sqlite.py\n"
+            "--- a/sqlglot/generators/sqlite.py\n"
+            "+++ b/sqlglot/generators/sqlite.py\n"
+            f"@@ -{ln},2 +{ln},5 @@\n"
+            f" {sq[ln-1]}\n"
+            f" {sq[ln]}\n"
+            "+    def _date_delta_sql(self, expression):\n"
+            "+        return ''\n"
+            "+\n"
+        )
+        r_helper = impact.select(p_helper, cat)
+        self.assertFalse(r_helper["full"])
+        self.assertEqual(len(r_helper["required"]), 0)
+        self.assertTrue(any("brand-new helper" in r for r in r_helper["reasons"]))
+
+        # 2. MRO override of Parser._parse_delete on TeradataParser narrows to fam & body_bits
+        td = impact._sources()["src"]["sqlglot/parsers/teradata.py"].splitlines()
+        tln = next(i for i, l in enumerate(td, 1) if l.startswith("class TeradataParser("))
+        p_ov = (
+            "diff --git a/sqlglot/parsers/teradata.py b/sqlglot/parsers/teradata.py\n"
+            "--- a/sqlglot/parsers/teradata.py\n"
+            "+++ b/sqlglot/parsers/teradata.py\n"
+            f"@@ -{tln},2 +{tln},5 @@\n"
+            f" {td[tln-1]}\n"
+            f" {td[tln]}\n"
+            "+    def _parse_delete(self):\n"
+            "+        return super()._parse_delete()\n"
+            "+\n"
+        )
+        r_ov = impact.select(p_ov, cat)
+        self.assertFalse(r_ov["full"])
+        self.assertLessEqual(len(r_ov["required"]), 10)
+        self.assertTrue(any("added (override)" in r for r in r_ov["reasons"]))
+
+        # 3. Negative guard: dunder __init__ override stays on full class_family
+        bq = impact._sources()["src"]["sqlglot/generators/bigquery.py"].splitlines()
+        bln = next(i for i, l in enumerate(bq, 1) if l.startswith("class BigQueryGenerator("))
+        p_dunder = (
+            "diff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py\n"
+            "--- a/sqlglot/generators/bigquery.py\n"
+            "+++ b/sqlglot/generators/bigquery.py\n"
+            f"@@ -{bln},2 +{bln},5 @@\n"
+            f" {bq[bln-1]}\n"
+            f" {bq[bln]}\n"
+            "+    def __init__(self, *args, **kwargs):\n"
+            "+        super().__init__(*args, **kwargs)\n"
+            "+\n"
+        )
+        r_dunder = impact.select(p_dunder, cat)
+        self.assertFalse(r_dunder["full"])
+        self.assertGreater(len(r_dunder["required"]), 100)
+        self.assertTrue(any("dispatch by name" in r for r in r_dunder["reasons"]))
+
 
 if __name__ == "__main__":
     unittest.main()

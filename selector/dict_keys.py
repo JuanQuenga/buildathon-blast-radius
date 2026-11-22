@@ -23,13 +23,26 @@ TABLES = frozenset({
     "STATEMENT_PARSERS",
     "PROPERTY_PARSERS",
     "UNARY_PARSERS",
+    "RANGE_PARSERS",
+    "PRIMARY_PARSERS",
+    "PLACEHOLDER_PARSERS",
+    "CONSTRAINT_PARSERS",
+    "FUNC_TOKENS",
     "EXPRESSION_METADATA",
 })
 
-_STR_TABLES = frozenset({"FUNCTIONS", "FUNCTION_PARSERS", "PROPERTY_PARSERS"})
+_STR_TABLES = frozenset({"FUNCTIONS", "FUNCTION_PARSERS", "PROPERTY_PARSERS", "CONSTRAINT_PARSERS"})
 _EXPR_TABLES = frozenset({"TRANSFORMS", "PROPERTIES_LOCATION", "EXPRESSION_METADATA"})
 _DTYPE_TABLES = frozenset({"TYPE_MAPPING"})
-_TOKEN_TABLES = frozenset({"STATEMENT_PARSERS", "UNARY_PARSERS"})
+_TOKEN_TABLES = frozenset({
+    "STATEMENT_PARSERS",
+    "UNARY_PARSERS",
+    "RANGE_PARSERS",
+    "PRIMARY_PARSERS",
+    "PLACEHOLDER_PARSERS",
+    "FUNC_TOKENS",
+})
+_SET_TABLES = frozenset({"FUNC_TOKENS"})
 
 
 def _maps_dir() -> Path:
@@ -41,7 +54,9 @@ def _load():
     import marshal
     cache = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "dict-keys.marshal"
     if cache.is_file():
-        return marshal.loads(cache.read_bytes())
+        loaded = marshal.loads(cache.read_bytes())
+        if isinstance(loaded, tuple) and len(loaded) == 2 and TABLES <= set(loaded[0]):
+            return loaded
     path = _maps_dir() / "dict-keys.json.gz"
     if not path.is_file():
         return None
@@ -235,6 +250,46 @@ def _single_assign_rhs(stmts: list[ast.stmt], target_name: str) -> ast.AST | Non
     return None
 
 
+def _extract_set_ops(node: ast.AST, table: str) -> tuple[str, set[str], set[str]] | None:
+    """Parse ``BASE | {K1, ...} - {K2, ...}`` or ``{*BASE, K1, ...}`` into
+    ``(base_dump, added_keys, removed_keys)`` or ``None``."""
+    if isinstance(node, ast.Set):
+        bases: list[str] = []
+        added: set[str] = set()
+        for elt in node.elts:
+            if isinstance(elt, ast.Starred):
+                bases.append(ast.dump(elt.value, include_attributes=False))
+            else:
+                ek = _decode_key(elt, table)
+                if ek is None:
+                    return None
+                added.add(ek)
+        return ("+".join(bases), added, set())
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.BitOr, ast.Sub)):
+        left = _extract_set_ops(node.left, table)
+        if left is None:
+            left = (ast.dump(node.left, include_attributes=False), set(), set())
+        base_dump, added, removed = left[0], set(left[1]), set(left[2])
+        if not isinstance(node.right, ast.Set):
+            return None
+        rhs_keys: set[str] = set()
+        for elt in node.right.elts:
+            if isinstance(elt, ast.Starred):
+                return None
+            ek = _decode_key(elt, table)
+            if ek is None:
+                return None
+            rhs_keys.add(ek)
+        if isinstance(node.op, ast.BitOr):
+            added |= rhs_keys
+            removed -= rhs_keys
+        else:
+            removed |= rhs_keys
+            added -= rhs_keys
+        return (base_dump, added, removed)
+    return None
+
+
 def changed_keys(
     table: str, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt], *, target_name: str | None = None
 ) -> set[str] | None:
@@ -248,6 +303,12 @@ def changed_keys(
     n_rhs = _single_assign_rhs(n_stmts, tname)
     if o_rhs is None or n_rhs is None:
         return None
+    if table in _SET_TABLES:
+        o_set = _extract_set_ops(o_rhs, table)
+        n_set = _extract_set_ops(n_rhs, table)
+        if o_set is None or n_set is None or o_set[0] != n_set[0]:
+            return None
+        return (o_set[1] ^ n_set[1]) | (o_set[2] ^ n_set[2])
     old_parsed = _extract_entries(o_rhs, table)
     new_parsed = _extract_entries(n_rhs, table)
     if old_parsed is None or new_parsed is None:
