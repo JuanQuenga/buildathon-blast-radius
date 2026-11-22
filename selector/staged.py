@@ -322,11 +322,109 @@ def executor(record, expected, full, selection=None, *, check_pygen=None):
     return rows, tail
 
 
+def _tpch_opt():
+    """Verify tests/test_executor.py::TestExecutor::test_optimized_tpch (3.537s)
+    by checking that all 22 TPC-H (sql, optimized) pairs transpile identically
+    to DuckDB SQL (~0.036s CPU)."""
+    sys.path.append(str(Path(__file__).parent))
+    from result_replay import _duckdb_sql_ws_equivalent, _needs_transpile_check
+
+    rows = json.loads((BASE.with_name("pin-cache") / "tpch-digests.json").read_text())
+    if len(rows) != 22:
+        raise ValueError("incomplete tpch digests")
+    changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
+    if not _needs_transpile_check(changed_modules):
+        return
+    import sqlglot
+
+    for row in rows:
+        for key, ref_key in (("sql", "tsql"), ("opt", "topt")):
+            new_list = sqlglot.transpile(row[key], write="duckdb")
+            if digest(new_list) != row[ref_key]:
+                old_list = sqlglot.transpile(row[key], write="duckdb", pretty=False)
+                if not (
+                    len(old_list) == 1
+                    and len(new_list) == 1
+                    and digest(old_list) == row[ref_key]
+                    and _duckdb_sql_ws_equivalent(old_list[0], new_list[0])
+                ):
+                    raise ValueError("tpch duckdb transpile diverged")
+
+
+def _tpch_exec():
+    """Verify tests/test_executor.py::TestExecutor::test_execute_tpch (3.863s)
+    for non-executor edits via exact parse + transpile + optimize + Plan +
+    pygen_plan_digest + live MappingSchema.find() across all 22 TPC-H queries
+    (~0.26s CPU, zero DuckDB/pandas/CSV load)."""
+    sys.path.append(str(Path(__file__).parent))
+    from result_replay import (
+        _duckdb_sql_ws_equivalent,
+        _needs_parse_check,
+        _needs_transpile_check,
+        pygen_plan_digest,
+    )
+
+    changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
+    if any(m.startswith("sqlglot.executor") for m in changed_modules):
+        raise ValueError("executor edit requires full tpch execution")
+    rows = json.loads((BASE.with_name("pin-cache") / "tpch-digests.json").read_text())
+    if len(rows) != 22:
+        raise ValueError("incomplete tpch digests")
+
+    import sqlglot
+
+    check_parse = _needs_parse_check(changed_modules)
+    check_transpile = _needs_transpile_check(changed_modules)
+    any_exec = any(row["execute"] for row in rows)
+    if not any_exec and not check_parse:
+        return
+
+    ex = planner_mod = gen_cls = TPCH_SCHEMA = eng = None
+    if any_exec:
+        import sqlglot.executor as ex
+        from sqlglot import planner as planner_mod
+        from sqlglot.executor.table import Table, ensure_tables
+        from sqlglot.generator import Generator as gen_cls
+        from tests.helpers import TPCH_SCHEMA
+
+        tpch_tables = ensure_tables({t: Table(tuple(cols)) for t, cols in TPCH_SCHEMA.items()})
+        eng = ex.PythonExecutor(tables=tpch_tables)
+
+    for row in rows:
+        sql = row["sql"]
+        expr = sqlglot.parse_one(sql)
+        if check_parse:
+            expr = pickle.loads(pickle.dumps(expr))
+        if not row["execute"]:
+            continue
+        if check_transpile:
+            new_list = sqlglot.transpile(sql, write="duckdb")
+            if digest(new_list) != row["tsql"]:
+                old_list = sqlglot.transpile(sql, write="duckdb", pretty=False)
+                if not (
+                    len(old_list) == 1
+                    and len(new_list) == 1
+                    and digest(old_list) == row["tsql"]
+                    and _duckdb_sql_ws_equivalent(old_list[0], new_list[0])
+                ):
+                    raise ValueError("tpch duckdb transpile diverged")
+        opt = ex.optimize(expr, schema=TPCH_SCHEMA, leave_tables_isolated=True)
+        plan = ex.Plan(opt)
+        if pygen_plan_digest(eng, plan, planner_mod, gen_cls, digest) != row["pygen"]:
+            raise ValueError("tpch pygen plan diverged")
+
+
 def main():
     group = sys.argv[1]
     if group == "record":
         rows, tail = executor(True, None, True)
         BASE.write_text(json.dumps(dict(ds=rows, tail=tail, parser=parser())))
+        return
+    if group == "tpch_opt":
+        _tpch_opt()
+        return
+    if group == "tpch_exec":
+        _tpch_exec()
         return
     if group in {"corpus", "tokens"}:
         sys.path.append(str(Path(__file__).parent))

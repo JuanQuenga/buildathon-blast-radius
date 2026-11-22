@@ -124,6 +124,34 @@ if Path("/app/ds.json.gz").exists():
         _eng = _ex.PythonExecutor(tables={})
         _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
     (out / "pygen-digests.json").write_text(json.dumps(_pygen_map, separators=(",", ":")))
+
+    # Precompute pinned TPC-H transpile + PythonGenerator codegen digests for
+    # test_optimized_tpch (3.537s) and test_execute_tpch (3.863s).
+    from tests.helpers import TPCH_SCHEMA as _TPCH_SCHEMA, load_sql_fixture_pairs as _load_pairs
+
+    _tpch_rows = []
+    for _meta, _sql, _opt_sql in _load_pairs("optimizer/tpc-h/tpc-h.sql"):
+        _parsed = pickle.loads(pickle.dumps(sqlglot.parse_one(_sql)))
+        _is_exec = bool(_meta.get("execute"))
+        _pyg = None
+        if _is_exec:
+            _opt = _ex.optimize(_parsed, schema=_TPCH_SCHEMA, leave_tables_isolated=True)
+            _plan = _ex.Plan(_opt)
+            _eng = _ex.PythonExecutor(tables={})
+            _pyg = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
+        _tpch_rows.append(
+            {
+                "sql": _sql,
+                "opt": _opt_sql,
+                "execute": _is_exec,
+                "tsql": _staged_digest(sqlglot.transpile(_sql, write="duckdb")),
+                "topt": _staged_digest(sqlglot.transpile(_opt_sql, write="duckdb")),
+                "parse": _staged_digest(_parsed.dump()),
+                "pygen": _pyg,
+            }
+        )
+    (out / "tpch-digests.json").write_text(json.dumps(_tpch_rows, separators=(",", ":")))
+
     if Path("/app/staged.json").is_file():
         (out / "staged.marshal").write_bytes(marshal.dumps(json.loads(Path("/app/staged.json").read_text())))
 

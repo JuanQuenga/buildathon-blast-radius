@@ -1050,6 +1050,79 @@ class TestCandidate19(unittest.TestCase):
         )
         self.assertTrue(heavy._parser_scaled_eligible(parse(patch)[0]))
 
+    def test_tpch_opt_and_exec_staging_and_guards(self):
+        """tpch_opt and tpch_exec stage cleanly on non-executor edits and reject
+        tpc-h.sql or sqlglot/executor/* edits."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        glines = impact._sources()["src"]["sqlglot/generators/snowflake.py"].splitlines()
+        ln = next(i for i, l in enumerate(glines, 1) if l.strip().startswith("return "))
+        ok_patch = (
+            "diff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py\n"
+            "--- a/sqlglot/generators/snowflake.py\n"
+            "+++ b/sqlglot/generators/snowflake.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            f"-{glines[ln-1]}\n"
+            f"+{glines[ln-1]}  # c33\n"
+        )
+        e_opt = heavy.stage_edit(ok_patch, "tpch_opt")
+        e_exec = heavy.stage_edit(ok_patch, "tpch_exec")
+        self.assertIsNotNone(e_opt)
+        self.assertEqual(e_opt[0], "tpch_opt")
+        self.assertIsNotNone(e_exec)
+        self.assertEqual(e_exec[0], "tpch_exec")
+
+        # Executor edit must be rejected for tpch_exec
+        elines = impact._sources()["src"]["sqlglot/executor/env.py"].splitlines()
+        eln = next(i for i, l in enumerate(elines, 1) if "def sql_not" in l) + 1
+        exec_patch = (
+            "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\n"
+            "--- a/sqlglot/executor/env.py\n"
+            "+++ b/sqlglot/executor/env.py\n"
+            f"@@ -{eln},1 +{eln},1 @@\n"
+            f"-{elines[eln-1]}\n"
+            f"+{elines[eln-1]}  # c33\n"
+        )
+        self.assertIsNone(heavy.stage_edit(exec_patch, "tpch_exec"))
+        self.assertIsNotNone(heavy.stage_edit(exec_patch, "tpch_opt"))
+
+        # table.py edit must be rejected for BOTH tpch_opt and tpch_exec
+        tlines = impact._sources()["src"]["sqlglot/executor/table.py"].splitlines()
+        tln = next(i for i, l in enumerate(tlines, 1) if "class Table" in l) + 1
+        tbl_patch = (
+            "diff --git a/sqlglot/executor/table.py b/sqlglot/executor/table.py\n"
+            "--- a/sqlglot/executor/table.py\n"
+            "+++ b/sqlglot/executor/table.py\n"
+            f"@@ -{tln},1 +{tln},1 @@\n"
+            f"-{tlines[tln-1]}\n"
+            f"+{tlines[tln-1]}  # c33\n"
+        )
+        self.assertIsNone(heavy.stage_edit(tbl_patch, "tpch_opt"))
+        self.assertIsNone(heavy.stage_edit(tbl_patch, "tpch_exec"))
+
+    def test_tpch_opt_and_exec_live_probes_pass_on_pin(self):
+        """staged._tpch_opt() and staged._tpch_exec() pass cleanly on pinned sqlglot."""
+        import os, sys
+        from selector import staged, verify
+
+        added = False
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        old_mod = os.environ.get("BLAST_CHANGED_MODULE")
+        try:
+            os.environ["BLAST_CHANGED_MODULE"] = "sqlglot.generator"
+            staged._tpch_opt()
+            staged._tpch_exec()
+        finally:
+            if old_mod is None:
+                os.environ.pop("BLAST_CHANGED_MODULE", None)
+            else:
+                os.environ["BLAST_CHANGED_MODULE"] = old_mod
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
 
 if __name__ == "__main__":
     unittest.main()

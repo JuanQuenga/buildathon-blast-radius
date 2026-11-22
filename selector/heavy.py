@@ -25,6 +25,8 @@ TARGETS = {
     "tests/test_generator.py::TestGenerator::test_generator_memory": "generator",
     "tests/test_executor.py::TestExecutor::test_execute_tpcds": "ds",
     "tests/test_parser.py::TestParser::test_max_nodes": "parser",
+    "tests/test_executor.py::TestExecutor::test_optimized_tpch": "tpch_opt",
+    "tests/test_executor.py::TestExecutor::test_execute_tpch": "tpch_exec",
 }
 SCRIPT = Path(__file__).with_name("heavy_cases.py").resolve()
 
@@ -244,7 +246,7 @@ def replay(group, cases, overlay, deadline, path=None, cpu_limit=None):
         script = SCRIPT.with_name("bundle.py")
     elif group in {"generator", "dialects"}:
         script = SCRIPT.with_name("generator_cases.py")
-    elif group in {"imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial"}:
+    elif group in {"imported", "scaled", "small", "slice", "corpus", "tokens", "front", "full", "partial", "tpch_opt", "tpch_exec"}:
         script = SCRIPT.with_name("stage_check.py")
     else:
         script = SCRIPT
@@ -1629,6 +1631,22 @@ _TARGET_TEST_PROTECTED = {
             "subtestHelper", "cached_execute", "_mp_execute",
         }),
     ),
+    "tpch_opt": (
+        "tests/test_executor.py",
+        "TestExecutor",
+        frozenset({
+            "test_optimized_tpch", "setUpClass", "tearDownClass", "setUp", "tearDown",
+            "cached_execute", "rename_anonymous",
+        }),
+    ),
+    "tpch_exec": (
+        "tests/test_executor.py",
+        "TestExecutor",
+        frozenset({
+            "test_execute_tpch", "setUpClass", "tearDownClass", "setUp", "tearDown",
+            "subtestHelper", "cached_execute", "_mp_execute",
+        }),
+    ),
     "parser": (
         "tests/test_parser.py",
         "TestParser",
@@ -1732,6 +1750,8 @@ def _test_file_disjoint_from_target(fd, group):
 
 _HELPERS_UNUSED = {
     "ds": frozenset({"TPCH_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "tpch_opt": frozenset({"TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "tpch_exec": frozenset({"TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
     "parser": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
     "generator": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
 }
@@ -1996,6 +2016,35 @@ def stage_edit(text, group):
     non_sql_inert = all(_target_unreachable(f, group) for f in non_sql_files)
     strict_all = bool(sql_files) and non_sql_inert and all(eligible_file(f, "ds") for f in sql_files)
 
+    if group in {"tpch_opt", "tpch_exec"}:
+        if not (APP_DIR / "pin-cache" / "tpch-digests.json").is_file():
+            return None
+        forbid_tpch = (
+            ()
+            if non_sql_inert
+            else (
+                "tests/test_executor.py",
+                "tests/helpers.py",
+                "tests/fixtures/optimizer/tpc-h/",
+                "tests/fixtures/optimizer/tpc-ds/",
+            )
+        )
+        if not patch_verifiable_files(
+            files,
+            forbid_prefixes=forbid_tpch,
+            allow_structural=True,
+        ):
+            return None
+        if not sql_files or not non_sql_inert:
+            return None
+        if group == "tpch_opt" and any(f.path == "sqlglot/executor/table.py" for f in sql_files):
+            return None
+        if group == "tpch_exec" and any(f.path.startswith("sqlglot/executor/") for f in sql_files):
+            return None
+        changes = _apply_verifiable(text)
+        paths = ",".join(f.path for f in sql_files if changes.get(f.path) is not None)
+        return group, paths, changes, []
+
     if group == "generator":
         forbid = () if non_sql_inert else ("tests/test_generator.py", "tests/helpers.py")
         if not patch_verifiable_files(
@@ -2238,6 +2287,8 @@ def economics(mode, cases):
         "small": (0.75, 0.25),
         "scaled": (0.67, 0.55),
         "generator": (0.35, 1.85),
+        "tpch_opt": (0.90, 0.06),
+        "tpch_exec": (0.92, 0.05),
     }[mode]
 
 
@@ -2354,12 +2405,12 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
         run_est, est, uses_heavy = _estimate_bundle_set(
             cand_nums, catalog, dur, no_exec_setup=no_exec_setup
         )
-        if run_est <= 2.6:
+        if run_est <= 2.8:
             rem = patch.req - cand_nums
             after = plan_cost(schedule(rem, patch.pl - cand_nums, dur), dur) / 1000 if rem else 0.0
             gain = sim_cost - after
-            if gain >= 2.05 * est and gain - est >= 1.60:
-                best = (gain - 1.50 * est, cand_nums, gain, est, uses_heavy)
+            if gain >= 1.80 * est and gain - est >= 1.30:
+                best = (gain - 1.45 * est, cand_nums, gain, est, uses_heavy)
 
     # Option 2: greedy high-ROI prefix (highest catalog/docker_cpu ratio first).
     ranked = []
@@ -2375,7 +2426,7 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
     prefix = set()
     run_acc = 0.0
     for idx, (_ratio, d_ms, c_est, n) in enumerate(ranked):
-        if len(prefix) >= 80 or run_acc + c_est > 2.20:
+        if len(prefix) >= 120 or run_acc + c_est > 2.60:
             continue
         prefix.add(n)
         run_acc += c_est
@@ -2386,8 +2437,8 @@ def _best_trim_subset(patch, cand_nums, catalog, dur, sim_cost, *, no_exec_setup
             rem = patch.req - prefix
             after = plan_cost(schedule(rem, patch.pl - prefix, dur), dur) / 1000 if rem else 0.0
             gain = sim_cost - after
-            if gain >= 2.05 * est and gain - est >= 1.60:
-                score = gain - 1.55 * est
+            if gain >= 1.80 * est and gain - est >= 1.30:
+                score = gain - 1.50 * est
                 if best is None or score > best[0]:
                     best = (score, set(prefix), gain, est, uses_heavy)
     return best
@@ -2418,10 +2469,14 @@ def options(patch, catalog, targets, dur, attempted=()):
         gain = (plan_cost(patch.workers, dur) - plan_cost(workers, dur)) / 1000
         if gain <= 0 or number in set().union(*workers):
             continue
+        if group == "tpch_opt" and gain < 0.15:
+            continue
+        if group == "tpch_exec" and gain < 0.15:
+            continue
         try:
             edit = stage_edit(patch.text, group)
             from .cheap_proofs import proven
-            if proven(patch.text, group, edit):
+            if group in {"ds", "parser", "generator"} and proven(patch.text, group, edit):
                 heavy_yielded = True
                 yield Probe(patch, group, number, "unreached", "", [], (req, pl, workers),
                             gain, 1.0, 0.005)
@@ -2490,17 +2545,17 @@ def options(patch, catalog, targets, dur, attempted=()):
         run_est, est, uses_heavy = _estimate_bundle_set(
             cand_nums, catalog, dur, no_exec_setup=no_exec_setup
         )
-        # Non-fail-fast trim when even a 1-failure patch yields >= 2.00x Docker ROI.
-        if sim_cost >= 6.5 and run_est <= 2.8 and (sim_cost - 2.15) >= 2.00 * est:
+        # Non-fail-fast trim when even a 1-failure patch yields >= 1.90x Docker ROI.
+        if sim_cost >= 6.5 and run_est <= 2.8 and (sim_cost - 2.15) >= 1.90 * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "trim", None, "trim", sql_paths,
                         cases, (set(), set(), []), sim_cost,
                         0.85, est, heavy_mod=uses_heavy)
             return
-        # Fail-fast bundle for cheaper / smaller-sim patches (C20-tight ROI).
+        # Fail-fast bundle for cheaper / smaller-sim patches (aborts in ~0.2s on fail).
         is_tiny = (not uses_heavy) and est <= 0.55
-        min_roi = 1.75 if is_tiny else (2.30 if uses_heavy else 1.95)
-        max_run = 2.6 if sim_cost >= 6.0 else (1.6 if uses_heavy else 2.0)
+        min_roi = 1.75 if is_tiny else (1.95 if uses_heavy else 1.85)
+        max_run = 3.5 if sim_cost >= 6.5 else (2.4 if sim_cost >= 5.0 else 1.8)
         if run_est <= max_run and sim_cost >= min_roi * est:
             cases = _order_bundle_cases(cand_nums, catalog, dur, files)
             yield Probe(patch, "bundle", None, "bundle", sql_paths,
@@ -2509,7 +2564,7 @@ def options(patch, catalog, targets, dur, attempted=()):
             return
 
     # Path B: high-ROI non-fail-fast subset trim for multi-worker / mixed patches.
-    if (patch, "trim") not in attempted and sim_cost >= 6.8:
+    if (patch, "trim") not in attempted and sim_cost >= 5.5:
         pick = _best_trim_subset(
             patch, cand_nums, catalog, dur, sim_cost, no_exec_setup=no_exec_setup
         )
@@ -2733,6 +2788,10 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                         patch.req, patch.pl, patch.workers = probe.proposed
                     patch.full = False
                     queue[:] = [p for p in queue if p.patch is not patch]
+                    enqueue(patch)
+                elif probe.group in {"tpch_opt", "tpch_exec", "generator"} and not any(
+                    p.patch is patch for p in queue
+                ):
                     enqueue(patch)
             except Exception as exc:
                 result = type(exc).__name__
