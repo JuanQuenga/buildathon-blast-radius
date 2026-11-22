@@ -161,6 +161,14 @@ def _build_lightweight_tpcds():
     return test, tests, ex
 
 
+def _load_staged():
+    import marshal
+    mpath = BASE.with_name("pin-cache") / "staged.marshal"
+    if mpath.is_file():
+        return marshal.loads(mpath.read_bytes())
+    return json.loads(BASE.read_text())
+
+
 @functools.cache
 def rule_query_check():
     """Set up the pin's worker function without importing the DataFrame comparator.
@@ -171,12 +179,12 @@ def rule_query_check():
     from result_replay import run
 
     test, tests, ex = _build_lightweight_tpcds()
-    reference = json.loads(BASE.read_text())["ds"]
+    reference = _load_staged()["ds"]
 
-    def check(qs):
+    def check(qs, *, plan_budget_s=None):
         qlist = [qs] if isinstance(qs, int) else list(qs)
         selection = {"active": qlist, "worker": qlist}
-        run(test, tests, ex, reference, [], selection, digest, plan_digest)
+        run(test, tests, ex, reference, [], selection, digest, plan_digest, plan_budget_s=plan_budget_s)
 
     return check
 
@@ -322,7 +330,7 @@ def main():
         from parse_corpus import replay, replay_tokens
         (replay_tokens if group == "tokens" else replay)()
         return
-    data = json.loads(BASE.read_text())
+    data = _load_staged()
     if group == "small":
         sys.path.append(str(Path(__file__).parent))
         from heavy_cases import Recorder, parser as pinned

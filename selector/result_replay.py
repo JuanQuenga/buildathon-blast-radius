@@ -168,11 +168,17 @@ def _needs_pygen_check(changed_modules):
 
 
 def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
-    """Deterministic, side-effect-free digest of every Python code string
-    PythonExecutor compiles from ``plan`` (including nested subqueries) plus
-    Generator.TIME_PART_SINGULARS."""
+    """Complete, deterministic, side-effect-free execution-equivalence digest of
+    ``plan``: hashes EVERY step field read by ``PythonExecutor.execute()``
+    (topology, step names, limits, offsets, column names, join order/sides/kinds,
+    set ops) plus EVERY Python code string compiled by ``PythonGenerator``
+    (including nested subqueries) and ``Generator.TIME_PART_SINGULARS``.
+
+    Insensitive to unexecuted ``exp.Expr.meta`` / ``comments`` while faithfully
+    capturing any ``.meta`` read by ``PythonGenerator.generate()``."""
+    import math as _math
+
     probe_eng = type(engine)(tables={})
-    orig_reg = probe_eng._register_subquery
 
     def det_register(query):
         if probe_eng._ctes is not None and not query.args.get("with_"):
@@ -186,6 +192,23 @@ def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
 
     probe_eng._register_subquery = det_register
     memo_plans = {}
+
+    def _lim(v):
+        return "inf" if isinstance(v, float) and _math.isinf(v) else v
+
+    def _col_names(exprs):
+        return [
+            e.alias_or_name if isinstance(e, planner_mod.exp.Expr) else e
+            for e in (exprs or ())
+        ]
+
+    def _source_key(src):
+        if src is None:
+            return None
+        if isinstance(src, planner_mod.exp.Expr):
+            parts = [p.name for p in getattr(src, "parts", ())] if hasattr(src, "parts") else []
+            return ("E", type(src).__qualname__, src.name, src.alias, src.alias_or_name, parts)
+        return ("S", src)
 
     def walk_plan(p):
         pid = id(p)
@@ -208,34 +231,54 @@ def pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest_fn):
                     rep = probe_eng._replace_subqueries(e)
                     return probe_eng.generator.generate(rep)
 
+                lim = _lim(step.limit)
+                off = step.offset
                 if isinstance(step, planner_mod.Scan):
-                    payload = ("S", step.name, gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests)
+                    payload = (
+                        "S", step.name, _source_key(step.source), lim, off,
+                        _col_names(step.projections),
+                        gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests,
+                    )
                 elif isinstance(step, planner_mod.Aggregate):
                     payload = (
-                        "A",
-                        step.name,
-                        [gen_one(x) for x in step.group.values()],
-                        [gen_one(x) for x in step.aggregations],
-                        [gen_one(x) for x in step.operands],
-                        gen_one(step.condition),
-                        [gen_one(x) for x in step.projections],
-                        dep_digests,
+                        "A", step.name, _source_key(getattr(step, "source", None)), lim, off,
+                        list(step.group.keys()), [gen_one(x) for x in step.group.values()],
+                        _col_names(step.aggregations), [gen_one(x) for x in step.aggregations],
+                        _col_names(step.operands), [gen_one(x) for x in step.operands],
+                        _col_names(step.projections), gen_one(step.condition),
+                        [gen_one(x) for x in step.projections], dep_digests,
                     )
                 elif isinstance(step, planner_mod.Join):
-                    jitems = sorted(
+                    # Preserve dict order: PythonExecutor assigns column_ranges in step.joins order.
+                    jitems = [
                         (
                             nm,
+                            j.get("side"),
+                            j.get("kind"),
+                            bool(j.get("source_key")),
                             [gen_one(x) for x in j["source_key"]],
                             [gen_one(x) for x in j["join_key"]],
                             gen_one(j["condition"]),
                         )
                         for nm, j in step.joins.items()
+                    ]
+                    payload = (
+                        "J", step.name, step.source_name, lim, off, jitems,
+                        _col_names(step.projections), gen_one(step.condition),
+                        [gen_one(x) for x in step.projections], dep_digests,
                     )
-                    payload = ("J", step.name, jitems, gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests)
                 elif isinstance(step, planner_mod.Sort):
-                    payload = ("O", step.name, [gen_one(x) for x in step.key], gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests)
+                    payload = (
+                        "O", step.name, lim, off,
+                        _col_names(step.projections), [gen_one(x) for x in step.key],
+                        gen_one(step.condition), [gen_one(x) for x in step.projections], dep_digests,
+                    )
                 elif isinstance(step, planner_mod.SetOperation):
-                    payload = ("U", step.name, dep_digests)
+                    op_name = step.op.__qualname__ if isinstance(step.op, type) else str(step.op)
+                    payload = (
+                        "U", step.name, op_name, bool(step.distinct), step.left, step.right,
+                        lim, off, dep_digests,
+                    )
                 else:
                     raise ValueError(f"unknown plan step {type(step).__name__}")
                 h = digest_fn(payload)
@@ -277,7 +320,7 @@ def _load_query_exec_costs():
     }
 
 
-def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, check_pygen=None):
+def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, check_pygen=None, plan_budget_s=None):
     from phase import mark
     from sqlglot import planner as planner_mod
     from sqlglot.generator import Generator as generator_cls
@@ -298,28 +341,50 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
     changed_modules = [m for m in os.environ.get("BLAST_CHANGED_MODULE", "").split(",") if m]
     check_parse = _needs_parse_check(changed_modules)
     check_transpile = _needs_transpile_check(changed_modules)
+    touches_executor = any(m.startswith("sqlglot.executor") for m in changed_modules)
     if check_pygen is None:
         check_pygen = _needs_pygen_check(changed_modules)
     pygen_digests = _load_pygen_digests() if check_pygen else None
+    pygen_loaded = check_pygen
+    exec_costs = _load_query_exec_costs() if plan_budget_s is not None else None
+    exec_needed = 0.0
+    plan_only_mode = False
+    plan_changed_flag = False
+
+    def _pygen_matches(engine, plan):
+        nonlocal pygen_digests, pygen_loaded
+        if not pygen_loaded:
+            pygen_digests = _load_pygen_digests()
+            pygen_loaded = True
+        if pygen_digests is not None and str(cur_i) in pygen_digests:
+            return pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest) == pygen_digests[str(cur_i)]
+        return False
 
     def check_plan(engine, plan):
-        nonlocal ran, skipped
+        nonlocal ran, skipped, plan_changed_flag
         mark("plan")
         if ran or skipped:
             raise ValueError("multiple executions")
         if not required:
-            if (
+            exact_match = (
                 parsed_matches
                 and digest(plan.expression.dump()) == reference[6]
                 and plan_digest(plan) == reference[7]
-            ):
-                if not check_pygen:
+            )
+            if exact_match:
+                if not check_pygen or _pygen_matches(engine, plan):
                     skipped = True
                     return None
-                if pygen_digests is not None and str(cur_i) in pygen_digests:
-                    if pygen_plan_digest(engine, plan, planner_mod, generator_cls, digest) == pygen_digests[str(cur_i)]:
-                        skipped = True
-                        return None
+            elif not touches_executor and _pygen_matches(engine, plan):
+                # Standalone pygen_plan_digest proved identical plan structure,
+                # column names, limits/offsets, and compiled Python code
+                # (e.g. only unexecuted .meta or cosmetic AST changed).
+                skipped = True
+                return None
+        if plan_only_mode:
+            plan_changed_flag = True
+            skipped = True
+            return None
         mark("execute")
         ran = True
         return execute(engine, plan)
@@ -369,6 +434,59 @@ def run(test, tests, ex, expected, full, selection, digest, plan_digest, *, chec
                     # DuckDB + Python execution across all queries -> retain.
                     if len(changed_reference) > 16:
                         raise ValueError("broad reference SQL change")
+        # Streaming budget-guarded plan check: before executing any query when
+        # called from rule_corpus Pass 2 overflow, probe the cheapest 2 queries
+        # first (~0.02-0.04s). Only if BOTH produce identical plan/pygen digests
+        # (proving downstream normalization or meta-only diff) do we scan all
+        # remaining queries in fixture order, aborting the instant changed-plan
+        # execution exceeds plan_budget_s.
+        if plan_budget_s is not None and inputs:
+            plan_only_mode = True
+            t_plan_start = time.process_time()
+            # Fast 2-query canary in strict fixture order (0..98) to avoid wasting
+            # 1-2s on commits whose plans genuinely diverge across the suite.
+            canary_checked = set()
+            for row in inputs[:2]:
+                i, meta, sql, expr, parsed_matches = row
+                cur_i = i
+                reference = expected[i]
+                mark("optimize")
+                required = i in full if isinstance(full, list) else bool(full)
+                required |= i in changed_reference
+                if expr is None:
+                    expr = tests.parse_one(sql)
+                ran = skipped = False
+                plan_changed_flag = False
+                tests.mp_execute(expr, meta)
+                if plan_changed_flag:
+                    raise ValueError("canary plan diverged under budget guard")
+                canary_checked.add(i)
+            need_exec_set = set()
+            for i, meta, sql, expr, parsed_matches in inputs:
+                if i in canary_checked:
+                    continue
+                cur_i = i
+                reference = expected[i]
+                mark("optimize")
+                required = i in full if isinstance(full, list) else bool(full)
+                required |= i in changed_reference
+                if not required and selection is not None and i not in selection["worker"] and parsed_matches:
+                    continue
+                if expr is None:
+                    expr = tests.parse_one(sql)
+                ran = skipped = False
+                plan_changed_flag = False
+                tests.mp_execute(expr, meta)
+                if plan_changed_flag:
+                    need_exec_set.add(i)
+                    exec_needed += exec_costs.get(i, 0.25)
+                    budget_left = plan_budget_s - (time.process_time() - t_plan_start)
+                    if exec_needed > 0.85 * max(0.0, budget_left):
+                        raise ValueError("changed plan execution exceeds probe budget")
+            plan_only_mode = False
+            if not need_exec_set:
+                return
+            inputs = [row for row in inputs if row[0] in need_exec_set]
         # Always execute in original fixture order (0..98) to preserve cross-query state invariants.
         for i, meta, sql, expr, parsed_matches in inputs:
             cur_i = i

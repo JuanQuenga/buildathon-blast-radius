@@ -843,6 +843,111 @@ class TestCandidate19(unittest.TestCase):
         self.assertTrue(cheap_proofs.unread_option(patch, "ds"))
         self.assertTrue(cheap_proofs.unread_option(patch, "generator"))
 
+    def test_pygen_plan_digest_complete_step_fields_and_meta_insensitive(self):
+        """Upgraded pygen_plan_digest is insensitive to unused .meta yet catches step
+        limit/offset/column-alias changes."""
+        import copy
+        import sys
+        from selector import verify
+        from selector.result_replay import pygen_plan_digest
+        from selector.staged import digest
+
+        added = False
+        if verify.PRISTINE not in sys.path:
+            sys.path.insert(0, verify.PRISTINE)
+            added = True
+        try:
+            from sqlglot import parse_one
+            import sqlglot.executor as ex
+            from sqlglot import planner as planner_mod
+            from sqlglot.generator import Generator as generator_cls
+
+            eng = ex.PythonExecutor(tables={})
+            q1 = parse_one("SELECT a AS x FROM t LIMIT 5")
+            p1 = ex.Plan(q1)
+            d1 = pygen_plan_digest(eng, p1, planner_mod, generator_cls, digest)
+
+            # Adding unused .meta does NOT change pygen_plan_digest
+            q2 = copy.deepcopy(q1)
+            for node in q2.walk():
+                node.meta["original_column"] = "dummy"
+            p2 = ex.Plan(q2)
+            d2 = pygen_plan_digest(eng, p2, planner_mod, generator_cls, digest)
+            self.assertEqual(d1, d2)
+
+            # Changing LIMIT or column alias MUST change pygen_plan_digest
+            p3 = ex.Plan(parse_one("SELECT a AS x FROM t LIMIT 6"))
+            p4 = ex.Plan(parse_one("SELECT a AS y FROM t LIMIT 5"))
+            self.assertNotEqual(d1, pygen_plan_digest(eng, p3, planner_mod, generator_cls, digest))
+            self.assertNotEqual(d1, pygen_plan_digest(eng, p4, planner_mod, generator_cls, digest))
+        finally:
+            if added:
+                sys.path.remove(verify.PRISTINE)
+
+    def test_parser_edited_lines_monitors_only_hazard_hunks(self):
+        """Multi-hunk parser.py edits only monitor hunks with scale hazards."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        plines = impact._sources()["src"]["sqlglot/parser.py"].splitlines()
+        p2_set = set(heavy.profile("parser")["parser:2"]["lines"]["sqlglot/parser.py"])
+        ln1 = next(
+            i for i in sorted(p2_set)
+            if plines[i - 1].startswith("        ") and plines[i - 1].strip().startswith("return ")
+        ) - 1
+        ln2 = next(
+            i for i in range(len(plines) - 1, ln1 + 50, -1)
+            if plines[i - 1].startswith("        ") and plines[i - 1].strip().startswith("return ")
+        ) - 1
+        ind1 = plines[ln1 - 1][: len(plines[ln1 - 1]) - len(plines[ln1 - 1].lstrip(" "))]
+        ind2 = plines[ln2 - 1][: len(plines[ln2 - 1]) - len(plines[ln2 - 1].lstrip(" "))]
+        patch = (
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            f"@@ -{ln1},1 +{ln1},2 @@\n"
+            f" {plines[ln1-1]}\n"
+            f"+{ind1}_harmless_flag = True\n"
+            f"@@ -{ln2},1 +{ln2+1},3 @@\n"
+            f" {plines[ln2-1]}\n"
+            f"+{ind2}for _k in range(100):\n"
+            f"+{ind2}    pass\n"
+        )
+        after = (
+            "\n".join(
+                plines[:ln1]
+                + [f"{ind1}_harmless_flag = True"]
+                + plines[ln1:ln2]
+                + [f"{ind2}for _k in range(100):", f"{ind2}    pass"]
+                + plines[ln2:]
+            )
+            + "\n"
+        )
+        watch = heavy._parser_edited_lines(parse(patch)[0], after)
+        self.assertIsNotNone(watch)
+        self.assertNotIn(ln1 + 1, watch)
+        self.assertIn(ln2 + 2, watch)
+
+    def test_helpers_disjoint_from_target(self):
+        """Edits strictly to TPCH_SCHEMA in tests/helpers.py are disjoint from ds/parser/generator."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        hlines = impact._sources()["src"]["tests/helpers.py"].splitlines()
+        ln = next(i for i, l in enumerate(hlines, 1) if '"l_orderkey": "bigint",' in l)
+        patch = (
+            "diff --git a/tests/helpers.py b/tests/helpers.py\n"
+            "--- a/tests/helpers.py\n"
+            "+++ b/tests/helpers.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            '-        "l_orderkey": "bigint",\n'
+            '+        "l_orderkey": "int",\n'
+        )
+        fd = parse(patch)[0]
+        self.assertTrue(heavy._helpers_disjoint_from_target(fd, "ds"))
+        self.assertTrue(heavy._helpers_disjoint_from_target(fd, "parser"))
+        self.assertTrue(heavy._helpers_disjoint_from_target(fd, "generator"))
+
 
 if __name__ == "__main__":
     unittest.main()

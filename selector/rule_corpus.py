@@ -124,18 +124,25 @@ def select(regions):
     return selected if selected is not None and all(costs()[i] is not None for i in selected) else None
 
 
-def _query_exec_costs():
+def _query_phase_costs():
     costs_path = ROOT.parent / "ds-costs.json.gz"
     if not costs_path.is_file():
-        return {}
+        return {}, {}
     with gzip.open(costs_path, "rt", encoding="utf-8") as stream:
         rows = json.load(stream)
-    out = {}
+    total_out = {}
+    plan_out = {}
     for k, v in rows.items():
         if k.startswith("ds:") and k[3:].isdigit():
             ph = v.get("phases", {})
-            out[int(k[3:])] = ph.get("optimize", 0.0) + ph.get("plan", 0.0) + ph.get("execute", 0.0)
-    return out
+            opt_plan = ph.get("optimize", 0.0) + ph.get("plan", 0.0)
+            plan_out[int(k[3:])] = opt_plan
+            total_out[int(k[3:])] = opt_plan + ph.get("execute", 0.0)
+    return total_out, plan_out
+
+
+def _query_exec_costs():
+    return _query_phase_costs()[0]
 
 
 def _divergent_exec_cost(divergent):
@@ -172,18 +179,30 @@ def replay(indices, verify_query=None):
                 raise ValueError("rule result changed")
             divergent.add(queries[i])
     # Pass 2: if divergent queries would exceed the remaining probe CPU budget,
-    # abort immediately instead of burning the full timeout executing half of them.
+    # run a streaming plan_digest/pygen_plan_digest check ONLY if optimize+plan
+    # fits inside 65% of remaining budget (aborting the instant changed-plan
+    # execution exceeds remaining budget); otherwise abort immediately.
     # Always verify in original fixture order (0..98) to preserve cross-query invariants.
     if verify_query is not None and divergent:
-        qcosts = _query_exec_costs()
+        qcosts, pcosts = _query_phase_costs()
         cpu_cap = float(os.environ.get("BLAST_PROBE_CPU", "0") or 0)
+        plan_budget_s = None
         if cpu_cap > 0:
             remaining = cpu_cap - (time.process_time() - started)
             if sum(qcosts.get(q, 0.0) for q in divergent) > 0.88 * remaining:
-                raise ValueError("divergent query execution exceeds probe budget")
+                if (
+                    getattr(verify_query, "_accepts_plan_budget", False)
+                    and sum(pcosts.get(q, 0.0) for q in divergent) <= 0.65 * remaining
+                ):
+                    plan_budget_s = remaining
+                else:
+                    raise ValueError("divergent query execution exceeds probe budget")
         ordered = sorted(divergent)
         if getattr(verify_query, "_accepts_batch", False):
-            verify_query(ordered)
+            if plan_budget_s is not None:
+                verify_query(ordered, plan_budget_s=plan_budget_s)
+            else:
+                verify_query(ordered)
         else:
             for q in ordered:
                 verify_query(q)
@@ -202,9 +221,10 @@ if __name__ == "__main__":
             from phase import mark
             from staged import rule_query_check
 
-            def check_queries(qs):
+            def check_queries(qs, *, plan_budget_s=None):
                 mark("divergent")
-                rule_query_check()(qs)
+                rule_query_check()(qs, plan_budget_s=plan_budget_s)
 
             check_queries._accepts_batch = True
+            check_queries._accepts_plan_budget = True
             replay(indices, verify_query=check_queries)

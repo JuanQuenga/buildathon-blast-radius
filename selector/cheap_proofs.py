@@ -2,11 +2,33 @@
 import ast
 import functools
 import json
+import re
 from pathlib import Path
 
 from . import heavy, impact, predicate_domain, query_slice, static_guards, verify
 from .patch import parse
 from .rule_defaults import overridden_defaults
+
+_BOOL_OPT_LINE_RE = re.compile(r"^\s+[A-Z][A-Z0-9_]*\s*=\s*(?:True|False)\s*(?:#.*)?$")
+
+
+def _hunks_only_bool_options(fd) -> bool:
+    """Fast O(hunk_lines) pre-filter avoiding full-file ast.parse on non-option patches."""
+    if not fd.hunks:
+        return False
+    saw_change = False
+    for h in fd.hunks:
+        for raw in h.lines:
+            if raw[:1] not in {"+", "-"}:
+                continue
+            body = raw[1:]
+            if not body.strip() or body.lstrip().startswith("#"):
+                continue
+            if not _BOOL_OPT_LINE_RE.match(body):
+                return False
+            saw_change = True
+    return saw_change
+
 
 @functools.cache
 def branch_sites():
@@ -24,6 +46,12 @@ def unread_option(text, group):
         return False
     if any(f.is_new or f.is_deleted or f.is_rename or f.paths != {f.path} for f in sql_files):
         return False
+    for f in sql_files:
+        is_gen = group == "generator" and f.path.startswith("sqlglot/generators/")
+        if not f.path.startswith("sqlglot/dialects/") and not is_gen:
+            return False
+        if not _hunks_only_bool_options(f):
+            return False
     if non_sql_files and not all(heavy._target_unreachable(f, group) for f in non_sql_files):
         return False
     changes = verify.apply_patch(text)

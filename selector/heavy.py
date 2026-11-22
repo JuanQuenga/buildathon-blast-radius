@@ -290,6 +290,10 @@ def cpu():
 
 @functools.cache
 def downstream():
+    import marshal
+    mpath = APP_DIR / "pin-cache" / "staged.marshal"
+    if mpath.is_file():
+        return marshal.loads(mpath.read_bytes())["tail"]
     data = json.loads((APP_DIR / "staged.json").read_text())
     return data["tail"]
 
@@ -574,14 +578,7 @@ def _class_attr_and_method_tail_queries(path, source, fd, rows):
         or fd.is_deleted
         or fd.is_rename
         or not (
-            path in {
-                "sqlglot/generator.py",
-                "sqlglot/dialects/dialect.py",
-                "sqlglot/planner.py",
-                "sqlglot/schema.py",
-                "sqlglot/trie.py",
-                "sqlglot/executor/env.py",
-            }
+            path in {"sqlglot/generator.py", "sqlglot/dialects/dialect.py"}
             or path.startswith("sqlglot/generators/")
         )
     ):
@@ -693,10 +690,35 @@ def _strip_docstrings(node):
     return node
 
 
-def _is_docstring_only_diff(path, source):
+_DOCSTRING_CODE_RE = re.compile(
+    r"^\s*(?:def|async\s+def|class|if|elif|else:|for|while|return|raise|try:|except|finally:|with|import|from|yield|assert|del|pass|break|continue|self\.|@)\b"
+)
+
+
+def _is_docstring_only_diff(path, source, fd=None):
     """True when ``source`` differs from pinned ``path`` ONLY in comments/docstrings."""
     if source is None:
         return False
+    if fd is not None and fd.hunks:
+        # Fast O(hunk_lines) pre-filter avoiding 2x full-file ast.parse on code edits.
+        saw_quote_or_comment = False
+        for h in fd.hunks:
+            for raw in h.lines:
+                if raw[:1] not in {"+", "-"}:
+                    continue
+                s = raw[1:].strip()
+                if not s:
+                    continue
+                if s.startswith("#"):
+                    saw_quote_or_comment = True
+                    continue
+                if '"""' in s or "'''" in s:
+                    saw_quote_or_comment = True
+                    continue
+                if _DOCSTRING_CODE_RE.match(s) or re.match(r"^[A-Za-z_]\w*\s*(?::[^=]*)?=(?!=)", s):
+                    return False
+        if not saw_quote_or_comment:
+            return False
     before = impact._sources()["src"].get(path)
     if before is None:
         return False
@@ -921,32 +943,31 @@ def tail_cases_info(path, source, fd, *, strict=True):
         return [], False
     if fd.is_new or fd.is_deleted or fd.is_rename:
         return all_cases, False
-    if _is_docstring_only_diff(path, source):
+    if _is_docstring_only_diff(path, source, fd):
         return [], False
-    # Fast method-body & class-attr confinement FIRST (zero pygen CPU when it
-    # already proves tail_cases == []!).
+    # Fast O(method_lines) method-body confinement FIRST (zero full-file ast.parse,
+    # zero pygen CPU when it already proves tail_cases == []!).
     if strict or _no_cross_module_hazards(fd):
         mq = _method_tail_queries(path, source, fd, rows)
         if mq is not None:
             if mq and path in _PYGEN_TAIL_PATHS and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file():
                 return [], True
             return mq, False
-        gm = _class_attr_and_method_tail_queries(path, source, fd, rows)
-        if gm is not None:
-            if gm and path in _PYGEN_TAIL_PATHS and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file():
-                return [], True
-            return gm, False
-        em = _expr_subclass_tail_queries(path, source, fd, rows)
-        if em is not None:
-            return em, False
-    # Fallback for PythonGenerator/Generator/Dialect when static confinement
-    # could not prove empty tail: result_replay.py verifies exact pygen_plan_digest.
+    # Fallback for PythonGenerator/Generator/Dialect BEFORE full-file AST parsers
+    # so 6.8k-line generator.py and 3.1k-line dialect.py never waste queue CPU.
     if (
         path in _PYGEN_TAIL_PATHS
         and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file()
         and (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True))
     ):
         return [], True
+    if strict or _no_cross_module_hazards(fd):
+        gm = _class_attr_and_method_tail_queries(path, source, fd, rows)
+        if gm is not None:
+            return gm, False
+        em = _expr_subclass_tail_queries(path, source, fd, rows)
+        if em is not None:
+            return em, False
     if not re.fullmatch(
         r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py",
         path,
@@ -1231,9 +1252,22 @@ def _parser_scaled_eligible(f, *, allow_monitored_loops=False, allow_monitored_e
     return True
 
 
+def _hunk_has_parser_scale_hazard(code_text: str) -> bool:
+    if re.search(r"\b(for|while|depth)\b", code_text, re.I):
+        return True
+    for m in re.finditer(r"\b(\d[\d_]*)\b", code_text):
+        try:
+            if int(m.group(1).replace("_", "")) >= 50:
+                return True
+        except ValueError:
+            return True
+    return False
+
+
 def _parser_edited_lines(f, after_src):
-    """Return all executable new-file line numbers modified/added in ``f`` when
-    ``f.path`` is in ``p2_lines``, for exact-reachability monitoring in ``scaled()``."""
+    """Return executable new-file line numbers from hunks containing scale hazards
+    (loops, ``depth``, or numeric literals >= 50) in ``p2_lines`` files, for
+    exact-reachability monitoring in ``scaled()``."""
     p2_lines = profile("parser")["parser:2"]["lines"]
     if f.path not in p2_lines:
         return set()
@@ -1247,22 +1281,28 @@ def _parser_edited_lines(f, after_src):
     watch = set()
     for h in f.hunks:
         new_ln = h.new_start
-        h_added = False
+        h_added_lines = []
+        h_add_code = []
         h_rem_code = []
         for raw in h.lines:
             tag = raw[:1]
             if tag == "+":
-                h_added = True
                 if 1 <= new_ln <= len(lines):
                     s = lines[new_ln - 1].strip()
                     if s and not s.startswith("#"):
-                        watch.add(new_ln)
+                        h_added_lines.append(new_ln)
+                        h_add_code.append(_strip_comment(raw[1:]))
                 new_ln += 1
             elif tag == "-":
                 h_rem_code.append(_strip_comment(raw[1:]))
             elif tag == " ":
                 new_ln += 1
-        if not h_added and h_rem_code:
+        h_all_code = "\n".join(h_add_code + h_rem_code)
+        if not _hunk_has_parser_scale_hazard(h_all_code):
+            continue
+        if h_added_lines:
+            watch.update(h_added_lines)
+        elif h_rem_code:
             rem_s = "\n".join(h_rem_code)
             if re.search(r"\bdepth\b", rem_s, re.I) or any(
                 int(m.group(1).replace("_", "")) >= 50 for m in re.finditer(r"\b(\d[\d_]*)\b", rem_s)
@@ -1505,13 +1545,48 @@ def _test_file_disjoint_from_target(fd, group):
     return True
 
 
+_HELPERS_UNUSED = {
+    "ds": frozenset({"TPCH_SCHEMA", "assert_logger_contains", "load_sql_fixtures"}),
+    "parser": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+    "generator": frozenset({"TPCH_SCHEMA", "TPCDS_SCHEMA", "assert_logger_contains", "load_sql_fixtures", "load_sql_fixture_pairs", "_filter_comments", "_extract_meta"}),
+}
+
+
+def _helpers_disjoint_from_target(fd, group):
+    """True when an edit to ``tests/helpers.py`` ONLY modifies helpers/constants
+    unused by ``group`` (preserving all module-level imports and shared symbols)."""
+    allowed = _HELPERS_UNUSED.get(group)
+    if not allowed or fd.path != "tests/helpers.py" or fd.is_new or fd.is_deleted or fd.is_rename or fd.is_binary or fd.mode_change or not fd.hunks:
+        return False
+    before = impact._sources()["src"].get("tests/helpers.py")
+    if before is None:
+        return False
+    try:
+        after = verify._apply_file(fd, verify.PRISTINE)
+        if after is None:
+            return False
+        compile(after.encode(), "tests/helpers.py", "exec", dont_inherit=True)
+        old_mod, new_mod = ast.parse(before), ast.parse(after)
+    except Exception:
+        return False
+    if len(old_mod.body) != len(new_mod.body):
+        return False
+    for a, b in zip(old_mod.body, new_mod.body):
+        if ast.dump(a) == ast.dump(b):
+            continue
+        names = impact._bound_names(a) | impact._bound_names(b)
+        if not names or not (names <= allowed):
+            return False
+    return True
+
+
 def _target_unreachable(fd, group):
     """True when a non-sqlglot file under tests/ (or harmless doc file) is
     provably never imported, executed, or opened by the heavy target test."""
     p = fd.path
     if not p or fd.is_binary or fd.mode_change:
         return False
-    if _test_file_disjoint_from_target(fd, group):
+    if _test_file_disjoint_from_target(fd, group) or _helpers_disjoint_from_target(fd, group):
         return True
     if not (p.startswith("tests/") or _is_doc_path(p)):
         return False
@@ -1733,7 +1808,7 @@ def stage_edit(text, group):
     strict_all = bool(sql_files) and non_sql_inert and all(eligible_file(f, "ds") for f in sql_files)
 
     if group == "generator":
-        forbid = ("tests/helpers.py",) if non_sql_inert else ("tests/test_generator.py", "tests/helpers.py")
+        forbid = () if non_sql_inert else ("tests/test_generator.py", "tests/helpers.py")
         if not patch_verifiable_files(
             files,
             forbid_prefixes=forbid,
@@ -1756,7 +1831,7 @@ def stage_edit(text, group):
         return "generator", paths, changes, []
 
     if group == "parser":
-        forbid = ("tests/helpers.py",) if non_sql_inert else ("tests/test_parser.py", "tests/helpers.py")
+        forbid = () if non_sql_inert else ("tests/test_parser.py", "tests/helpers.py")
         if not patch_verifiable_files(
             files,
             forbid_prefixes=forbid,
@@ -1799,7 +1874,7 @@ def stage_edit(text, group):
 
     # group == "ds"
     forbid_ds = (
-        ("tests/helpers.py",)
+        ()
         if non_sql_inert
         else (
             "tests/test_executor.py",
@@ -2188,10 +2263,6 @@ def options(patch, catalog, targets, dur, attempted=()):
     sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
     if not sql_files:
         return
-    allow_new_non_test = not any(
-        f.is_deleted or f.is_rename or (f.is_new and f.path and f.path.startswith("tests/"))
-        for f in files
-    )
     if not patch_verifiable_files(
         files,
         forbid_prefixes=(
@@ -2200,7 +2271,6 @@ def options(patch, catalog, targets, dur, attempted=()):
             "tests/fixtures/optimizer/tpc-ds/",
             "tests/fixtures/optimizer/tpc-h/",
         ),
-        allow_structural=allow_new_non_test,
     ):
         return
     sql_paths = ",".join(f.path for f in sql_files)

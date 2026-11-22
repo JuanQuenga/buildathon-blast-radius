@@ -38,6 +38,10 @@ def _maps_dir() -> Path:
 
 @functools.cache
 def _load():
+    import marshal
+    cache = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "dict-keys.marshal"
+    if cache.is_file():
+        return marshal.loads(cache.read_bytes())
     path = _maps_dir() / "dict-keys.json.gz"
     if not path.is_file():
         return None

@@ -164,6 +164,10 @@ def keyed_bits(an, bits, owner, old, new):
 
 @functools.cache
 def keyword_reads():
+    import marshal
+    cache = Path(os.environ.get("BLAST_APP_DIR", "/app")) / "pin-cache" / "keyword-reads.marshal"
+    if cache.is_file():
+        return marshal.loads(cache.read_bytes())
     maps = Path(__file__).parent / "maps"
     gz = maps / "keyword-reads.json.gz"
     if gz.is_file():

@@ -9,6 +9,7 @@ import sqlite3
 import tarfile
 
 from selector.impact import _branch_map, _index, _operand_map, _sources
+from selector import dict_keys as _dict_keys, token_options as _token_options
 
 archive = Path("/app/selector/maps/pin-runtime.tar.xz")
 with tarfile.open(archive) as recorded:
@@ -27,8 +28,11 @@ for name, data in (
     ("src", _sources()),
     ("branches", _branch_map()),
     ("operands", _operand_map()),
+    ("dict-keys", _dict_keys._load()),
+    ("keyword-reads", _token_options.keyword_reads()),
 ):
-    (out / (name + ".marshal")).write_bytes(marshal.dumps(data))
+    if data is not None:
+        (out / (name + ".marshal")).write_bytes(marshal.dumps(data))
 
 db = sqlite3.connect(out / "names.db")
 db.execute("CREATE TABLE sites (name TEXT, path TEXT, rows BLOB, PRIMARY KEY(name,path)) WITHOUT ROWID")
@@ -120,6 +124,8 @@ if Path("/app/ds.json.gz").exists():
         _eng = _ex.PythonExecutor(tables={})
         _pygen_map[str(_i)] = _pygen_digest(_eng, _plan, _planner, _Gen, _staged_digest)
     (out / "pygen-digests.json").write_text(json.dumps(_pygen_map, separators=(",", ":")))
+    if Path("/app/staged.json").is_file():
+        (out / "staged.marshal").write_bytes(marshal.dumps(json.loads(Path("/app/staged.json").read_text())))
 
     from selector import query_slice, rule_corpus
     for name, rows, outside in (
