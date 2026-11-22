@@ -63,10 +63,14 @@ _SQLGLOT_SAFE_IMPORT_RE = re.compile(
     r"|import\s+sqlglot(?:\.(?!dialects\b|executor\b)\w+)*\b)"
 )
 _DOC_EXTS = (".md", ".rst", ".txt")
-_DOC_PREFIXES = ("docs/", ".github/", "benchmarks/", "pdoc/", "posts/", "sqlglot-integration-tests/")
+_DOC_PREFIXES = (
+    "docs/", ".github/", "benchmarks/", "pdoc/", "posts/",
+    "sqlglot-integration-tests/", "sqlglotrs/", "sqlglotc/", "scripts/",
+)
 _DOC_NAMES = frozenset({
     "LICENSE", "Makefile", ".gitignore", ".editorconfig",
     "MANIFEST.in", ".pre-commit-config.yaml", ".gitpod.yml", ".gitmodules", "sqlglot.png",
+    ".flake8", "mypy.ini", "ruff.toml", "codecov.yml", "Dockerfile",
 })
 _PYGEN_TAIL_PATHS = frozenset({
     "sqlglot/generator.py",
@@ -570,7 +574,14 @@ def _class_attr_and_method_tail_queries(path, source, fd, rows):
         or fd.is_deleted
         or fd.is_rename
         or not (
-            path in {"sqlglot/generator.py", "sqlglot/dialects/dialect.py"}
+            path in {
+                "sqlglot/generator.py",
+                "sqlglot/dialects/dialect.py",
+                "sqlglot/planner.py",
+                "sqlglot/schema.py",
+                "sqlglot/trie.py",
+                "sqlglot/executor/env.py",
+            }
             or path.startswith("sqlglot/generators/")
         )
     ):
@@ -868,13 +879,19 @@ def _expr_subclass_tail_queries(path, source, fd, rows):
     ]
 
 
-def tail_cases(path, source, fd, *, strict=True):
+def tail_cases_info(path, source, fd, *, strict=True):
+    """Return ``(forced_query_indices, needs_pygen)`` for ``path``.
+
+    ``needs_pygen`` is True ONLY when ``_PYGEN_TAIL_PATHS`` fallback is used
+    (so ``pygen_plan_digest`` does NOT burn CPU when method/class-attr slicing
+    already proves ``forced_query_indices == []``).
+    """
     rows = downstream()
     all_cases = list(range(len(rows)))
     if not path.startswith("sqlglot/") or not path.endswith(".py"):
-        return []
+        return [], False
     if _inert_new_class_attrs(path, source, fd):
-        return []
+        return [], False
     # Pure insertion of brand-new AutoName enum member(s) (e.g. TokenType / DataType.Type).
     if (
         path in {"sqlglot/tokenizer_core.py", "sqlglot/expressions/datatypes.py"}
@@ -896,44 +913,47 @@ def tail_cases(path, source, fd, *, strict=True):
         if ok and names:
             an = impact.Analysis()
             if all(not impact._name_sites(an, nm) for nm in names):
-                return []
+                return [], False
     tpaths = all_tail_paths()
     if fd.is_new and path not in tpaths:
-        return []
+        return [], False
     if path not in tpaths and (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True)):
-        return []
+        return [], False
     if fd.is_new or fd.is_deleted or fd.is_rename:
-        return all_cases
+        return all_cases, False
     if _is_docstring_only_diff(path, source):
-        return []
-    # For PythonGenerator/Generator/Dialect, result_replay.py verifies exact
-    # pygen_plan_digest across all 57 queries (~0.07s) and executes any query
-    # whose compiled Python code actually changed.
+        return [], False
+    # Fast method-body & class-attr confinement FIRST (zero pygen CPU when it
+    # already proves tail_cases == []!).
+    if strict or _no_cross_module_hazards(fd):
+        mq = _method_tail_queries(path, source, fd, rows)
+        if mq is not None:
+            if mq and path in _PYGEN_TAIL_PATHS and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file():
+                return [], True
+            return mq, False
+        gm = _class_attr_and_method_tail_queries(path, source, fd, rows)
+        if gm is not None:
+            if gm and path in _PYGEN_TAIL_PATHS and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file():
+                return [], True
+            return gm, False
+        em = _expr_subclass_tail_queries(path, source, fd, rows)
+        if em is not None:
+            return em, False
+    # Fallback for PythonGenerator/Generator/Dialect when static confinement
+    # could not prove empty tail: result_replay.py verifies exact pygen_plan_digest.
     if (
         path in _PYGEN_TAIL_PATHS
         and (APP_DIR / "pin-cache" / "pygen-digests.json").is_file()
         and (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True))
     ):
-        return []
-    # Fast method-body confinement works for ALL sqlglot/*.py files (including
-    # schema.py, trie.py, expressions/*.py, dialects/dialect.py, generator.py).
-    if strict or _no_cross_module_hazards(fd):
-        mq = _method_tail_queries(path, source, fd, rows)
-        if mq is not None:
-            return mq
-        gm = _class_attr_and_method_tail_queries(path, source, fd, rows)
-        if gm is not None:
-            return gm
-        em = _expr_subclass_tail_queries(path, source, fd, rows)
-        if em is not None:
-            return em
+        return [], True
     if not re.fullmatch(
         r"sqlglot/(parser|generator|(?:parsers|generators|optimizer|executor)/\w+)\.py",
         path,
     ):
         if (strict or _no_cross_module_hazards(fd)) and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
-            return list(tail_path_queries()[path])
-        return all_cases
+            return list(tail_path_queries()[path]), False
+        return all_cases, False
     if path.startswith("sqlglot/optimizer/") and source is not None:
         old = ast.parse((Path(verify.PRISTINE) / path).read_text())
         new = ast.parse(source)
@@ -949,11 +969,11 @@ def tail_cases(path, source, fd, *, strict=True):
                 try:
                     if ast.dump(old) == ast.dump(new):
                         return [i for i, row in enumerate(rows)
-                                if path in row["paths"] or a.name in row["names"]]
+                                if path in row["paths"] or a.name in row["names"]], False
                 finally:
                     b.args.defaults[i] = y
     if source is None:
-        return all_cases
+        return all_cases, False
     lines = {n for h in fd.hunks for n in h.removed_old_lines}
     if lines and not any(not h.old_len or not h.new_len for h in fd.hunks):
         before = (Path(verify.PRISTINE) / path).read_text()
@@ -983,21 +1003,25 @@ def tail_cases(path, source, fd, *, strict=True):
                         None,
                     )
                     if not other or len(other.body) != len(cls.body):
-                        return all_cases
+                        return all_cases, False
                     changed = other.body[cls.body.index(stmt)]
                     if type(changed) != type(stmt):
-                        return all_cases
+                        return all_cases, False
                     changed.value = stmt.value
                     if ast.dump(new) != ast.dump(old):
-                        return all_cases
+                        return all_cases, False
                     return [
                         i
                         for i, row in enumerate(rows)
                         if path in row["paths"] or ids.intersection(row["names"])
-                    ]
+                    ], False
     if (strict or _no_cross_module_hazards(fd, allow_sqlglot_imports=True)) and path in tail_path_queries() and len(tail_path_queries()[path]) <= 5:
-        return list(tail_path_queries()[path])
-    return all_cases
+        return list(tail_path_queries()[path]), False
+    return all_cases, False
+
+
+def tail_cases(path, source, fd, *, strict=True):
+    return tail_cases_info(path, source, fd, strict=strict)[0]
 
 
 def patch_verifiable_files(files, *, forbid_prefixes=(), allow_structural=False, sqlglot_only=False):
@@ -1423,9 +1447,31 @@ def _test_file_disjoint_from_target(fd, group):
         old_mod, new_mod = ast.parse(before), ast.parse(after)
     except Exception:
         return False
-    if len(old_mod.body) != len(new_mod.body):
+    old_bound = set()
+    for st in old_mod.body:
+        old_bound |= impact._bound_names(st)
+    old_body = list(old_mod.body)
+    new_body = []
+    old_dumps = {ast.dump(st) for st in old_body}
+    for st in new_mod.body:
+        if ast.dump(st) in old_dumps or (isinstance(st, ast.ClassDef) and st.name == cls_name):
+            new_body.append(st)
+            continue
+        # Allow adding safe top-level stdlib/sqlglot imports that do not shadow
+        # any existing top-level binding in the test module.
+        if isinstance(st, (ast.Import, ast.ImportFrom)):
+            line = ast.unparse(st)
+            bound = impact._bound_names(st)
+            if (
+                bound
+                and not (bound & old_bound)
+                and (_STDLIB_IMPORT_RE.match(line) or _SQLGLOT_SAFE_IMPORT_RE.match(line))
+            ):
+                continue
         return False
-    for a, b in zip(old_mod.body, new_mod.body):
+    if len(old_body) != len(new_body):
+        return False
+    for a, b in zip(old_body, new_body):
         if ast.dump(a) == ast.dump(b):
             continue
         if not (isinstance(a, ast.ClassDef) and isinstance(b, ast.ClassDef) and a.name == b.name == cls_name):
@@ -1818,12 +1864,14 @@ def stage_edit(text, group):
                     return "rules", paths, changes, indices
         if selection is not None and not selection["worker"]:
             selection["execute"] = []
+            selection["pygen"] = False
             return "slice", paths, changes, selection
-        cases = sorted(
-            set().union(*(tail_cases(f.path, changes[f.path], f, strict=True) for f in active_sql_files))
-        )
+        infos = [tail_cases_info(f.path, changes[f.path], f, strict=True) for f in active_sql_files]
+        cases = sorted(set().union(*(c for c, _ in infos)))
+        needs_pygen = any(p for _, p in infos)
         if selection is not None:
             selection["execute"] = sorted(set(cases).intersection(selection["worker"]))
+            selection["pygen"] = needs_pygen
             return "slice", paths, changes, selection
         # File-level worker slicing when changed_regions() is None (e.g. added
         # method or TRANSFORMS edit in generators/duckdb.py or typing/hive.py):
@@ -1838,17 +1886,18 @@ def stage_edit(text, group):
                     "active": list(range(99)),
                     "worker": wqs,
                     "execute": sorted(set(cases).intersection(wqs)),
+                    "pygen": needs_pygen,
                 }
                 return "slice", paths, changes, sel
-        return ("partial" if cases else "front"), paths, changes, cases
+        return ("partial" if cases else "front"), paths, changes, (cases, needs_pygen)
 
     # Non-strict verifiable SQLGlot patch (dialect.py, import, __dunder__, companion tests):
-    cases = sorted(
-        set().union(*(
-            tail_cases(f.path, changes.get(f.path), f, strict=bool(eligible_file(f, "ds")))
-            for f in active_sql_files
-        ))
-    )
+    infos = [
+        tail_cases_info(f.path, changes.get(f.path), f, strict=bool(eligible_file(f, "ds")))
+        for f in active_sql_files
+    ]
+    cases = sorted(set().union(*(c for c, _ in infos)))
+    needs_pygen = any(p for _, p in infos)
     setup = ds_setup_paths()
     if (
         non_sql_inert
@@ -1866,9 +1915,10 @@ def stage_edit(text, group):
                 "active": list(range(99)),
                 "worker": wqs,
                 "execute": sorted(set(cases).intersection(wqs)),
+                "pygen": needs_pygen,
             }
             return "slice", paths, changes, sel
-    return ("partial" if cases else "front"), paths, changes, cases
+    return ("partial" if cases else "front"), paths, changes, (cases, needs_pygen)
 
 
 @dataclass
@@ -1884,6 +1934,7 @@ class Probe:
     probability: float
     estimate: float
     heavy_mod: bool = False
+    needs_pygen: bool = False
 
     @property
     def priority(self):
@@ -2116,6 +2167,9 @@ def options(patch, catalog, targets, dur, attempted=()):
             continue
         if edit:
             mode, paths, changes, cases = edit
+            needs_pygen = False
+            if mode in {"partial", "front"} and isinstance(cases, tuple) and len(cases) == 2:
+                cases, needs_pygen = cases
             probability, estimate = economics(mode, cases)
             needs_heavy = False
             if group == "ds" and mode in {"front", "partial"}:
@@ -2125,7 +2179,7 @@ def options(patch, catalog, targets, dur, attempted=()):
                     needs_heavy = True
             heavy_yielded = True
             yield Probe(patch, group, number, mode, paths, cases, (req, pl, workers),
-                        gain, probability, estimate, heavy_mod=needs_heavy)
+                        gain, probability, estimate, heavy_mod=needs_heavy, needs_pygen=needs_pygen)
 
     # Warm-fork verification (bundle / trim) once no heavy probes are yielded.
     if patch.missing or heavy_yielded or dominant_heavy_in_req or not patch.workers:
@@ -2134,6 +2188,10 @@ def options(patch, catalog, targets, dur, attempted=()):
     sql_files = [f for f in files if f.path and f.path.startswith("sqlglot/") and f.path.endswith(".py")]
     if not sql_files:
         return
+    allow_new_non_test = not any(
+        f.is_deleted or f.is_rename or (f.is_new and f.path and f.path.startswith("tests/"))
+        for f in files
+    )
     if not patch_verifiable_files(
         files,
         forbid_prefixes=(
@@ -2142,6 +2200,7 @@ def options(patch, catalog, targets, dur, attempted=()):
             "tests/fixtures/optimizer/tpc-ds/",
             "tests/fixtures/optimizer/tpc-h/",
         ),
+        allow_structural=allow_new_non_test,
     ):
         return
     sql_paths = ",".join(f.path for f in sql_files)
@@ -2338,6 +2397,8 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                 ) else [])
                 if probe.mode == "rules":
                     args.append("verify-results")
+                elif probe.mode in {"front", "partial"}:
+                    args.append("pygen" if probe.needs_pygen else "no-pygen")
                 elif probe.mode in {"bundle", "trim"} and "sqlglot/executor/table.py" not in probe.paths.split(","):
                     args.append("no-exec-setup")
                 remaining_cpu = cpu_ceiling - (cpu() - started) - (session.charged if session else 0)
@@ -2358,13 +2419,17 @@ def run(patches, catalog, dur, t0, *, deadline=None):
                     regions = changed_regions(patch.text, sqlglot_only=len(sql_files) < len(files))
                     selection = query_slice.query_cases(regions) if regions else None
                     if selection is None:
-                        forced = sorted(set().union(*(tail_cases(f.path, changes.get(f.path), f, strict=bool(eligible_file(f, "ds"))) for f in sql_files)))
+                        infos = [tail_cases_info(f.path, changes.get(f.path), f, strict=bool(eligible_file(f, "ds"))) for f in sql_files]
+                        forced = sorted(set().union(*(c for c, _ in infos)))
+                        fb_pygen = any(p for _, p in infos)
                         mode = "partial" if forced else "front"
-                        args = [json.dumps(forced)] if forced else []
+                        args = ([json.dumps(forced)] if forced else []) + ["pygen" if fb_pygen else "no-pygen"]
                         price = query_price(range(99), range(99), forced)
                     else:
-                        forced = set().union(*(tail_cases(f.path, changes[f.path], f, strict=True) for f in sql_files))
+                        infos = [tail_cases_info(f.path, changes[f.path], f, strict=True) for f in sql_files]
+                        forced = set().union(*(c for c, _ in infos))
                         selection["execute"] = sorted(forced.intersection(selection["worker"]))
+                        selection["pygen"] = any(p for _, p in infos)
                         mode, args = "slice", [json.dumps(selection)]
                         price = economics(mode, selection)[1]
                     limit = min(8.5, max(3.0, 2.2 * price + 1.0),

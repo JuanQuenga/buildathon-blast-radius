@@ -707,6 +707,142 @@ class TestCandidate19(unittest.TestCase):
         after = '"""Module docstring."""\n' + "\n".join(src) + "\n"
         self.assertEqual(heavy.tail_cases("sqlglot/executor/env.py", after, parse(d_doc)[0]), [])
 
+    def test_dict_keys_filtered_base_unpack(self):
+        """Filtered base-dict comprehensions (**{k: v for k, v in Base.TRANSFORMS.items() if k != ...})
+        narrow cleanly to only the changed exclusion keys."""
+        import ast
+        from selector import dict_keys
+
+        old_stmt = ast.parse(
+            "TRANSFORMS = {\n"
+            "    **{k: v for k, v in generator.Generator.TRANSFORMS.items() if k != exp.CommentColumnConstraint},\n"
+            "    exp.JSONObjectAgg: rename_func('JSON_OBJECT_AGG'),\n"
+            "}\n"
+        ).body
+        new_stmt = ast.parse(
+            "TRANSFORMS = {\n"
+            "    **{k: v for k, v in generator.Generator.TRANSFORMS.items() if k not in (exp.CommentColumnConstraint, exp.JSONObjectAgg)},\n"
+            "}\n"
+        ).body
+        self.assertEqual(dict_keys.changed_keys("TRANSFORMS", old_stmt, new_stmt), {"E:JSONObjectAgg"})
+
+        # Adding first exclusion from plain **Base.TRANSFORMS
+        old_plain = ast.parse("TRANSFORMS = {**generator.Generator.TRANSFORMS, exp.AnyValue: f}\n").body
+        new_filt = ast.parse(
+            "TRANSFORMS = {**{k: v for k, v in generator.Generator.TRANSFORMS.items() if k != exp.JSONObjectAgg}, exp.AnyValue: f}\n"
+        ).body
+        self.assertEqual(dict_keys.changed_keys("TRANSFORMS", old_plain, new_filt), {"E:JSONObjectAgg"})
+
+    def test_dtype_brand_new_auto_and_parser_brand_new_token(self):
+        """Adding a brand-new DType + TokenType member and registering it in Parser.TYPE_TOKENS
+        does not fan out to all 1,618 tests."""
+        from selector import impact
+
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        dt_lines = impact._sources()["src"]["sqlglot/expressions/datatypes.py"].splitlines()
+        tt_lines = impact._sources()["src"]["sqlglot/tokenizer_core.py"].splitlines()
+        p_lines = impact._sources()["src"]["sqlglot/parser.py"].splitlines()
+        dt_i = next(i for i, l in enumerate(dt_lines, 1) if "    INT = auto()" in l)
+        tt_i = next(i for i, l in enumerate(tt_lines, 1) if "    INT = auto()" in l)
+        p_i = next(i for i, l in enumerate(p_lines, 1) if "        TokenType.INT," in l)
+        patch = (
+            "diff --git a/sqlglot/expressions/datatypes.py b/sqlglot/expressions/datatypes.py\n"
+            "--- a/sqlglot/expressions/datatypes.py\n"
+            "+++ b/sqlglot/expressions/datatypes.py\n"
+            f"@@ -{dt_i},1 +{dt_i},2 @@\n"
+            f" {dt_lines[dt_i-1]}\n"
+            "+    ZZ_BRAND_NEW_DTYPE = auto()\n"
+            "diff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\n"
+            "--- a/sqlglot/tokenizer_core.py\n"
+            "+++ b/sqlglot/tokenizer_core.py\n"
+            f"@@ -{tt_i},1 +{tt_i},2 @@\n"
+            f" {tt_lines[tt_i-1]}\n"
+            "+    ZZ_BRAND_NEW_TOKEN = auto()\n"
+            "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\n"
+            "--- a/sqlglot/parser.py\n"
+            "+++ b/sqlglot/parser.py\n"
+            f"@@ -{p_i},1 +{p_i},2 @@\n"
+            f" {p_lines[p_i-1]}\n"
+            "+        TokenType.ZZ_BRAND_NEW_TOKEN,\n"
+        )
+        res = impact.select(patch, cat)
+        self.assertFalse(res["full"])
+        self.assertEqual(len(res["required"]), 0)
+
+    def test_unsupported_args_sql_method_narrows_dispatch(self):
+        """A newly added @unsupported_args(...) Generator *_sql method uses sql_method_bits."""
+        from selector import impact
+
+        idx = impact._index()
+        cat = [{"number": i, "id": t} for i, t in enumerate(idx["tests"])]
+        pg_lines = impact._sources()["src"]["sqlglot/generators/postgres.py"].splitlines()
+        ln = next(i for i, l in enumerate(pg_lines, 1) if "class PostgresGenerator(" in l) + 2
+        # Insert right before end of file (inside PostgresGenerator)
+        end_ln = len(pg_lines)
+        patch = (
+            "diff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py\n"
+            "--- a/sqlglot/generators/postgres.py\n"
+            "+++ b/sqlglot/generators/postgres.py\n"
+            f"@@ -{end_ln},1 +{end_ln},4 @@\n"
+            f" {pg_lines[end_ln-1]}\n"
+            '+    @unsupported_args("options")\n'
+            "+    def regexpfullmatch_sql(self, expression):\n"
+            "+        return self.sql(expression.this)\n"
+        )
+        res = impact.select(patch, cat)
+        self.assertFalse(res["full"])
+        self.assertLessEqual(len(res["required"]), 5)
+
+    def test_pygen_skipped_when_method_tail_already_empty(self):
+        """tail_cases_info sets needs_pygen=False when method confinement proves []."""
+        from selector import heavy, impact
+        from selector.patch import parse
+
+        g_lines = impact._sources()["src"]["sqlglot/generator.py"].splitlines()
+        # Find an uncalled *_sql method on Generator (not in TPC-DS tail)
+        rows = heavy.downstream()
+        called_lines = {ln for r in rows for p, ln in r["calls"] if p == "sqlglot/generator.py"}
+        scopes = impact._index()["scopes"]["sqlglot/generator.py"][1]
+        target = next(
+            (s, e, nm, b) for k, s, e, nm, b in scopes
+            if k == "def" and nm.startswith("Generator.") and nm.endswith("_sql")
+            and not any(s <= c <= e for c in called_lines)
+            and e - b >= 1
+        )
+        ln = target[3]
+        patch = (
+            "diff --git a/sqlglot/generator.py b/sqlglot/generator.py\n"
+            "--- a/sqlglot/generator.py\n"
+            "+++ b/sqlglot/generator.py\n"
+            f"@@ -{ln},1 +{ln},2 @@\n"
+            f" {g_lines[ln-1]}\n"
+            "         _noop = 1\n"
+        )
+        # Replace leading space on inserted line with +
+        patch = patch.replace("\n         _noop = 1\n", "\n+        _noop = 1\n")
+        after = "\n".join(g_lines[:ln] + ["        _noop = 1"] + g_lines[ln:]) + "\n"
+        cases, needs_pygen = heavy.tail_cases_info("sqlglot/generator.py", after, parse(patch)[0])
+        self.assertEqual(cases, [])
+        self.assertFalse(needs_pygen)
+
+    def test_cheap_proofs_mro_and_companion_test(self):
+        """unread_option recognizes indirect Dialect subclasses (Trino(Presto)) and companion tests."""
+        from selector import cheap_proofs, impact
+
+        tr_lines = impact._sources()["src"]["sqlglot/dialects/trino.py"].splitlines()
+        ln = next(i for i, l in enumerate(tr_lines, 1) if "SUPPORTS_USER_DEFINED_TYPES = False" in l)
+        patch = (
+            "diff --git a/sqlglot/dialects/trino.py b/sqlglot/dialects/trino.py\n"
+            "--- a/sqlglot/dialects/trino.py\n"
+            "+++ b/sqlglot/dialects/trino.py\n"
+            f"@@ -{ln},1 +{ln},1 @@\n"
+            "-    SUPPORTS_USER_DEFINED_TYPES = False\n"
+            "+    SUPPORTS_USER_DEFINED_TYPES = True\n"
+        )
+        self.assertTrue(cheap_proofs.unread_option(patch, "ds"))
+        self.assertTrue(cheap_proofs.unread_option(patch, "generator"))
+
 
 if __name__ == "__main__":
     unittest.main()

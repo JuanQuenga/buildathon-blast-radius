@@ -1028,6 +1028,7 @@ class Analysis:
             self.add(self.import_break(oldp, f"compile error: {type(e).__name__}"),
                      f"{oldp} no longer compiles")
             return
+        self.__dict__.setdefault("_new_srcs", {})[oldp] = new_src
         semantics = _changed_call_semantics(oldp, patched_code)
         if isinstance(semantics, set) and semantics:
             scopes = self.idx["scopes"].get(oldp, [None, []])[1]
@@ -1456,13 +1457,21 @@ class PyDiff:
             risky = self.risky_bits([n], None)
             if (
                 isinstance(n, _DEFS)
-                and not n.decorator_list
                 and not n.name.startswith(("__", "test"))
             ):
-                if not n.name.endswith("_sql") and not n.name.isupper() and not _name_sites(self.an, n.name):
+                if (
+                    not n.decorator_list
+                    and not n.name.endswith("_sql")
+                    and not n.name.isupper()
+                    and not _name_sites(self.an, n.name)
+                ):
                     self.add(risky, f"{owner[0]}.{n.name} added (brand-new helper)")
                     return
-                if n.name.endswith("_sql") and owner[0].split(".")[-1].endswith("Generator"):
+                if (
+                    n.name.endswith("_sql")
+                    and owner[0].split(".")[-1].endswith("Generator")
+                    and all(_is_safe_sql_decorator(d) for d in n.decorator_list)
+                ):
                     from . import dict_keys
                     sql_bits = dict_keys.sql_method_bits(n.name)
                     if sql_bits is not None:
@@ -1570,24 +1579,26 @@ class PyDiff:
                 ):
                     self.an.reasons.append(f"{self.path}: duplicate class constant(s) {sorted(names)[:3]} of {q}")
                     return
-        # pure addition of brand-new TokenType enum member(s) (`X = auto()`):
-        # zero files in pinned SQLGlot iterate TokenType or rely on its int values.
+        # pure addition of brand-new TokenType / DType enum member(s) (`X = auto()`):
+        # zero files in pinned SQLGlot iterate TokenType or DType or rely on their int values.
         if (
             not o_other
             and n_other
-            and self.path == "sqlglot/tokenizer_core.py"
-            and q == "TokenType"
+            and (
+                (self.path == "sqlglot/tokenizer_core.py" and q == "TokenType")
+                or (self.path == "sqlglot/expressions/datatypes.py" and q == "DType")
+            )
         ):
-            old_tt_names = set()
+            old_enum_names = set()
             for st in owner[1].body:
-                old_tt_names |= _bound_names(st)
+                old_enum_names |= _bound_names(st)
             if all(
                 _is_docstring(s)
                 or (
                     isinstance(s, ast.Assign)
                     and len(s.targets) == 1
                     and isinstance(s.targets[0], ast.Name)
-                    and s.targets[0].id not in old_tt_names
+                    and s.targets[0].id not in old_enum_names
                     and not s.targets[0].id.startswith("_")
                     and isinstance(s.value, ast.Call)
                     and isinstance(s.value.func, ast.Name)
@@ -1598,7 +1609,7 @@ class PyDiff:
                 )
                 for s in n_other
             ):
-                self.an.reasons.append(f"{self.path}: new TokenType member(s) {sorted(names)[:3]} -> 0 extra tests")
+                self.an.reasons.append(f"{self.path}: new {q} member(s) {sorted(names)[:3]} -> 0 extra tests")
                 return
         # enum members are also read by iteration (``for d in Dialects``)
         if any(re.search(r"Enum|AutoName|Flag", _dump(b)) for b in owner[1].bases):
@@ -1628,12 +1639,20 @@ class PyDiff:
                 from .token_options import date_unit_bits
                 b = date_unit_bits(self, b, o_other, n_other)
             if len(names) == 1:
-                from . import dict_keys
                 attr_name = next(iter(names))
-                if attr_name in dict_keys.TABLES:
-                    narrowed = dict_keys.narrow_bits(attr_name, b, o_other, n_other)
-                    if narrowed is not None:
-                        b = narrowed
+                brand_new_tt = self.an.__dict__.get("patch_brand_new_tokens")
+                if (
+                    brand_new_tt
+                    and (self.path == "sqlglot/parser.py" or self.path.startswith("sqlglot/parsers/"))
+                    and _only_adds_brand_new_tokens(attr_name, o_other, n_other, owner[1], brand_new_tt)
+                ):
+                    b = 0
+                else:
+                    from . import dict_keys
+                    if attr_name in dict_keys.TABLES:
+                        narrowed = dict_keys.narrow_bits(attr_name, b, o_other, n_other)
+                        if narrowed is not None:
+                            b = narrowed
             self.an.excluded |= fam & ~b  # for offline validation of the refinement
             how = "readers"
         else:
@@ -2133,8 +2152,18 @@ def _refs_one(an: Analysis, name: str, def_path: str, excl, depth: int, removed:
             sc = _scope_at(an, path, ln)
             in_body = sc is not None and sc[0] == "def" and ln >= sc[4]
             (late if in_body else early).append((path, ln, lo, hi))
+    if removed:
+        new_self_src = an.__dict__.get("_new_srcs", {}).get(def_path)
+        self_gone_clean = (
+            new_self_src is not None
+            and not re.search(r"\b" + re.escape(name) + r"\b", new_self_src)
+        )
+    else:
+        self_gone_clean = False
     # import-time sites first: a removed name there may end the analysis early
     for path, ln, lo, hi in early + late:
+        if path == def_path and self_gone_clean:
+            continue
         bits |= _ref_site_bits(an, path, ln, lo, hi, name, depth, removed)
     memo[key] = bits
     return bits
@@ -2517,6 +2546,152 @@ def _inert_companion(fp):
     return ast.dump(ast.parse(old.encode())) == ast.dump(ast.parse(new.encode()))
 
 
+_PARSER_TOKEN_SETS = frozenset({
+    "TYPE_TOKENS", "FUNC_TOKENS", "ID_VAR_TOKENS", "ALIAS_TOKENS", "TABLE_ALIAS_TOKENS",
+})
+_PARSER_TOKEN_DICTS = frozenset({
+    "PRIMARY_PARSERS", "RANGE_PARSERS", "UNARY_PARSERS", "STATEMENT_PARSERS",
+})
+
+
+def _is_safe_sql_decorator(dec: ast.AST) -> bool:
+    """True for ``@unsupported_args("...")`` decorators on Generator ``*_sql`` methods."""
+    if not isinstance(dec, ast.Call):
+        return False
+    fn = dec.func
+    is_ua = (
+        (isinstance(fn, ast.Name) and fn.id == "unsupported_args")
+        or (isinstance(fn, ast.Attribute) and fn.attr == "unsupported_args")
+    )
+    if not is_ua:
+        return False
+    return all(isinstance(a, ast.Constant) and isinstance(a.value, str) for a in dec.args) and all(
+        isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str) for kw in dec.keywords
+    )
+
+
+def _is_brand_new_token_node(node: ast.AST, brand_new_tt: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "TokenType"
+        and node.attr in brand_new_tt
+    )
+
+
+def _single_attr_rhs(stmts: list[ast.stmt], attr_name: str) -> ast.AST | None:
+    non_doc = [s for s in stmts if not _is_docstring(s)]
+    if len(non_doc) != 1:
+        return None
+    s = non_doc[0]
+    if isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
+        return s.value if s.targets[0].id == attr_name else None
+    if isinstance(s, ast.AnnAssign) and isinstance(s.target, ast.Name) and s.value is not None:
+        return s.value if s.target.id == attr_name else None
+    return None
+
+
+def _base_attr_matches_owner(node: ast.AST, attr_name: str, owner_cls: ast.ClassDef) -> bool:
+    """True when ``node`` is ``<Base>.<attr_name>`` matching a direct base of ``owner_cls``."""
+    if not (isinstance(node, ast.Attribute) and node.attr == attr_name):
+        return False
+    base_dumps = {_dump(b) for b in owner_cls.bases}
+    if _dump(node.value) in base_dumps:
+        return True
+    # Match e.g. ``parser.Parser.PRIMARY_PARSERS`` when base is ``parser.Parser`` or ``Parser``.
+    if isinstance(node.value, ast.Attribute):
+        return any(
+            (isinstance(b, ast.Name) and b.id == node.value.attr)
+            or (isinstance(b, ast.Attribute) and b.attr == node.value.attr)
+            for b in owner_cls.bases
+        )
+    if isinstance(node.value, ast.Name):
+        return any(
+            (isinstance(b, ast.Name) and b.id == node.value.id)
+            or (isinstance(b, ast.Attribute) and b.attr == node.value.id)
+            for b in owner_cls.bases
+        )
+    return False
+
+
+def _only_adds_brand_new_tokens(
+    attr_name: str,
+    o_other: list[ast.stmt],
+    n_other: list[ast.stmt],
+    owner_cls: ast.ClassDef,
+    brand_new_tt: set[str],
+) -> bool:
+    """True when a Parser token-set or TokenType-keyed dispatch-dict edit ONLY
+    adds entries for brand-new ``TokenType`` members introduced by this patch."""
+    if attr_name not in _PARSER_TOKEN_SETS and attr_name not in _PARSER_TOKEN_DICTS:
+        return False
+    n_rhs = _single_attr_rhs(n_other, attr_name)
+    if n_rhs is None:
+        return False
+    if attr_name in _PARSER_TOKEN_SETS:
+        if not o_other:
+            # Brand-new subclass override: {*Base.ATTR, TokenType.NEW} or Base.ATTR | {TokenType.NEW}
+            if isinstance(n_rhs, ast.Set):
+                starred = [e.value for e in n_rhs.elts if isinstance(e, ast.Starred)]
+                plain = [e for e in n_rhs.elts if not isinstance(e, ast.Starred)]
+                return (
+                    len(starred) == 1
+                    and bool(plain)
+                    and _base_attr_matches_owner(starred[0], attr_name, owner_cls)
+                    and all(_is_brand_new_token_node(e, brand_new_tt) for e in plain)
+                )
+            if (
+                isinstance(n_rhs, ast.BinOp)
+                and isinstance(n_rhs.op, ast.BitOr)
+                and _base_attr_matches_owner(n_rhs.left, attr_name, owner_cls)
+                and isinstance(n_rhs.right, ast.Set)
+                and bool(n_rhs.right.elts)
+                and all(_is_brand_new_token_node(e, brand_new_tt) for e in n_rhs.right.elts)
+            ):
+                return True
+            return False
+        o_rhs = _single_attr_rhs(o_other, attr_name)
+        if o_rhs is None:
+            return False
+        if isinstance(o_rhs, ast.Set) and isinstance(n_rhs, ast.Set):
+            kept = [e for e in n_rhs.elts if not _is_brand_new_token_node(e, brand_new_tt)]
+            return len(kept) < len(n_rhs.elts) and [_dump(e) for e in kept] == [_dump(e) for e in o_rhs.elts]
+        if isinstance(n_rhs, ast.BinOp) and isinstance(n_rhs.op, ast.BitOr) and isinstance(n_rhs.right, ast.Set):
+            kept = [e for e in n_rhs.right.elts if not _is_brand_new_token_node(e, brand_new_tt)]
+            if len(kept) < len(n_rhs.right.elts):
+                if not kept:
+                    return _dump(n_rhs.left) == _dump(o_rhs)
+                if isinstance(o_rhs, ast.BinOp) and isinstance(o_rhs.op, ast.BitOr) and isinstance(o_rhs.right, ast.Set):
+                    return _dump(n_rhs.left) == _dump(o_rhs.left) and [_dump(e) for e in kept] == [_dump(e) for e in o_rhs.right.elts]
+        return False
+
+    # _PARSER_TOKEN_DICTS
+    if not isinstance(n_rhs, ast.Dict):
+        return False
+    if not o_other:
+        unpacks = [v for k, v in zip(n_rhs.keys, n_rhs.values) if k is None]
+        pairs = [(k, v) for k, v in zip(n_rhs.keys, n_rhs.values) if k is not None]
+        return (
+            len(unpacks) == 1
+            and bool(pairs)
+            and _base_attr_matches_owner(unpacks[0], attr_name, owner_cls)
+            and all(_is_brand_new_token_node(k, brand_new_tt) for k, _ in pairs)
+        )
+    o_rhs = _single_attr_rhs(o_other, attr_name)
+    if not isinstance(o_rhs, ast.Dict):
+        return False
+    kept_pairs = [
+        (k, v) for k, v in zip(n_rhs.keys, n_rhs.values)
+        if not (k is not None and _is_brand_new_token_node(k, brand_new_tt))
+    ]
+    if len(kept_pairs) >= len(n_rhs.keys):
+        return False
+    old_pairs = list(zip(o_rhs.keys, o_rhs.values))
+    return [(_dump(k) if k is not None else None, _dump(v)) for k, v in kept_pairs] == [
+        (_dump(k) if k is not None else None, _dump(v)) for k, v in old_pairs
+    ]
+
+
 def _collect_patch_additions(an: Analysis, files) -> None:
     """Pre-collect newly added module-level and class-level symbols across all
     cleanly compiling Python files in the patch so cross-file references to
@@ -2524,6 +2699,7 @@ def _collect_patch_additions(an: Analysis, files) -> None:
     trigger false ``import risk`` full-suite fallbacks."""
     added_mod: dict[str, set[str]] = {}
     added_cls: dict[str, set[str]] = {}
+    brand_new_tokens: set[str] = set()
     srcs = _sources()["src"]
     ns_cls = an.idx.get("ns_cls", {})
     for fp in files:
@@ -2560,8 +2736,26 @@ def _collect_patch_additions(an: Analysis, files) -> None:
                 full = f"{rm}.{node.name}"
                 if rm == mod or full in ns_cls:
                     added_cls.setdefault(full, set()).update(cls_attrs)
+            if fp.path == "sqlglot/tokenizer_core.py" and node.name == "TokenType":
+                old_tt = ns_cls.get("sqlglot.tokenizer_core.TokenType", ())
+                for st in node.body:
+                    if (
+                        isinstance(st, ast.Assign)
+                        and len(st.targets) == 1
+                        and isinstance(st.targets[0], ast.Name)
+                        and st.targets[0].id not in old_tt
+                        and not st.targets[0].id.startswith("_")
+                        and isinstance(st.value, ast.Call)
+                        and isinstance(st.value.func, ast.Name)
+                        and st.value.func.id == "auto"
+                        and not st.value.args
+                        and not st.value.keywords
+                        and not _name_sites(an, st.targets[0].id)
+                    ):
+                        brand_new_tokens.add(st.targets[0].id)
     an.patch_added_mod = added_mod
     an.patch_added_cls = added_cls
+    an.patch_brand_new_tokens = brand_new_tokens
 
 
 def select(patch_text: str, catalog: list[dict]) -> dict:

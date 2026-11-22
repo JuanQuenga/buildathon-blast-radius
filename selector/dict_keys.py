@@ -94,11 +94,75 @@ def _decode_key(node: ast.AST, table: str) -> str | None:
     return None
 
 
-def _extract_entries(node: ast.AST, table: str) -> tuple[list[str], dict[str, str]] | None:
-    """Return ``(base_unpack_dumps, {key_str: value_dump})`` or ``None`` if unsupported."""
+def _filtered_base_unpack(v: ast.AST, table: str) -> tuple[str, set[str]] | None:
+    """Match ``{k: v for k, v in <BASE>.items() if k != KEY}`` or
+    ``{k: v for k, v in <BASE>.items() if k not in (KEY1, KEY2)}``.
+    Returns ``(base_dump, excluded_key_tokens)`` or ``None``."""
+    if (
+        not isinstance(v, ast.DictComp)
+        or len(v.generators) != 1
+        or len(v.generators[0].ifs) != 1
+        or v.generators[0].is_async
+    ):
+        return None
+    gen = v.generators[0]
+    if not (
+        isinstance(gen.target, ast.Tuple)
+        and len(gen.target.elts) == 2
+        and isinstance(gen.target.elts[0], ast.Name)
+        and isinstance(gen.target.elts[1], ast.Name)
+    ):
+        return None
+    k_id, v_id = gen.target.elts[0].id, gen.target.elts[1].id
+    if not (
+        isinstance(v.key, ast.Name)
+        and v.key.id == k_id
+        and isinstance(v.value, ast.Name)
+        and v.value.id == v_id
+    ):
+        return None
+    if not (
+        isinstance(gen.iter, ast.Call)
+        and isinstance(gen.iter.func, ast.Attribute)
+        and gen.iter.func.attr == "items"
+        and not gen.iter.args
+        and not gen.iter.keywords
+    ):
+        return None
+    cond = gen.ifs[0]
+    if not (
+        isinstance(cond, ast.Compare)
+        and len(cond.ops) == 1
+        and len(cond.comparators) == 1
+        and isinstance(cond.left, ast.Name)
+        and cond.left.id == k_id
+    ):
+        return None
+    op, rhs = cond.ops[0], cond.comparators[0]
+    excluded: set[str] = set()
+    if isinstance(op, ast.NotEq):
+        ek = _decode_key(rhs, table)
+        if ek is None:
+            return None
+        excluded.add(ek)
+    elif isinstance(op, ast.NotIn) and isinstance(rhs, (ast.Tuple, ast.Set, ast.List)):
+        for elt in rhs.elts:
+            ek = _decode_key(elt, table)
+            if ek is None:
+                return None
+            excluded.add(ek)
+    else:
+        return None
+    return ast.dump(gen.iter.func.value, include_attributes=False), excluded
+
+
+def _extract_entries(node: ast.AST, table: str) -> tuple[list[str], list[set[str]], dict[str, str]] | None:
+    """Return ``(base_unpack_dumps, unpack_exclusions, {key_str: value_dump})``
+    or ``None`` if unsupported."""
     if not isinstance(node, ast.Dict):
         return None
     unpacks: list[str] = []
+    exclusions: list[set[str]] = []
     entries: dict[str, str] = {}
     for k, v in zip(node.keys, node.values):
         if k is None:
@@ -136,13 +200,20 @@ def _extract_entries(node: ast.AST, table: str) -> tuple[list[str], dict[str, st
                         return None
                     entries[ek] = val_dump
             else:
-                unpacks.append(ast.dump(v, include_attributes=False))
+                filt = _filtered_base_unpack(v, table)
+                if filt is not None:
+                    base_dump, excl = filt
+                    unpacks.append(base_dump)
+                    exclusions.append(excl)
+                else:
+                    unpacks.append(ast.dump(v, include_attributes=False))
+                    exclusions.append(set())
         else:
             ek = _decode_key(k, table)
             if ek is None:
                 return None
             entries[ek] = ast.dump(v, include_attributes=False)
-    return unpacks, entries
+    return unpacks, exclusions, entries
 
 
 def _single_assign_rhs(stmts: list[ast.stmt], target_name: str) -> ast.AST | None:
@@ -161,8 +232,9 @@ def _single_assign_rhs(stmts: list[ast.stmt], target_name: str) -> ast.AST | Non
 
 
 def changed_keys(table: str, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt]) -> set[str] | None:
-    """If ``o_stmts`` -> ``n_stmts`` only changes literal entries of ``table``
-    (preserving all ``**base`` unpacks), return the exact set of changed key tokens."""
+    """If ``o_stmts`` -> ``n_stmts`` only changes literal entries or filtered
+    base-dict exclusions of ``table`` (preserving all ``**base`` unpacks),
+    return the exact set of changed key tokens."""
     if table not in TABLES:
         return None
     o_rhs = _single_assign_rhs(o_stmts, table)
@@ -173,14 +245,16 @@ def changed_keys(table: str, o_stmts: list[ast.stmt], n_stmts: list[ast.stmt]) -
     new_parsed = _extract_entries(n_rhs, table)
     if old_parsed is None or new_parsed is None:
         return None
-    o_unpacks, o_entries = old_parsed
-    n_unpacks, n_entries = new_parsed
+    o_unpacks, o_excls, o_entries = old_parsed
+    n_unpacks, n_excls, n_entries = new_parsed
     if o_unpacks != n_unpacks:
         return None
     delta = {
         k for k in (o_entries.keys() | n_entries.keys())
         if o_entries.get(k) != n_entries.get(k)
     }
+    for oe, ne in zip(o_excls, n_excls):
+        delta |= oe ^ ne
     return delta
 
 

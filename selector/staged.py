@@ -181,7 +181,7 @@ def rule_query_check():
     return check
 
 
-def executor(record, expected, full, selection=None):
+def executor(record, expected, full, selection=None, *, check_pygen=None):
     if selection is not None and not selection["active"]:
         return [], []
     if not record:
@@ -200,7 +200,7 @@ def executor(record, expected, full, selection=None):
             sys.path.append(str(Path(__file__).parent))
             from result_replay import run
 
-            run(test, tests, ex, expected, full, selection, digest, plan_digest)
+            run(test, tests, ex, expected, full, selection, digest, plan_digest, check_pygen=check_pygen)
             return [], []
 
     import sqlglot
@@ -229,7 +229,7 @@ def executor(record, expected, full, selection=None):
         sys.path.append(str(Path(__file__).parent))
         from result_replay import run
         try:
-            run(test, tests, ex, expected, full, selection, digest, plan_digest)
+            run(test, tests, ex, expected, full, selection, digest, plan_digest, check_pygen=check_pygen)
         finally:
             test.tearDownClass()
         return [], []
@@ -329,16 +329,20 @@ def main():
         pinned(Recorder(False), {"parser:0", "parser:1", "parser:3"})
     elif group == "slice":
         selection = json.loads(sys.argv[2])
-        executor(False, data["ds"], selection["execute"], selection)
+        check_pygen = bool(selection.get("pygen", False)) if "pygen" in selection else None
+        executor(False, data["ds"], selection["execute"], selection, check_pygen=check_pygen)
     elif group == "scaled":
         forbidden = json.loads(sys.argv[2]) if len(sys.argv) > 2 else None
         if parser(forbidden=forbidden) != data["parser"]:
             raise ValueError("scaled parser outcomes changed")
     else:
+        extra = sys.argv[3:] if group == "partial" else sys.argv[2:]
+        check_pygen = True if "pygen" in extra else (False if "no-pygen" in extra else None)
         executor(
             False,
             data["ds"],
             json.loads(sys.argv[2]) if group == "partial" else group == "full",
+            check_pygen=check_pygen,
         )
 
 
