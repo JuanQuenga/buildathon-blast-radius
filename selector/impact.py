@@ -497,6 +497,87 @@ def _same_observed_comparison(path, old, new):
 
 
 @functools.lru_cache(maxsize=1)
+def _order_sites():
+    path = MAPS_DIR / "order.json"
+    return frozenset(json.loads(path.read_text())) if path.is_file() else frozenset()
+
+
+_ORDER_TWINS = frozenset({(ast.Lt, ast.LtE), (ast.LtE, ast.Lt), (ast.Gt, ast.GtE), (ast.GtE, ast.Gt)})
+
+
+def _same_observed_order(path, old, new):
+    """Allow exactly one strict/non-strict ordering substitution, with all other AST
+    fields equal, at a site whose pinned operands were never equal (both forms agreed)."""
+    module = _module_name(path)
+    old_nodes = list(ast.walk(old))
+    new_nodes = list(ast.walk(new))
+    if len(old_nodes) != len(new_nodes):
+        return False
+    for a, b in zip(old_nodes, new_nodes):
+        if not isinstance(a, ast.Compare) or not isinstance(b, ast.Compare):
+            continue
+        if len(a.ops) != 1 or len(b.ops) != 1:
+            continue
+        if (type(a.ops[0]), type(b.ops[0])) not in _ORDER_TWINS:
+            continue
+        if f"{module}-{a.lineno}-{a.col_offset}" not in _order_sites():
+            continue
+        saved = b.ops
+        try:
+            b.ops = a.ops
+            return _dump(old) == _dump(new)
+        finally:
+            b.ops = saved
+    return False
+
+
+@functools.lru_cache(maxsize=1)
+def _equiv_tests():
+    path = MAPS_DIR / "equiv-tests.json"
+    return json.loads(path.read_text()) if path.is_file() else {"identity": {}, "order": {}}
+
+
+_IDENTITY_TWINS = frozenset({(ast.Is, ast.Eq), (ast.IsNot, ast.NotEq)})
+
+
+def _substituted_site(path, old, new, twins):
+    """Pinned site of the only operator substitution in ``twins`` when the trees are otherwise identical."""
+    old_nodes = list(ast.walk(old))
+    new_nodes = list(ast.walk(new))
+    if len(old_nodes) != len(new_nodes):
+        return None
+    for a, b in zip(old_nodes, new_nodes):
+        if not isinstance(a, ast.Compare) or not isinstance(b, ast.Compare):
+            continue
+        if len(a.ops) != 1 or len(b.ops) != 1 or (type(a.ops[0]), type(b.ops[0])) not in twins:
+            continue
+        saved = b.ops
+        try:
+            b.ops = a.ops
+            same = _dump(old) == _dump(new)
+        finally:
+            b.ops = saved
+        return f"{_module_name(path)}-{a.lineno}-{a.col_offset}" if same else None
+    return None
+
+
+def _observed_substitution_tests(path, old, new, identity_edit, order_edit):
+    """Pinned tests whose call phase saw the substituted operators disagree (or not evaluable).
+
+    Every other test either never evaluated the site or always got the same result from
+    both operators, so it executes identically. Sites with any disagreement outside a
+    test's call phase or inside a module body are absent from the map."""
+    for enabled, twins, kind in ((identity_edit, _IDENTITY_TWINS, "identity"), (order_edit, _ORDER_TWINS, "order")):
+        if not enabled:
+            continue
+        site = _substituted_site(path, old, new, twins)
+        tests = _equiv_tests()[kind].get(site) if site else None
+        if tests is not None:
+            return kind, site, tests
+    return None
+
+
+@functools.lru_cache(maxsize=1)
 def _branch_map():
     """Return ``(sites_dict, tail_both_dict)`` where ``sites_dict[site] = (b0, b1)``
     bitmasks of tests where ``site`` was always False / always True."""
@@ -1060,6 +1141,9 @@ class Analysis:
             changed = [(tag, text) for tag, text in placed[0][0].lines if tag in ("+", "-")]
             identity_edit = (len(changed) == 2 and " is " in changed[0][1]
                              and ("==" in changed[1][1] or "!=" in changed[1][1]))
+            self.__dict__["_order_edit"] = (
+                len(changed) == 2 and changed[0][0] == "-" and changed[1][0] == "+"
+                and any(c in changed[0][1] for c in "<>") and any(c in changed[1][1] for c in "<>"))
         if self.single_file and oldp.startswith("sqlglot/typing/"):
             from .metadata_keys import removed_keys, observations
             keys = removed_keys(oldp, new_src)
@@ -1096,12 +1180,31 @@ class Analysis:
         if identity_edit and _same_observed_comparison(oldp, old_tree, new_tree):
             self.reasons.append(f"{oldp}: identity and equality agreed on pinned operands")
             return
+        if self.__dict__.get("_order_edit") and _same_observed_order(oldp, old_tree, new_tree):
+            self.reasons.append(f"{oldp}: strict and non-strict ordering agreed on pinned operands")
+            return
+        if self.observed_substitution(oldp, old_tree, new_tree, identity_edit):
+            return
         if self.single_file and len(placed) == 1:
             from .value_reads import inert
             if inert(oldp, old_tree, new_tree, self.idx["mro"]):
                 self.reasons.append(f"{oldp}: unchanged validation and dispatch on pinned inputs")
                 return
         PyDiff(self, oldp, old_tree, new_tree, old_src, new_src).run()
+
+    def observed_substitution(self, path, old, new, identity_edit) -> bool:
+        hit = _observed_substitution_tests(path, old, new, identity_edit, self.__dict__.get("_order_edit"))
+        if hit is None:
+            return False
+        kind, site, tests = hit
+        positions = {t: i for i, t in enumerate(self.idx["tests"])}
+        if any(t not in positions for t in tests):
+            return False
+        bits = 0
+        for t in tests:
+            bits |= 1 << positions[t]
+        self.add(bits, f"{path}: {kind} substitution at {site} diverged in {len(tests)} pinned tests")
+        return True
 
     def fast_function_path(self, path, old_src, new_src, placed, identity_edit=False) -> bool:
         """All hunks strictly inside one function body: parse just that
@@ -1181,6 +1284,11 @@ class Analysis:
             return True
         if identity_edit and _same_observed_comparison(path, o, n):
             self.reasons.append(f"{path}: identity and equality agreed on pinned operands")
+            return True
+        if self.__dict__.get("_order_edit") and _same_observed_order(path, o, n):
+            self.reasons.append(f"{path}: strict and non-strict ordering agreed on pinned operands")
+            return True
+        if self.observed_substitution(path, o, n, identity_edit):
             return True
         excluded = ()
         if (self.single_file and path == "sqlglot/generator.py" and qual.startswith("Generator.")
